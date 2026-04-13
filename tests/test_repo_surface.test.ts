@@ -42,25 +42,31 @@ coveredTest(
     expect(readme).toContain("./bin/dev check");
     expect(readme).toContain("./bin/dev check-parity");
     expect(readme).toContain("./bin/dev check-live");
+    expect(readme).toContain(
+      "uv tool install git+https://github.com/martelogan/autoclanker.git",
+    );
+    expect(readme).toContain("pi install https://github.com/martelogan/pi-autoclanker");
     expect(readme).toContain("pi install /absolute/path/to/pi-autoclanker");
-    expect(readme).toContain("Start Simple");
-    expect(readme).toContain("Optimization Loop");
-    expect(readme).toContain("Run Output");
+    expect(readme).toContain("What’s included");
+    expect(readme).toContain("Commands");
+    expect(readme).toContain("Tools");
+    expect(readme).toContain("Skills");
+    expect(readme).toContain("Files & output");
     expect(readme).toContain("[cEvolve](https://github.com/jnormore/cevolve)");
     expect(readme).toContain(
       "[Autoresearch](https://github.com/karpathy/autoresearch)",
     );
-    expect(readme).toContain("candidate lanes");
-    expect(readme).toContain("A run has three layers");
+    expect(readme).toContain("autoclanker_init_session");
+    expect(readme).toContain("/autoclanker start <goal>");
+    expect(readme).toContain("autoclanker-create");
     expect(readme).toContain("autoclanker.history.jsonl");
-    expect(readme).toContain("plain-string rough ideas");
+    expect(readme).toContain("plain strings at first");
     expect(readme).toContain("RESULTS.md");
     expect(readme).toContain("observations.jsonl");
     expect(readme).toContain("posterior_summary.json");
     expect(readme).toContain("influence_summary.json");
-    expect(readme).toContain("render-report");
     expect(readme).toContain("belief_graph_posterior.png");
-    expect(readme).toContain("Implemented Surface");
+    expect(readme).toContain("Example demo");
     expect(readme).toContain("tests/parity_manifest.json");
     expect(readme).not.toContain("TypeScript port scaffold");
     expect(spec).toContain("Optimization loop mental model");
