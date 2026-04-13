@@ -1,0 +1,5 @@
+[
+  "Compiled regex matching probably helps repeated incident formats.",
+  "Keeping breadcrumbs beside each alarm likely pairs well with context extraction.",
+  "Wide capture windows may blow memory on long traces."
+]

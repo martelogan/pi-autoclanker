@@ -1,0 +1,52 @@
+[
+  {
+    "pythonTest": "tests/test_compliance_matrix.py",
+    "typescriptTest": "tests/test_compliance_matrix.test.ts",
+    "behavior": "compliance matrix, requirement coverage, and parity scaffolding stay synchronized"
+  },
+  {
+    "pythonTest": "tests/test_repo_surface.py",
+    "typescriptTest": "tests/test_repo_surface.test.ts",
+    "behavior": "repo identity and core docs remain aligned with the product contract"
+  },
+  {
+    "pythonTest": "tests/test_extension_scaffold.py",
+    "typescriptTest": "tests/test_extension_scaffold.test.ts",
+    "behavior": "extension bridge and required skills exist at canonical paths"
+  },
+  {
+    "pythonTest": "tests/test_packaged_surface.py",
+    "typescriptTest": "tests/test_packaged_surface.test.ts",
+    "behavior": "published package surface remains installable and complete"
+  },
+  {
+    "pythonTest": "tests/test_typescript_bridge.py",
+    "typescriptTest": "tests/test_typescript_bridge.test.ts",
+    "behavior": "ts-native extension bridge stays aligned with the runtime contract and host shape"
+  },
+  {
+    "pythonTest": "tests/test_runtime_bridge.py",
+    "typescriptTest": "tests/test_runtime_bridge.test.ts",
+    "behavior": "runtime tool and command flows match committed oracle behavior snapshots"
+  },
+  {
+    "pythonTest": "tests/test_runtime_error_paths.py",
+    "typescriptTest": "tests/test_runtime_error_paths.test.ts",
+    "behavior": "runtime and CLI errors keep a stable machine-readable contract"
+  },
+  {
+    "pythonTest": "tests/test_contract_behaviors.py",
+    "typescriptTest": "tests/test_contract_behaviors.test.ts",
+    "behavior": "session-file, docs, and validation-lane contract remain consistent"
+  },
+  {
+    "pythonTest": "tests/test_live_lane_scripts.py",
+    "typescriptTest": "tests/test_live_lane_scripts.test.ts",
+    "behavior": "live lane scripts and evidence paths remain present and TS-targeted"
+  },
+  {
+    "pythonTest": "tests/test_pi_host_smoke.py",
+    "typescriptTest": "tests/test_pi_host_smoke.test.ts",
+    "behavior": "pi host-facing install and slash-command contract stays visible"
+  }
+]

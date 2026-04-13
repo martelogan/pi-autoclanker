@@ -1,0 +1,59 @@
+{
+  "applyState": "previewed",
+  "billedLive": false,
+  "canonicalBeliefs": [
+    {
+      "kind": "idea",
+      "label": "Regex cache tuning probably improves repeated parses."
+    },
+    {
+      "kind": "idea",
+      "label": "Breadcrumb-rich alarms help context extraction quality."
+    }
+  ],
+  "canonicalizationSummary": {
+    "mode": "deterministic",
+    "records": [
+      {
+        "status": "resolved"
+      },
+      {
+        "status": "resolved"
+      }
+    ]
+  },
+  "constraints": [
+    "Keep incident recall stable.",
+    "Retain a reproducible eval command."
+  ],
+  "evalSurfaceSha256": "sha256:9cd36f66d5a92dfcfc651c0f170597973dca8ec52b5a655fce5c537605b0ccb8",
+  "mode": "canonicalize",
+  "preview": {
+    "argv": [
+      "autoclanker",
+      "session",
+      "init",
+      "--session-id",
+      "parser_demo",
+      "--era-id",
+      "era_parser_demo_v1",
+      "--session-root",
+      ".autoclanker",
+      "--ideas-json",
+      "[\"Compiled regex matching probably helps repeated incident formats.\", \"Keeping breadcrumbs beside each alarm likely pairs well with context extraction.\", \"Wide capture windows may blow memory on long traces.\"]",
+      "--canonicalization-mode",
+      "hybrid"
+    ],
+    "beliefs_status": "preview_pending",
+    "preview_digest": "digest-parser-demo",
+    "session_path": ".autoclanker/parser_demo"
+  },
+  "roughIdeas": [
+    "Compiled regex matching probably helps repeated incident formats.",
+    "Keeping breadcrumbs beside each alarm likely pairs well with context extraction.",
+    "Wide capture windows may blow memory on long traces."
+  ],
+  "upstreamEraId": "era_parser_demo_v1",
+  "upstreamPreviewDigest": "digest-parser-demo",
+  "upstreamSessionId": "parser_demo"
+}

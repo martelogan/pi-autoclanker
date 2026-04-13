@@ -1,0 +1,24 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Enable corepack
+        run: corepack enable
+      - name: Ensure scripts are executable
+        run: chmod +x bin/dev scripts/*.sh scripts/dev/*.sh
+      - name: Setup dependencies
+        run: PI_AUTOCLANKER_DEV_DISABLE_BOOTSTRAP=1 ./bin/dev setup
+      - name: Full local validation lane
+        run: PI_AUTOCLANKER_DEV_DISABLE_BOOTSTRAP=1 ./bin/dev check

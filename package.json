@@ -1,0 +1,79 @@
+{
+  "name": "pi-autoclanker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypeScript-native pi extension bridge for autoclanker-backed optimization workflows",
+  "license": "Apache-2.0",
+  "type": "module",
+  "packageManager": "npm@11.12.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "src",
+    "docs",
+    "examples",
+    "configs",
+    "schemas",
+    "skills",
+    "extensions",
+    "bin",
+    "scripts",
+    "README.md",
+    "LICENSE",
+    ".env.example"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "pi-autoclanker": "./dist/cli.js"
+  },
+  "scripts": {
+    "format": "biome check --write .",
+    "lint": "biome check .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "tscheck": "tsc --noEmit -p tsconfig.json",
+    "unused": "knip",
+    "test": "vitest run --config vitest.config.ts --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:full": "bash scripts/run-full-test-suite.sh",
+    "test:parity": "bash scripts/test-parity.sh",
+    "test:upstream-live": "bash scripts/test-upstream-live.sh",
+    "test:live": "bash scripts/test-live.sh",
+    "build": "tsc -p tsconfig.build.json",
+    "package-check": "publint --strict",
+    "check:parity": "bash scripts/check-parity.sh",
+    "check:live": "bash scripts/check-live.sh",
+    "check": "bash scripts/check.sh"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.13.10",
+    "@vitest/coverage-v8": "^3.1.1",
+    "knip": "^5.45.0",
+    "publint": "^0.3.8",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.1"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "autoclanker",
+    "typescript",
+    "extension",
+    "optimization"
+  ],
+  "pi": {
+    "extensions": ["./extensions/pi-autoclanker/index.ts"],
+    "skills": ["./skills"]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*"
+  }
+}

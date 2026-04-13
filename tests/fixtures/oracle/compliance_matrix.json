@@ -1,0 +1,146 @@
+[
+  {
+    "requirement_id": "M0-001",
+    "gate": "required",
+    "description": "Repo identity, package metadata, and CLI version output expose `pi-autoclanker` consistently.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M0-002",
+    "gate": "required",
+    "description": "README and core docs describe the implemented thin-wrapper product plus the deterministic and live completion gates.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M0-003",
+    "gate": "required",
+    "description": "Wheel and sdist artifacts ship the required contract surface, and installed artifacts can load packaged runtime assets.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M1-001",
+    "gate": "required",
+    "description": "The TypeScript extension bridge source exists, exposes the required tool and slash-command surface, and is mirrored into packaged resources.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M1-002",
+    "gate": "required",
+    "description": "The Python tool bridge shells out to `autoclanker` for session bootstrap, status, preview, apply, ingest, fit, suggest, and commit recommendation.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M1-003",
+    "gate": "required",
+    "description": "The machine-readable command surface implements start or resume, status, off, clear, and export for the `/autoclanker` family.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M1-004",
+    "gate": "required",
+    "description": "The required skills exist at canonical repo paths and are mirrored into the packaged surface.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M1-005",
+    "gate": "required",
+    "description": "The TypeScript bridge passes deterministic compile and smoke validation against the Python runtime contract.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M1-006",
+    "gate": "required",
+    "description": "The repo is pi-package ready: package metadata declares pi resources, the TypeScript entrypoint exports a default ExtensionAPI registration surface, and a clean `pi install /path/to/repo` flow can load the installed `/autoclanker` host command without source-loading flags while normal tool and skill loading remain enabled.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-001",
+    "gate": "required",
+    "description": "The config schema validates the shipped example config and remains runtime-loadable from packaged resources.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-002",
+    "gate": "required",
+    "description": "The example session bundle documents and exercises the rough-ideas beginner path.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-003",
+    "gate": "required",
+    "description": "The explicit session files are sufficient for local inspection, lightweight metadata handoff, and export initiation; complete operational handoff uses the export bundle with upstream artifacts when available.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-004",
+    "gate": "required",
+    "description": "Runtime command resolution prefers an installed `autoclanker` CLI, supports a sibling checkout fallback, and keeps `autoclanker` as the Bayesian source of truth.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-005",
+    "gate": "required",
+    "description": "Advanced JSON belief promotion is explicitly gated by `allowBilledLive` and forwards a live opt-in signal upstream without changing non-billed behavior.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-006",
+    "gate": "required",
+    "description": "The beginner start path can bootstrap a session from a goal alone by generating a checked-in default eval shell stub while still allowing an explicit eval command override.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-007",
+    "gate": "required",
+    "description": "Suggest can accept an explicit autoclanker candidate-pool input so multiple pathways remain inspectable, rankable, and comparable instead of collapsing into a single prompt thread.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-008",
+    "gate": "required",
+    "description": "The checked-in `autoclanker.eval.sh` surface is snapshotted at session initialization, exposed in session status, and rejected at eval ingest time if it drifts during the life of that session.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M3-001",
+    "gate": "required",
+    "description": "The deterministic required gate excludes the opt-in live lanes.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M3-002",
+    "gate": "required",
+    "description": "The required gate includes TypeScript validation alongside lint, typecheck, tests, build, and strict-environment parity.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M3-003",
+    "gate": "required",
+    "description": "A separate `./bin/dev check-live` surface runs the opt-in live acceptance lanes.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M3-004",
+    "gate": "required",
+    "description": "`./bin/codex-autonomous` targets the realized spec pack and requires live completion when live env knobs are enabled.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M4-001",
+    "gate": "required",
+    "description": "The human-readable compliance matrix mirrors `tests/compliance_matrix.json`, and every active requirement is referenced by at least one tagged test while higher-risk behaviors keep focused contract checks.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M5-LIVE-001",
+    "gate": "live",
+    "description": "The repo provides an upstream live acceptance lane and records proof artifacts when it successfully exercises the extension tool bridge against a real CLI.",
+    "status": "external"
+  },
+  {
+    "requirement_id": "M5-LIVE-002",
+    "gate": "live",
+    "description": "The repo provides a billed provider-backed acceptance lane and records proof artifacts when it successfully exercises advanced belief promotion from rough ideas into advanced JSON beliefs with explicit live opt-in.",
+    "status": "external"
+  }
+]

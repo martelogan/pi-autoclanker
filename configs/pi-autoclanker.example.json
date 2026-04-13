@@ -1,0 +1,7 @@
+{
+  "autoclankerBinary": "autoclanker",
+  "sessionRoot": ".autoclanker",
+  "defaultIdeasMode": "canonicalize",
+  "autoclankerRepo": "../autoclanker",
+  "allowBilledLive": false
+}

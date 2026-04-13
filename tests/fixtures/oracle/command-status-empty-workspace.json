@@ -1,0 +1,41 @@
+{
+  "applyState": null,
+  "billedLive": false,
+  "command": "status",
+  "enabled": true,
+  "evalCommand": null,
+  "evalSurfaceMatchesLock": false,
+  "evalSurfaceSha256": null,
+  "exists": false,
+  "files": {
+    "autoclanker.beliefs.json": false,
+    "autoclanker.config.json": false,
+    "autoclanker.eval.sh": false,
+    "autoclanker.history.jsonl": false,
+    "autoclanker.md": false
+  },
+  "goal": null,
+  "handoff": {
+    "autoclankerCliResolvable": false,
+    "localFilesSufficientFor": [
+      "inspection",
+      "lightweight metadata handoff",
+      "export initiation"
+    ],
+    "operationalResumeReady": false,
+    "upstreamArtifactsPresent": false
+  },
+  "historyCount": 0,
+  "lockedEvalSurfaceSha256": null,
+  "ok": true,
+  "previewDigest": null,
+  "sessionRoot": "<workspace>/.autoclanker",
+  "tool": "autoclanker_session_status",
+  "upstream": {
+    "mode": "missing-session"
+  },
+  "upstreamEraId": "era_status_workspace_v1",
+  "upstreamSessionId": "status_workspace",
+  "usesDefaultEvalCommand": false,
+  "workspace": "<workspace>"
+}

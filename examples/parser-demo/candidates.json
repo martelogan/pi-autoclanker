@@ -1,0 +1,72 @@
+{
+  "candidates": [
+    {
+      "candidate_id": "cand_parser_default",
+      "genotype": [
+        {
+          "gene_id": "parser.matcher",
+          "state_id": "matcher_basic"
+        },
+        {
+          "gene_id": "parser.plan",
+          "state_id": "plan_default"
+        },
+        {
+          "gene_id": "capture.window",
+          "state_id": "window_default"
+        }
+      ]
+    },
+    {
+      "candidate_id": "cand_parser_compiled_matcher",
+      "genotype": [
+        {
+          "gene_id": "parser.matcher",
+          "state_id": "matcher_compiled"
+        },
+        {
+          "gene_id": "parser.plan",
+          "state_id": "plan_default"
+        },
+        {
+          "gene_id": "capture.window",
+          "state_id": "window_default"
+        }
+      ]
+    },
+    {
+      "candidate_id": "cand_parser_context_pair",
+      "genotype": [
+        {
+          "gene_id": "parser.matcher",
+          "state_id": "matcher_compiled"
+        },
+        {
+          "gene_id": "parser.plan",
+          "state_id": "plan_context_pair"
+        },
+        {
+          "gene_id": "capture.window",
+          "state_id": "window_default"
+        }
+      ]
+    },
+    {
+      "candidate_id": "cand_parser_wide_window",
+      "genotype": [
+        {
+          "gene_id": "parser.matcher",
+          "state_id": "matcher_basic"
+        },
+        {
+          "gene_id": "parser.plan",
+          "state_id": "plan_default"
+        },
+        {
+          "gene_id": "capture.window",
+          "state_id": "window_wide"
+        }
+      ]
+    }
+  ]
+}

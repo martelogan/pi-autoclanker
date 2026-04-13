@@ -1,0 +1,61 @@
+{
+  "files": [
+    {
+      "path": ".env.example",
+      "sha256": "157e88773ac57c32c11d5d84d73ba1ad95df05b0f0a451a528657ab4b886231e"
+    },
+    {
+      "path": "configs/pi-autoclanker.example.json",
+      "sha256": "7b822ab04bfb3267369fb99a40c924bbcccc2f5c9839ebe1f3723cc350958deb"
+    },
+    {
+      "path": "schemas/pi-autoclanker.config.schema.json",
+      "sha256": "a448b672226a40d06ac5d9ff6462c35c466264eddf1a5370e2b583367eee33ef"
+    },
+    {
+      "path": "skills/autoclanker-create/SKILL.md",
+      "sha256": "457f5117832cae6596f2a79b97955f278d00f02f739eb05ea4b3eb7cf5ee0404"
+    },
+    {
+      "path": "skills/autoclanker-advanced-beliefs/SKILL.md",
+      "sha256": "172da6fa78cf3adfed39fc54d651bf9cba9dfd172a3ce89c330c4e931493b684"
+    },
+    {
+      "path": "skills/autoclanker-review/SKILL.md",
+      "sha256": "0d51bb0a254894483cf5a9da3fd718af3f789077cfb6189e298250f84b617d59"
+    },
+    {
+      "path": "examples/parser-demo/README.md",
+      "sha256": "ce22450bdbbf4dd923cc269c3d507bdf1e315db72c2ff7e688a7179ed0c83b5f"
+    },
+    {
+      "path": "examples/parser-demo/candidates.json",
+      "sha256": "b3c9b64417da9a0e3bfd9f5904a0244c2eda91568fa14cd9155822ab7c143d96"
+    },
+    {
+      "path": "examples/parser-demo/autoclanker.beliefs.json",
+      "sha256": "c9a76f66d0d1857ca004eeb1ad3c7673fe7aafadacbd2f9b0ba90be20a3e593b"
+    },
+    {
+      "path": "examples/parser-demo/autoclanker.config.json",
+      "sha256": "b01fb58d3e5ce8fdaa5e75608e4236cfb6430ed401d80f20c8d9b5befa630fb6"
+    },
+    {
+      "path": "examples/parser-demo/autoclanker.eval.sh",
+      "sha256": "9cd36f66d5a92dfcfc651c0f170597973dca8ec52b5a655fce5c537605b0ccb8"
+    },
+    {
+      "path": "examples/parser-demo/autoclanker.history.jsonl",
+      "sha256": "596c54eb4273e908062a6a419914106d5eea31eabfc4d13c2b7b5173d1164991"
+    },
+    {
+      "path": "examples/parser-demo/autoclanker.md",
+      "sha256": "a03fdcb9ffb9cde685d21a00d5a129e64cd4ef5f093c06d4e557643c1cb43ab6"
+    },
+    {
+      "path": "examples/parser-demo/rough-ideas.json",
+      "sha256": "1a5c5adeb2bacd89ae05abbe771abf7c71673b1cc0b8d7f2bc3f5aa52ca461d7"
+    }
+  ],
+  "sourceRepo": "../pi-autoclanker-python"
+}

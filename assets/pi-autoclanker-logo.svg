@@ -1,0 +1,86 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">pi-autoclanker logo</title>
+  <desc id="desc">A robot head beneath a probabilistic graph halo, with a large pi-mark on the forehead to represent the pi-native autoclanker extension.</desc>
+  <defs>
+    <linearGradient id="bg" x1="82" y1="72" x2="428" y2="444" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0C1730"/>
+      <stop offset="1" stop-color="#132B47"/>
+    </linearGradient>
+    <linearGradient id="haloArc" x1="160" y1="126" x2="352" y2="216" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8D7CFF"/>
+      <stop offset="0.52" stop-color="#67B6FF"/>
+      <stop offset="1" stop-color="#67E0C2"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="166" y1="168" x2="350" y2="352" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F5F1E7"/>
+      <stop offset="1" stop-color="#D9E2EC"/>
+    </linearGradient>
+    <linearGradient id="jaw" x1="202" y1="344" x2="310" y2="398" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#163455"/>
+      <stop offset="1" stop-color="#29517B"/>
+    </linearGradient>
+    <linearGradient id="smile" x1="178" y1="350" x2="334" y2="350" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8D7CFF"/>
+      <stop offset="1" stop-color="#67E0C2"/>
+    </linearGradient>
+    <filter id="shadow" x="48" y="52" width="416" height="420" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#040A12" flood-opacity="0.36"/>
+    </filter>
+  </defs>
+
+  <rect x="44" y="44" width="424" height="424" rx="118" fill="url(#bg)"/>
+
+  <g filter="url(#shadow)">
+    <path d="M154 196C172 146 210 116 256 116C302 116 340 146 358 196" stroke="#223A61" stroke-width="22" stroke-linecap="round"/>
+    <path d="M162 194C178 150 212 126 256 126C300 126 334 150 350 194" stroke="url(#haloArc)" stroke-width="10" stroke-linecap="round"/>
+
+    <g stroke="#A8D5FF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M176 180L220 152"/>
+      <path d="M220 152L256 136"/>
+      <path d="M256 136L294 150"/>
+      <path d="M294 150L336 180"/>
+      <path d="M220 152L294 150"/>
+    </g>
+
+    <g fill="#10243F" stroke="#B8DDFF" stroke-width="6">
+      <circle cx="176" cy="180" r="14"/>
+      <circle cx="220" cy="152" r="14"/>
+      <circle cx="256" cy="136" r="17" fill="#1B3560"/>
+      <circle cx="294" cy="150" r="14"/>
+      <circle cx="336" cy="180" r="14"/>
+    </g>
+
+    <rect x="164" y="170" width="184" height="170" rx="46" fill="url(#panel)" stroke="#18344E" stroke-width="10"/>
+    <rect x="144" y="216" width="30" height="74" rx="15" fill="#E3C16B" stroke="#18344E" stroke-width="10"/>
+    <rect x="338" y="216" width="30" height="74" rx="15" fill="#E3C16B" stroke="#18344E" stroke-width="10"/>
+
+    <path d="M206 190V168C206 139 228 116 256 116C284 116 306 139 306 168V190" stroke="#18344E" stroke-width="10" stroke-linecap="round"/>
+
+    <rect x="209" y="192" width="94" height="58" rx="18" fill="#152B4C" stroke="#21426C" stroke-width="8"/>
+    <path d="M224 212H288" stroke="#A78AFF" stroke-width="14" stroke-linecap="round"/>
+    <path d="M240 212V248" stroke="#A78AFF" stroke-width="14" stroke-linecap="round"/>
+    <path d="M272 212V248" stroke="#A78AFF" stroke-width="14" stroke-linecap="round"/>
+
+    <rect x="200" y="263" width="48" height="40" rx="14" fill="#193250"/>
+    <rect x="264" y="263" width="48" height="40" rx="14" fill="#193250"/>
+    <circle cx="224" cy="283" r="7" fill="#72D8FF"/>
+    <circle cx="288" cy="283" r="7" fill="#72D8FF"/>
+
+    <rect x="198" y="315" width="116" height="24" rx="12" fill="#102235"/>
+    <path d="M214 327H298" stroke="#66DFC2" stroke-width="8" stroke-linecap="round" stroke-dasharray="2 16"/>
+
+    <path d="M198 340H314L288 394H224L198 340Z" fill="url(#jaw)" stroke="#18344E" stroke-width="10" stroke-linejoin="round"/>
+    <path d="M214 356H298" stroke="#C7D9FF" stroke-width="8" stroke-linecap="round"/>
+
+    <path d="M178 354C194 376 221 390 256 390C291 390 318 376 334 354" stroke="url(#smile)" stroke-width="12" stroke-linecap="round"/>
+    <path d="M178 354V385" stroke="#18344E" stroke-width="10" stroke-linecap="round"/>
+    <path d="M334 354V385" stroke="#18344E" stroke-width="10" stroke-linecap="round"/>
+
+    <g opacity="0.4" stroke="#719FCB" stroke-width="4" stroke-linecap="round">
+      <path d="M118 296H142"/>
+      <path d="M370 296H394"/>
+      <path d="M134 338L150 326"/>
+      <path d="M378 326L394 338"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,30 @@
+{
+  "name": "pi-autoclanker-typescript-dev",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    },
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    }
+  },
+  "containerEnv": {
+    "npm_config_cache": "/workspaces/pi-autoclanker-typescript/.local/dev/npm-cache",
+    "MISE_DATA_DIR": "/workspaces/pi-autoclanker-typescript/.mise/data",
+    "MISE_CACHE_DIR": "/workspaces/pi-autoclanker-typescript/.mise/cache",
+    "MISE_CONFIG_DIR": "/workspaces/pi-autoclanker-typescript/.mise/config",
+    "MISE_STATE_DIR": "/workspaces/pi-autoclanker-typescript/.mise/state"
+  },
+  "postCreateCommand": "bash -lc './bin/dev setup'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "biomejs.biome",
+        "vitest.explorer",
+        "ms-vscode.vscode-typescript-next",
+        "ms-python.python"
+      ]
+    }
+  }
+}

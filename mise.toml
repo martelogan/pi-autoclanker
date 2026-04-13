@@ -1,0 +1,87 @@
+[tools]
+python = "3.11"
+node = "22"
+
+[tasks.setup]
+description = "Install TypeScript development dependencies"
+run = "npm ci"
+
+[tasks.format]
+description = "Auto-format and apply safe lint fixes"
+run = "npm exec -- biome check --write ."
+
+[tasks.lint]
+description = "Run lint checks"
+run = "npm exec -- biome check ."
+
+[tasks.tscheck]
+description = "Run strict compiler validation for the TypeScript runtime surface"
+run = "npm exec -- tsc --noEmit -p tsconfig.json"
+
+[tasks.typecheck]
+description = "Run the primary TypeScript typecheck lane"
+run = "npm exec -- tsc --noEmit -p tsconfig.json"
+
+[tasks.unused]
+description = "Run dead-code and unused-dependency checks"
+run = "npm exec -- knip"
+
+[tasks.test]
+description = "Run the default test lane"
+run = "npm exec -- vitest run --config vitest.config.ts --coverage"
+
+[tasks."test-unit"]
+description = "Run unit tests only"
+run = "npm exec -- vitest run --config vitest.config.ts --coverage"
+
+[tasks."test-integration"]
+description = "Run integration tests if any exist"
+run = "bash scripts/test-integration.sh"
+
+[tasks."test-full"]
+description = "Run integration tests and then the default unit lane"
+run = "bash scripts/run-full-test-suite.sh"
+
+[tasks."test-parity"]
+description = "Run the reference-backed runtime parity lane"
+run = "bash scripts/test-parity.sh"
+
+[tasks.build]
+description = "Build distributable artifacts"
+run = "npm exec -- tsc -p tsconfig.build.json"
+
+[tasks."package-check"]
+description = "Run package-surface validation"
+run = "npm exec -- publint --strict"
+
+[tasks.check]
+description = "Run the main deterministic validation lane"
+run = "bash scripts/check.sh"
+
+[tasks."check-parity"]
+description = "Run the deterministic reference-parity lane"
+run = "bash scripts/check-parity.sh"
+
+[tasks."strict-env:status"]
+description = "Show optional strict environment mode status"
+run = "bash bin/dev strict-env status"
+
+[tasks."strict-env:devenv"]
+description = "Write .envrc from the devenv direnv template"
+run = "bash bin/dev strict-env devenv"
+
+[tasks."strict-env:validate"]
+description = "Validate strict environment manifest parity across lanes"
+run = "bash bin/dev strict-env validate"
+
+[tasks."test-upstream-live"]
+description = "Run the upstream live acceptance lane"
+run = "bash scripts/test-upstream-live.sh"
+
+[tasks."test-live"]
+description = "Run the billed/provider-backed live acceptance lane"
+run = "bash scripts/test-live.sh"
+
+[tasks."check-live"]
+description = "Run both opt-in live lanes"
+run = "bash scripts/check-live.sh"

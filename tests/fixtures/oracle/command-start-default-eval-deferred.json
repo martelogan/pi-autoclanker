@@ -1,0 +1,24 @@
+{
+  "billedLive": false,
+  "canonicalization": {
+    "mode": "deferred",
+    "reason": "autoclanker CLI unavailable"
+  },
+  "command": "start",
+  "files": {
+    "autoclanker.beliefs.json": true,
+    "autoclanker.config.json": true,
+    "autoclanker.eval.sh": true,
+    "autoclanker.history.jsonl": true,
+    "autoclanker.md": true
+  },
+  "ok": true,
+  "sessionRoot": "<workspace>/.autoclanker",
+  "tool": "autoclanker_init_session",
+  "upstream": {
+    "mode": "deferred",
+    "reason": "autoclanker CLI unavailable"
+  },
+  "usedDefaultEvalCommand": true,
+  "workspace": "<workspace>"
+}

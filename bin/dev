@@ -1,0 +1,408 @@
+#!/usr/bin/env bash
+#
+# pi-autoclanker developer command front door.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "${ROOT_DIR}"
+# shellcheck source=../scripts/dev/common.sh
+source "${ROOT_DIR}/scripts/dev/common.sh"
+
+configured_mise_bin() {
+    echo "${PI_AUTOCLANKER_DEV_MISE_BIN:-${PI_AUTOCLANKER_TS_DEV_MISE_BIN:-}}"
+}
+
+bootstrap_disabled() {
+    [[ "${PI_AUTOCLANKER_DEV_DISABLE_BOOTSTRAP:-${PI_AUTOCLANKER_TS_DEV_DISABLE_BOOTSTRAP:-0}}" == "1" ]]
+}
+
+INSTALL_ROOT="${PI_AUTOCLANKER_DEV_INSTALL_ROOT:-${PI_AUTOCLANKER_TS_DEV_INSTALL_ROOT:-${ROOT_DIR}/.local/dev}}"
+LOCAL_MISE_BIN="${INSTALL_ROOT}/mise/bin/mise"
+LOCAL_BIN_DIR="${INSTALL_ROOT}/bin"
+
+export npm_config_cache="${npm_config_cache:-${ROOT_DIR}/.local/dev/npm-cache}"
+export PATH="${LOCAL_BIN_DIR}:${ROOT_DIR}/node_modules/.bin:${PATH}"
+
+export MISE_DATA_DIR="${MISE_DATA_DIR:-${ROOT_DIR}/.mise/data}"
+export MISE_CACHE_DIR="${MISE_CACHE_DIR:-${ROOT_DIR}/.mise/cache}"
+export MISE_CONFIG_DIR="${MISE_CONFIG_DIR:-${ROOT_DIR}/.mise/config}"
+export MISE_STATE_DIR="${MISE_STATE_DIR:-${ROOT_DIR}/.mise/state}"
+
+print_help() {
+    cat <<'HELP'
+Usage: bin/dev <command> [args]
+
+Core commands:
+  setup
+  format
+  lint
+  tscheck
+  typecheck
+  unused
+  test
+  test-unit
+  test-integration
+  test-full
+  test-parity
+  test-upstream-live
+  test-live
+  check-parity
+  check-live
+  build
+  package-check
+  check
+
+Other:
+  exec -- <command...>
+  doctor
+  bootstrap
+  strict-env status
+  strict-env devenv
+  strict-env devcontainer
+  strict-env validate
+
+Environment knobs:
+  PI_AUTOCLANKER_DEV_MISE_BIN
+  PI_AUTOCLANKER_DEV_DISABLE_BOOTSTRAP=1
+  PI_AUTOCLANKER_DEV_INSTALL_ROOT
+  Legacy aliases:
+    PI_AUTOCLANKER_TS_DEV_MISE_BIN
+    PI_AUTOCLANKER_TS_DEV_DISABLE_BOOTSTRAP=1
+    PI_AUTOCLANKER_TS_DEV_INSTALL_ROOT
+HELP
+}
+
+err() {
+    echo "error: $*" >&2
+}
+
+find_mise() {
+    local explicit_mise_bin
+    explicit_mise_bin="$(configured_mise_bin)"
+    if [[ -n "${explicit_mise_bin}" && -x "${explicit_mise_bin}" ]]; then
+        echo "${explicit_mise_bin}"
+        return 0
+    fi
+    if [[ -x "${LOCAL_MISE_BIN}" ]]; then
+        echo "${LOCAL_MISE_BIN}"
+        return 0
+    fi
+    if command -v mise >/dev/null 2>&1; then
+        command -v mise
+        return 0
+    fi
+    return 1
+}
+
+bootstrap_mise() {
+    if bootstrap_disabled; then
+        return 1
+    fi
+
+    "${ROOT_DIR}/scripts/dev/bootstrap-mise.sh" >/dev/null
+    if [[ -x "${LOCAL_MISE_BIN}" ]]; then
+        return 0
+    fi
+    return 1
+}
+
+run_task_with_mise_or_fallback() {
+    local task="$1"
+    shift
+    local unavailable_rc=86
+    local stderr_log
+    local rc
+    local had_errexit=0
+
+    [[ $- == *e* ]] && had_errexit=1
+
+    local mise_bin
+    if mise_bin="$(find_mise)"; then
+        stderr_log="$(mktemp)"
+        set +e
+        "${mise_bin}" run "${task}" "$@" 2>"${stderr_log}"
+        rc=$?
+        if [[ ${had_errexit} -eq 1 ]]; then
+            set -e
+        fi
+        if [[ ${rc} -ne 0 ]] && grep -Eq "not trusted|are not trusted" "${stderr_log}"; then
+            rm -f "${stderr_log}"
+            return "${unavailable_rc}"
+        fi
+        if [[ -s "${stderr_log}" ]]; then
+            cat "${stderr_log}" >&2
+        fi
+        rm -f "${stderr_log}"
+        return "${rc}"
+    fi
+
+    if bootstrap_mise && mise_bin="$(find_mise)"; then
+        stderr_log="$(mktemp)"
+        set +e
+        "${mise_bin}" run "${task}" "$@" 2>"${stderr_log}"
+        rc=$?
+        if [[ ${had_errexit} -eq 1 ]]; then
+            set -e
+        fi
+        if [[ ${rc} -ne 0 ]] && grep -Eq "not trusted|are not trusted" "${stderr_log}"; then
+            rm -f "${stderr_log}"
+            return "${unavailable_rc}"
+        fi
+        if [[ -s "${stderr_log}" ]]; then
+            cat "${stderr_log}" >&2
+        fi
+        rm -f "${stderr_log}"
+        return "${rc}"
+    fi
+
+    return "${unavailable_rc}"
+}
+
+fallback_core_task() {
+    local task="$1"
+    case "${task}" in
+        setup)
+            dev_run_npm ci
+            ;;
+        format)
+            dev_run_tool biome check --write .
+            ;;
+        lint)
+            dev_run_tool biome check .
+            ;;
+        tscheck)
+            dev_run_tool tsc --noEmit -p tsconfig.json
+            ;;
+        typecheck)
+            dev_run_tool tsc --noEmit -p tsconfig.json
+            ;;
+        unused)
+            dev_run_tool knip
+            ;;
+        test|test-unit)
+            dev_run_tool vitest run --config vitest.config.ts --coverage
+            ;;
+        test-integration)
+            bash "${ROOT_DIR}/scripts/test-integration.sh"
+            ;;
+        test-full)
+            bash "${ROOT_DIR}/scripts/run-full-test-suite.sh"
+            ;;
+        test-parity)
+            bash "${ROOT_DIR}/scripts/test-parity.sh"
+            ;;
+        test-upstream-live)
+            bash "${ROOT_DIR}/scripts/test-upstream-live.sh"
+            ;;
+        test-live)
+            bash "${ROOT_DIR}/scripts/test-live.sh"
+            ;;
+        check-parity)
+            bash "${ROOT_DIR}/scripts/check-parity.sh"
+            ;;
+        check-live)
+            bash "${ROOT_DIR}/scripts/check-live.sh"
+            ;;
+        build)
+            dev_run_tool tsc -p tsconfig.build.json
+            ;;
+        package-check)
+            dev_run_tool publint --strict
+            ;;
+        check)
+            bash "${ROOT_DIR}/scripts/check.sh"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+run_task() {
+    local task="$1"
+    shift
+    local unavailable_rc=86
+
+    set +e
+    run_task_with_mise_or_fallback "${task}" "$@"
+    local rc=$?
+    set -e
+
+    if [[ ${rc} -eq 0 ]]; then
+        return 0
+    fi
+    if [[ ${rc} -ne ${unavailable_rc} ]]; then
+        return "${rc}"
+    fi
+
+    fallback_core_task "${task}" "$@"
+}
+
+doctor() {
+    local mise_status="missing"
+    local system_mise=""
+    local selected_mise=""
+
+    selected_mise="$(find_mise 2>/dev/null || true)"
+    if [[ -n "${selected_mise}" ]]; then
+        if [[ -n "$(configured_mise_bin)" && "$(configured_mise_bin)" == "${selected_mise}" ]]; then
+            mise_status="explicit:${selected_mise}"
+        elif [[ "${selected_mise}" == "${LOCAL_MISE_BIN}" ]]; then
+            mise_status="local:${selected_mise}"
+        else
+            mise_status="system:${selected_mise}"
+            system_mise="${selected_mise}"
+        fi
+    fi
+
+    local python_status="missing"
+    local node_status="missing"
+    local npm_status="missing"
+    local biome_status="missing"
+    local tsc_status="missing"
+    local knip_status="missing"
+    local git_status="missing"
+    local direnv_status="missing"
+    local devenv_status="missing"
+    local devcontainer_cfg_status="missing"
+
+    command -v python3 >/dev/null 2>&1 && python_status="$(command -v python3)"
+    command -v node >/dev/null 2>&1 && node_status="$(command -v node)"
+    command -v npm >/dev/null 2>&1 && npm_status="$(command -v npm)"
+    command -v biome >/dev/null 2>&1 && biome_status="$(command -v biome)"
+    command -v tsc >/dev/null 2>&1 && tsc_status="$(command -v tsc)"
+    command -v knip >/dev/null 2>&1 && knip_status="$(command -v knip)"
+    command -v git >/dev/null 2>&1 && git_status="$(command -v git)"
+    command -v direnv >/dev/null 2>&1 && direnv_status="$(command -v direnv)"
+    command -v devenv >/dev/null 2>&1 && devenv_status="$(command -v devenv)"
+    [[ -f "${ROOT_DIR}/.devcontainer/devcontainer.json" ]] && devcontainer_cfg_status="present"
+
+    echo "pi-autoclanker Developer Environment Doctor"
+    echo "  repo:          ${ROOT_DIR}"
+    echo "  install_root:  ${INSTALL_ROOT}"
+    echo "  local_bin:     ${LOCAL_BIN_DIR}"
+    echo "  mise:          ${mise_status}"
+    [[ -n "${system_mise}" ]] && echo "  mise(system):  ${system_mise}"
+    echo ""
+    echo "Capability matrix"
+    printf "  %-18s %s\n" "python3(optional)" "${python_status}"
+    printf "  %-18s %s\n" "node" "${node_status}"
+    printf "  %-18s %s\n" "npm" "${npm_status}"
+    printf "  %-18s %s\n" "biome" "${biome_status}"
+    printf "  %-18s %s\n" "tsc" "${tsc_status}"
+    printf "  %-18s %s\n" "knip" "${knip_status}"
+    printf "  %-18s %s\n" "git" "${git_status}"
+    printf "  %-18s %s\n" "direnv" "${direnv_status}"
+    printf "  %-18s %s\n" "devenv" "${devenv_status}"
+    printf "  %-18s %s\n" "devcontainer-config" "${devcontainer_cfg_status}"
+}
+
+strict_env_status() {
+    echo "pi-autoclanker strict environment modes (optional)"
+    echo "  default mode: bin/dev + optional mise activation"
+    echo "  strict mode: devenv + direnv"
+    echo "  strict mode owner: direnv (do not combine with mise activation)"
+    echo "  git hooks: none (bin/dev does not install pre-commit hooks)"
+    echo ""
+    echo "Available mode assets"
+    [[ -f "${ROOT_DIR}/devenv.nix" ]] && echo "  devenv:       present (devenv.nix)" || echo "  devenv:       missing"
+    [[ -f "${ROOT_DIR}/.devcontainer/devcontainer.json" ]] && echo "  devcontainer: present (.devcontainer/devcontainer.json)" || echo "  devcontainer: missing"
+    [[ -f "${ROOT_DIR}/.envrc" ]] && echo "  .envrc:       present" || echo "  .envrc:       absent"
+    echo ""
+    echo "Commands"
+    echo "  bin/dev strict-env devenv       # write .envrc from devenv template"
+    echo "  bin/dev strict-env devcontainer # print devcontainer path guidance"
+    echo "  bin/dev strict-env validate     # validate cross-manifest strict-env parity"
+}
+
+strict_env_validate() {
+    local validator="${ROOT_DIR}/scripts/dev/validate-dev-environment.mjs"
+    if command -v node >/dev/null 2>&1; then
+        node "${validator}"
+        return 0
+    fi
+    err "strict-env validate requires node"
+    return 1
+}
+
+strict_env_use() {
+    local mode="$1"
+    case "${mode}" in
+        devenv)
+            bash "${ROOT_DIR}/scripts/dev/setup-direnv-mode.sh" "${mode}"
+            ;;
+        devcontainer)
+            echo "devcontainer config: ${ROOT_DIR}/.devcontainer/devcontainer.json"
+            echo "See: ${ROOT_DIR}/.devcontainer/README.md"
+            ;;
+        validate)
+            strict_env_validate
+            ;;
+        *)
+            err "strict-env mode must be one of: status|devenv|devcontainer|validate"
+            exit 2
+            ;;
+    esac
+}
+
+run_bootstrap() {
+    if "${ROOT_DIR}/scripts/dev/bootstrap-mise.sh" >/dev/null; then
+        echo "mise bootstrapped at ${LOCAL_MISE_BIN}"
+        return 0
+    fi
+    err "failed to bootstrap mise"
+    return 1
+}
+
+main() {
+    local command="${1:-help}"
+    case "${command}" in
+        help|-h|--help)
+            print_help
+            ;;
+        setup|format|lint|tscheck|typecheck|unused|test|test-unit|test-integration|test-full|test-parity|test-upstream-live|test-live|check-parity|check-live|build|package-check|check)
+            shift
+            run_task "${command}" "$@"
+            ;;
+        exec)
+            shift
+            [[ "${1:-}" == "--" ]] && shift
+            if [[ $# -eq 0 ]]; then
+                err "exec requires a command after --"
+                exit 2
+            fi
+            dev_prepare_node_env
+            exec "$@"
+            ;;
+        doctor)
+            doctor
+            ;;
+        bootstrap)
+            run_bootstrap
+            ;;
+        strict-env)
+            local mode="${2:-status}"
+            case "${mode}" in
+                status)
+                    strict_env_status
+                    ;;
+                devenv|devcontainer|validate)
+                    strict_env_use "${mode}"
+                    ;;
+                *)
+                    err "strict-env mode must be one of: status|devenv|devcontainer|validate"
+                    exit 2
+                    ;;
+            esac
+            ;;
+        *)
+            err "unknown command: ${command}"
+            print_help >&2
+            exit 2
+            ;;
+    esac
+}
+
+main "$@"
