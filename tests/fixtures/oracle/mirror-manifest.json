@@ -25,8 +25,28 @@
       "sha256": "0d51bb0a254894483cf5a9da3fd718af3f789077cfb6189e298250f84b617d59"
     },
     {
+      "path": "examples/targets/parser-quickstart/README.md",
+      "sha256": "ec1a2d22cb2c3718302de959196afe577b1afc5670f882351ec6fe7b303ada31"
+    },
+    {
+      "path": "examples/targets/parser-quickstart/app.py",
+      "sha256": "c892187db1a32bc2b2fece85c13e514defe53f046a011c0150e93cf2762424e4"
+    },
+    {
+      "path": "examples/targets/parser-quickstart/benchmark.py",
+      "sha256": "375db3ac64001e8a5084f707836aa4043676ef7836bd9d3fb254a80546c6972e"
+    },
+    {
+      "path": "examples/targets/parser-quickstart/autoclanker.eval.sh",
+      "sha256": "c4fc82a08536f902c703192ed4bc54f52c070d6e4bdf38d65c7e06357dcdf93a"
+    },
+    {
+      "path": "examples/targets/parser-quickstart/candidates.json",
+      "sha256": "dd356ca2f76e7492edc2155cd54c123204365420c5f95fa10c4a7ae0d475853d"
+    },
+    {
       "path": "examples/minimal/README.md",
-      "sha256": "b936f413df3a62c97d4a863f6930764b95c91df049f68b98bfadf428a9112a9d"
+      "sha256": "19e05c114c90f79f4adcb9396d9999340c60c07196b330044e6bc5b0911005e8"
     },
     {
       "path": "examples/minimal/rough-ideas.json",
@@ -34,7 +54,7 @@
     },
     {
       "path": "examples/parser-demo-expanded/README.md",
-      "sha256": "d40c4210b213aa86a04391ed1fe1f9abbe37e2d2a2bb2d3bdd30fda1726a1a23"
+      "sha256": "ab3a7882cd103ee9dd0638c942f0702269a2220e9aeff4a3fe0ae3d7b0e35e63"
     },
     {
       "path": "examples/parser-demo-expanded/candidates.json",
@@ -42,23 +62,23 @@
     },
     {
       "path": "examples/parser-demo-expanded/autoclanker.beliefs.json",
-      "sha256": "c9a76f66d0d1857ca004eeb1ad3c7673fe7aafadacbd2f9b0ba90be20a3e593b"
+      "sha256": "d6d08033524bc6e2d6ebe7d746981ce6b68d68d41139dda4b79884b1316c7293"
     },
     {
       "path": "examples/parser-demo-expanded/autoclanker.config.json",
-      "sha256": "b01fb58d3e5ce8fdaa5e75608e4236cfb6430ed401d80f20c8d9b5befa630fb6"
+      "sha256": "1f75434cbd3c7a4835d6a89b8ecdf788db59d0f7e8bd6d8276d0b3d2daa869d5"
     },
     {
       "path": "examples/parser-demo-expanded/autoclanker.eval.sh",
-      "sha256": "9cd36f66d5a92dfcfc651c0f170597973dca8ec52b5a655fce5c537605b0ccb8"
+      "sha256": "894e0df482355e75b174d5c9f99dbf330b3f26a9c369e1f30876c146876ef774"
     },
     {
       "path": "examples/parser-demo-expanded/autoclanker.history.jsonl",
-      "sha256": "596c54eb4273e908062a6a419914106d5eea31eabfc4d13c2b7b5173d1164991"
+      "sha256": "01af36d065bbf8ef8fefa7d2305f5593a24771b6f0c3a9fad2322643985670f2"
     },
     {
       "path": "examples/parser-demo-expanded/autoclanker.md",
-      "sha256": "a03fdcb9ffb9cde685d21a00d5a129e64cd4ef5f093c06d4e557643c1cb43ab6"
+      "sha256": "cf0f22774aeb10781d5e440088ebe913e7e7323e9fdc1ee78aef300fe4766f30"
     },
     {
       "path": "examples/parser-demo-expanded/rough-ideas.json",

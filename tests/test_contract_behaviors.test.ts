@@ -30,6 +30,20 @@ type HistoryEntry = {
   usedDefaultEvalCommand: boolean;
 };
 
+type EvalResult = {
+  candidate_id: string;
+  peak_vram_mb: number;
+  raw_metrics: {
+    score: number;
+  };
+  utility: number;
+};
+
+type AppRenderResult = {
+  app_kind: string;
+  candidate_id: string;
+};
+
 function collapseWhitespace(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
@@ -56,9 +70,22 @@ coveredTest(
   "example session bundle documents the beginner path",
   () => {
     const root = repoRoot();
+    const targetDir = resolve(root, "examples/targets/parser-quickstart");
     const minimalDir = resolve(root, "examples/minimal");
     const exampleDir = resolve(root, "examples/parser-demo-expanded");
+    expect(
+      readdirSync(targetDir)
+        .filter((name) => ![".npmignore", "__pycache__"].includes(name))
+        .sort(),
+    ).toEqual([
+      "README.md",
+      "app.py",
+      "autoclanker.eval.sh",
+      "benchmark.py",
+      "candidates.json",
+    ]);
     expect(readdirSync(minimalDir).sort()).toEqual(["README.md", "rough-ideas.json"]);
+    const targetReadme = readFileSync(resolve(targetDir, "README.md"), "utf-8");
     const minimalReadme = readFileSync(resolve(minimalDir, "README.md"), "utf-8");
     const minimalIdeas = JSON.parse(
       readFileSync(resolve(minimalDir, "rough-ideas.json"), "utf-8"),
@@ -96,17 +123,26 @@ coveredTest(
 
     expect(minimalReadme).toContain("smallest useful kickoff shape");
     expect(minimalReadme).toContain("/autoclanker start <goal>");
+    expect(minimalReadme).toContain("../targets/parser-quickstart/");
+    expect(minimalReadme).toContain("benchmark.py");
     expect(minimalReadme).toContain("can create from there");
     expect(minimalReadme).toContain("default checked-in");
+    expect(targetReadme).toContain("lean install");
+    expect(targetReadme).toContain("app.py");
+    expect(targetReadme).toContain("benchmark.py");
+    expect(targetReadme).toContain("autoclanker.eval.sh");
     expect(minimalIdeas.length).toBe(2);
     expect(readme).toContain("canonicalize");
     expect(readme).toContain("preview beliefs");
     expect(readme).toContain("candidates.json");
     expect(readme).toContain("not the minimum required input");
     expect(readme).toContain("expanded demo");
+    expect(readme).toContain("../targets/parser-quickstart/");
+    expect(readme).toContain("actual parser source");
     expect(readme).toContain("default");
     expect(readme).toContain("autoclanker.eval.sh");
-    expect(String(config.evalCommand)).toContain("cat <<EVAL");
+    expect(String(config.evalCommand)).toContain("benchmark.py");
+    expect(String(config.evalCommand)).toContain("PI_AUTOCLANKER_TARGET_CANDIDATE_ID");
     expect(beliefs.mode).toBe("canonicalize");
     expect(beliefs.upstreamSessionId).toBe("parser_demo");
     expect(beliefs.upstreamPreviewDigest).toBe("digest-parser-demo");
@@ -119,6 +155,50 @@ coveredTest(
     expect(summary).toContain("source: `user-provided`");
     expect(history[0]?.usedDefaultEvalCommand).toBe(false);
     expect(history[0]?.evalSurfaceSha256).toBe(beliefs.evalSurfaceSha256);
+  },
+);
+
+coveredTest(
+  ["M2-002", "M2-006"],
+  "packaged parser target is runnable as a real lean-install demo",
+  () => {
+    const root = repoRoot();
+    const targetDir = resolve(root, "examples/targets/parser-quickstart");
+
+    const appPayload = JSON.parse(
+      execFileSync(
+        "python3",
+        [resolve(targetDir, "app.py"), "--candidate-id", "cand_b_compiled_matcher"],
+        { cwd: root, encoding: "utf-8" },
+      ),
+    ) as AppRenderResult;
+    expect(appPayload.candidate_id).toBe("cand_b_compiled_matcher");
+    expect(appPayload.app_kind).toBe("single_file_log_parser");
+
+    const evalPayload = JSON.parse(
+      execFileSync(
+        "python3",
+        [
+          resolve(targetDir, "benchmark.py"),
+          "--candidate-id",
+          "cand_c_compiled_context_pair",
+        ],
+        { cwd: root, encoding: "utf-8" },
+      ),
+    ) as EvalResult;
+    expect(evalPayload.candidate_id).toBe("cand_c_compiled_context_pair");
+    expect(evalPayload.raw_metrics.score).toBeGreaterThan(1);
+    expect(evalPayload.peak_vram_mb).toBeGreaterThan(0);
+    expect(evalPayload.utility).toBeGreaterThan(0);
+
+    const shellPayload = JSON.parse(
+      execFileSync("bash", [resolve(targetDir, "autoclanker.eval.sh")], {
+        cwd: root,
+        encoding: "utf-8",
+      }),
+    ) as EvalResult;
+    expect(shellPayload.candidate_id).toBe("cand_c_compiled_context_pair");
+    expect(shellPayload.raw_metrics.score).toBe(evalPayload.raw_metrics.score);
   },
 );
 
@@ -215,7 +295,7 @@ coveredTest(
       "refuse eval ingest if the local `autoclanker.eval.sh` file drifts",
     );
     expect(design).toContain("snapshotted per");
-    expect(exampleReadme).toContain("wrapper snapshots that checked-in eval shell");
+    expect(exampleReadme).toContain("wrapper snapshots that checked-in eval");
   },
 );
 

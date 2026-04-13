@@ -8,7 +8,7 @@
   ],
   "defaultIdeasMode": "canonicalize",
   "enabled": true,
-  "evalCommand": "cat <<EVAL\n{\"era_id\":\"${PI_AUTOCLANKER_UPSTREAM_ERA_ID}\",\"candidate_id\":\"cand_parser_demo\",\"intended_genotype\":[],\"realized_genotype\":[],\"patch_hash\":\"sha256:parser-demo\",\"status\":\"valid\",\"seed\":7,\"runtime_sec\":1.5,\"peak_vram_mb\":32.0,\"raw_metrics\":{\"score\":0.61},\"delta_perf\":0.02,\"utility\":0.01,\"replication_index\":0,\"stdout_digest\":\"stdout:demo\",\"stderr_digest\":\"stderr:clean\",\"artifact_paths\":[],\"failure_metadata\":{}}\nEVAL",
+  "evalCommand": "python3 examples/targets/parser-quickstart/benchmark.py --era-id \"${PI_AUTOCLANKER_UPSTREAM_ERA_ID}\" --candidate-id \"${PI_AUTOCLANKER_TARGET_CANDIDATE_ID:-cand_c_compiled_context_pair}\"",
   "goal": "Improve parser throughput without trading away alarm context.",
   "sessionRoot": ".autoclanker"
 }

@@ -114,6 +114,8 @@ start with:
 
 The fastest way to understand the repo now is:
 
+- [`examples/targets/parser-quickstart`](examples/targets/parser-quickstart) for
+  a real packaged parser target and benchmark
 - [`examples/minimal`](examples/minimal) for the smallest kickoff shape
 - [`examples/parser-demo-expanded`](examples/parser-demo-expanded) for a fuller
   worked session after the extension has already materialized local files
@@ -363,19 +365,23 @@ artifacts are still there when you need the deeper Bayesian state.
 
 ## Example demos
 
-The shipped examples now separate kickoff inputs from a fuller realized
-session:
+The shipped examples now separate the real runnable target from the wrapper-side
+session tiers:
 
+- [`examples/targets/parser-quickstart`](examples/targets/parser-quickstart):
+  packaged parser app, benchmark harness, eval shell, and candidate pool
 - [`examples/minimal`](examples/minimal): smallest useful kickoff shape,
   centered on `rough-ideas.json` plus a goal supplied to
-  `/autoclanker start`
+  `/autoclanker start`, intended to be used with the packaged parser target
 - [`examples/parser-demo-expanded`](examples/parser-demo-expanded): fuller
   worked session with `candidates.json`, the five local session files, and a
-  checked-in eval surface
+  checked-in eval surface for that same packaged target
 
-Use `examples/minimal` to see what the wrapper can start from. Use
+Use `examples/targets/parser-quickstart` when you want to get your hands on a
+real target immediately, even from a lean `autoclanker + pi-autoclanker`
+install. Use `examples/minimal` to see what the wrapper can start from. Use
 `examples/parser-demo-expanded` to see what the project looks like after
-`pi-autoclanker` has already written the resumable files.
+`pi-autoclanker` has already written the resumable files around that target.
 
 ## Developer
 

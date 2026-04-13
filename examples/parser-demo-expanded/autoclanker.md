@@ -4,9 +4,7 @@
 Improve parser throughput without trading away alarm context.
 
 ## Eval command
-`cat <<EVAL
-{"era_id":"${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"cand_parser_demo","intended_genotype":[],"realized_genotype":[],"patch_hash":"sha256:parser-demo","status":"valid","seed":7,"runtime_sec":1.5,"peak_vram_mb":32.0,"raw_metrics":{"score":0.61},"delta_perf":0.02,"utility":0.01,"replication_index":0,"stdout_digest":"stdout:demo","stderr_digest":"stderr:clean","artifact_paths":[],"failure_metadata":{}}
-EVAL`
+`python3 examples/targets/parser-quickstart/benchmark.py --era-id "${PI_AUTOCLANKER_UPSTREAM_ERA_ID}" --candidate-id "${PI_AUTOCLANKER_TARGET_CANDIDATE_ID:-cand_c_compiled_context_pair}"`
 - source: `user-provided`
 
 ## Session state
@@ -18,7 +16,7 @@ EVAL`
 - upstream preview digest: `digest-parser-demo`
 - billed live: `false`
 - belief apply state: `previewed`
-- eval surface sha256: `sha256:9cd36f66d5a92dfcfc651c0f170597973dca8ec52b5a655fce5c537605b0ccb8`
+- eval surface sha256: `sha256:894e0df482355e75b174d5c9f99dbf330b3f26a9c369e1f30876c146876ef774`
 - eval surface lock valid: `true`
 - canonical beliefs: `2`
 

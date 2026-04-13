@@ -67,6 +67,9 @@ coveredTest(
     expect(readme).toContain("influence_summary.json");
     expect(readme).toContain("belief_graph_posterior.png");
     expect(readme).toContain("Example demo");
+    expect(readme).toContain("examples/targets/parser-quickstart");
+    expect(readme).toContain("real packaged parser target and benchmark");
+    expect(readme).toContain("lean `autoclanker + pi-autoclanker`");
     expect(readme).toContain("tests/parity_manifest.json");
     expect(readme).not.toContain("TypeScript port scaffold");
     expect(spec).toContain("Optimization loop mental model");

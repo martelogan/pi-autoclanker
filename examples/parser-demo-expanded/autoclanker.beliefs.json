@@ -26,7 +26,7 @@
     "Keep incident recall stable.",
     "Retain a reproducible eval command."
   ],
-  "evalSurfaceSha256": "sha256:9cd36f66d5a92dfcfc651c0f170597973dca8ec52b5a655fce5c537605b0ccb8",
+  "evalSurfaceSha256": "sha256:894e0df482355e75b174d5c9f99dbf330b3f26a9c369e1f30876c146876ef774",
   "mode": "canonicalize",
   "preview": {
     "argv": [

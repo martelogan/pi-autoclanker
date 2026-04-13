@@ -2,6 +2,10 @@
 
 This is a fuller worked session bundle for `pi-autoclanker`, not the minimum required input.
 
+It is paired with the packaged real target in `../targets/parser-quickstart/`.
+That target ships the actual parser source, candidate pool, and benchmark/eval
+surface so a lean `pi-autoclanker` install still has something concrete to run.
+
 It shows what the beginner path can look like after the extension has already
 materialized a resumable session:
 
@@ -16,10 +20,12 @@ materialized a resumable session:
    pool once the session is ready for `suggest`.
 
 In a fresh workspace, `pi-autoclanker` can generate a default
-`autoclanker.eval.sh` stub automatically. This expanded demo includes a checked-in
-version of that shell surface so the session is inspectable end-to-end. The
-wrapper snapshots that checked-in eval shell for the life of the session and
-expects a new session if the local eval surface changes.
+`autoclanker.eval.sh` stub automatically. This expanded demo instead shows a
+checked-in shell surface that calls the packaged parser benchmark in
+`../targets/parser-quickstart/benchmark.py`, so the session is inspectable
+end-to-end against a real target. The wrapper snapshots that checked-in eval
+shell for the life of the session and expects a new session if the local eval
+surface changes.
 
 The five local files are enough for local inspection and lightweight handoff.
 Complete operational handoff uses the export bundle with upstream artifacts when
@@ -34,3 +40,10 @@ Included files:
 - `autoclanker.history.jsonl`
 - `rough-ideas.json`
 - `candidates.json`
+
+Target files used by this bundle:
+
+- `../targets/parser-quickstart/app.py`
+- `../targets/parser-quickstart/benchmark.py`
+- `../targets/parser-quickstart/autoclanker.eval.sh`
+- `../targets/parser-quickstart/candidates.json`
