@@ -24,15 +24,15 @@ run = "npm exec -- tsc --noEmit -p tsconfig.json"
 
 [tasks.unused]
 description = "Run dead-code and unused-dependency checks"
-run = "npm exec -- knip"
+run = "npm exec -- knip --config configs/knip.json"
 
 [tasks.test]
 description = "Run the default test lane"
-run = "npm exec -- vitest run --config vitest.config.ts --coverage"
+run = "npm exec -- vitest run --config configs/vitest.config.ts --coverage"
 
 [tasks."test-unit"]
 description = "Run unit tests only"
-run = "npm exec -- vitest run --config vitest.config.ts --coverage"
+run = "npm exec -- vitest run --config configs/vitest.config.ts --coverage"
 
 [tasks."test-integration"]
 description = "Run integration tests if any exist"
@@ -48,7 +48,7 @@ run = "bash scripts/test-parity.sh"
 
 [tasks.build]
 description = "Build distributable artifacts"
-run = "npm exec -- tsc -p tsconfig.build.json"
+run = "npm exec -- tsc -p configs/tsconfig.build.json"
 
 [tasks."package-check"]
 description = "Run package-surface validation"

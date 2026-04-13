@@ -11,4 +11,4 @@ ROOT_DIR="$(dev_repo_root)"
 cd "${ROOT_DIR}"
 dev_load_repo_dotenv "${ROOT_DIR}"
 
-dev_run_tool vitest run --config vitest.integration.config.ts
+dev_run_tool vitest run --config configs/vitest.integration.config.ts

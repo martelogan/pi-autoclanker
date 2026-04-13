@@ -1,6 +1,6 @@
 <div align="center">
 
-<img height="120" alt="pi-autoclanker logo" src="assets/pi-autoclanker-logo.svg" />
+<img height="120" alt="pi-autoclanker logo" src="docs/assets/pi-autoclanker-logo.svg" />
 
 # pi-autoclanker
 
@@ -20,7 +20,7 @@
 
 </div>
 
-*Start from a rough optimization goal, keep the eval surface fixed, and let `autoclanker` drive the actual fit / suggest / recommend loop.*
+*Start from a rough optimization goal, keep the eval surface fixed, & let `autoclanker` drive the actual fit loop.*
 
 `pi-autoclanker` is the thin pi layer for
 [autoclanker](https://github.com/martelogan/autoclanker). It is meant to feel

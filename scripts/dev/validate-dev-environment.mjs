@@ -7,7 +7,7 @@ const root = resolve(import.meta.dirname, "../..");
 const miseToml = resolve(root, "mise.toml");
 const devenvNix = resolve(root, "devenv.nix");
 const devcontainerJson = resolve(root, ".devcontainer/devcontainer.json");
-const envrcDevenv = resolve(root, "dev/env/envrc.devenv.example");
+const envrcDevenv = resolve(root, "configs/strict-env/envrc.devenv.example");
 
 const requiredEnvKeys = [
   "npm_config_cache",

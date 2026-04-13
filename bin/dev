@@ -179,10 +179,10 @@ fallback_core_task() {
             dev_run_tool tsc --noEmit -p tsconfig.json
             ;;
         unused)
-            dev_run_tool knip
+            dev_run_tool knip --config configs/knip.json
             ;;
         test|test-unit)
-            dev_run_tool vitest run --config vitest.config.ts --coverage
+            dev_run_tool vitest run --config configs/vitest.config.ts --coverage
             ;;
         test-integration)
             bash "${ROOT_DIR}/scripts/test-integration.sh"
@@ -206,7 +206,7 @@ fallback_core_task() {
             bash "${ROOT_DIR}/scripts/check-live.sh"
             ;;
         build)
-            dev_run_tool tsc -p tsconfig.build.json
+            dev_run_tool tsc -p configs/tsconfig.build.json
             ;;
         package-check)
             dev_run_tool publint --strict

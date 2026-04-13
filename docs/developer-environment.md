@@ -113,7 +113,7 @@ bin/dev test
 Repo assets:
 
 1. `devenv.nix`
-2. `dev/env/envrc.devenv.example`
+2. `configs/strict-env/envrc.devenv.example`
 
 ### `.devcontainer`
 

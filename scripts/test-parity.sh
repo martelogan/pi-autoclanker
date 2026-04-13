@@ -12,4 +12,4 @@ cd "${ROOT_DIR}"
 dev_load_repo_dotenv "${ROOT_DIR}"
 
 echo "=== Reference parity acceptance tests ==="
-dev_run_tool vitest run --config vitest.parity.config.ts
+dev_run_tool vitest run --config configs/vitest.parity.config.ts

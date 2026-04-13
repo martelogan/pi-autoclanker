@@ -16,4 +16,4 @@ bash "${ROOT_DIR}/scripts/test-integration.sh"
 
 echo ""
 echo "=== Unit and default tests ==="
-dev_run_tool vitest run --config vitest.config.ts --coverage
+dev_run_tool vitest run --config configs/vitest.config.ts --coverage
