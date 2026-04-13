@@ -167,10 +167,10 @@ fallback_core_task() {
             dev_run_npm ci
             ;;
         format)
-            dev_run_tool biome check --write .
+            dev_run_tool biome check --config-path configs/biome.jsonc --files-ignore-unknown=true --write AGENTS.md README.md package.json tsconfig.json bin configs docs examples extensions scripts skills src tests
             ;;
         lint)
-            dev_run_tool biome check .
+            dev_run_tool biome check --config-path configs/biome.jsonc --files-ignore-unknown=true AGENTS.md README.md package.json tsconfig.json bin configs docs examples extensions scripts skills src tests
             ;;
         tscheck)
             dev_run_tool tsc --noEmit -p tsconfig.json
@@ -182,6 +182,7 @@ fallback_core_task() {
             dev_run_tool knip --config configs/knip.json
             ;;
         test|test-unit)
+            mkdir -p coverage/.tmp
             dev_run_tool vitest run --config configs/vitest.config.ts --coverage
             ;;
         test-integration)

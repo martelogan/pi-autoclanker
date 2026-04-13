@@ -34,12 +34,12 @@
     "pi-autoclanker": "./dist/cli.js"
   },
   "scripts": {
-    "format": "biome check --write .",
-    "lint": "biome check .",
+    "format": "biome check --config-path configs/biome.jsonc --files-ignore-unknown=true --write AGENTS.md README.md package.json tsconfig.json bin configs docs examples extensions scripts skills src tests",
+    "lint": "biome check --config-path configs/biome.jsonc --files-ignore-unknown=true AGENTS.md README.md package.json tsconfig.json bin configs docs examples extensions scripts skills src tests",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "tscheck": "tsc --noEmit -p tsconfig.json",
     "unused": "knip --config configs/knip.json",
-    "test": "vitest run --config configs/vitest.config.ts --coverage",
+    "test": "mkdir -p coverage/.tmp && vitest run --config configs/vitest.config.ts --coverage",
     "test:integration": "vitest run --config configs/vitest.integration.config.ts",
     "test:full": "bash scripts/run-full-test-suite.sh",
     "test:parity": "bash scripts/test-parity.sh",

@@ -1,6 +1,9 @@
-# parser-demo
+# parser-demo-expanded
 
-This demo shows the intended beginner path for `pi-autoclanker`:
+This is a fuller worked session bundle for `pi-autoclanker`, not the minimum required input.
+
+It shows what the beginner path can look like after the extension has already
+materialized a resumable session:
 
 1. collect a rough optimization goal,
 2. store rough ideas,
@@ -13,7 +16,7 @@ This demo shows the intended beginner path for `pi-autoclanker`:
    pool once the session is ready for `suggest`.
 
 In a fresh workspace, `pi-autoclanker` can generate a default
-`autoclanker.eval.sh` stub automatically. This demo includes a checked-in
+`autoclanker.eval.sh` stub automatically. This expanded demo includes a checked-in
 version of that shell surface so the session is inspectable end-to-end. The
 wrapper snapshots that checked-in eval shell for the life of the session and
 expects a new session if the local eval surface changes.

@@ -25,35 +25,43 @@
       "sha256": "0d51bb0a254894483cf5a9da3fd718af3f789077cfb6189e298250f84b617d59"
     },
     {
-      "path": "examples/parser-demo/README.md",
-      "sha256": "ce22450bdbbf4dd923cc269c3d507bdf1e315db72c2ff7e688a7179ed0c83b5f"
+      "path": "examples/minimal/README.md",
+      "sha256": "b936f413df3a62c97d4a863f6930764b95c91df049f68b98bfadf428a9112a9d"
     },
     {
-      "path": "examples/parser-demo/candidates.json",
+      "path": "examples/minimal/rough-ideas.json",
+      "sha256": "a18551cfdda3fd75c1e0688312aabe380006a5d51dc17352de2d8f46d3dd5cc7"
+    },
+    {
+      "path": "examples/parser-demo-expanded/README.md",
+      "sha256": "d40c4210b213aa86a04391ed1fe1f9abbe37e2d2a2bb2d3bdd30fda1726a1a23"
+    },
+    {
+      "path": "examples/parser-demo-expanded/candidates.json",
       "sha256": "b3c9b64417da9a0e3bfd9f5904a0244c2eda91568fa14cd9155822ab7c143d96"
     },
     {
-      "path": "examples/parser-demo/autoclanker.beliefs.json",
+      "path": "examples/parser-demo-expanded/autoclanker.beliefs.json",
       "sha256": "c9a76f66d0d1857ca004eeb1ad3c7673fe7aafadacbd2f9b0ba90be20a3e593b"
     },
     {
-      "path": "examples/parser-demo/autoclanker.config.json",
+      "path": "examples/parser-demo-expanded/autoclanker.config.json",
       "sha256": "b01fb58d3e5ce8fdaa5e75608e4236cfb6430ed401d80f20c8d9b5befa630fb6"
     },
     {
-      "path": "examples/parser-demo/autoclanker.eval.sh",
+      "path": "examples/parser-demo-expanded/autoclanker.eval.sh",
       "sha256": "9cd36f66d5a92dfcfc651c0f170597973dca8ec52b5a655fce5c537605b0ccb8"
     },
     {
-      "path": "examples/parser-demo/autoclanker.history.jsonl",
+      "path": "examples/parser-demo-expanded/autoclanker.history.jsonl",
       "sha256": "596c54eb4273e908062a6a419914106d5eea31eabfc4d13c2b7b5173d1164991"
     },
     {
-      "path": "examples/parser-demo/autoclanker.md",
+      "path": "examples/parser-demo-expanded/autoclanker.md",
       "sha256": "a03fdcb9ffb9cde685d21a00d5a129e64cd4ef5f093c06d4e557643c1cb43ab6"
     },
     {
-      "path": "examples/parser-demo/rough-ideas.json",
+      "path": "examples/parser-demo-expanded/rough-ideas.json",
       "sha256": "1a5c5adeb2bacd89ae05abbe771abf7c71673b1cc0b8d7f2bc3f5aa52ca461d7"
     }
   ],

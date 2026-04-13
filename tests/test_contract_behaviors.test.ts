@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { expect } from "vitest";
@@ -56,7 +56,14 @@ coveredTest(
   "example session bundle documents the beginner path",
   () => {
     const root = repoRoot();
-    const exampleDir = resolve(root, "examples/parser-demo");
+    const minimalDir = resolve(root, "examples/minimal");
+    const exampleDir = resolve(root, "examples/parser-demo-expanded");
+    expect(readdirSync(minimalDir).sort()).toEqual(["README.md", "rough-ideas.json"]);
+    const minimalReadme = readFileSync(resolve(minimalDir, "README.md"), "utf-8");
+    const minimalIdeas = JSON.parse(
+      readFileSync(resolve(minimalDir, "rough-ideas.json"), "utf-8"),
+    ) as unknown[];
+
     for (const fileName of [
       "autoclanker.md",
       "autoclanker.config.json",
@@ -87,9 +94,16 @@ coveredTest(
       .split("\n");
     const history = historyLines.map((line) => JSON.parse(line) as HistoryEntry);
 
+    expect(minimalReadme).toContain("smallest useful kickoff shape");
+    expect(minimalReadme).toContain("/autoclanker start <goal>");
+    expect(minimalReadme).toContain("can create from there");
+    expect(minimalReadme).toContain("default checked-in");
+    expect(minimalIdeas.length).toBe(2);
     expect(readme).toContain("canonicalize");
     expect(readme).toContain("preview beliefs");
     expect(readme).toContain("candidates.json");
+    expect(readme).toContain("not the minimum required input");
+    expect(readme).toContain("expanded demo");
     expect(readme).toContain("default");
     expect(readme).toContain("autoclanker.eval.sh");
     expect(String(config.evalCommand)).toContain("cat <<EVAL");
@@ -185,7 +199,7 @@ coveredTest(
       readFileSync(resolve(root, "docs/DESIGN.md"), "utf-8"),
     );
     const exampleReadme = readFileSync(
-      resolve(root, "examples/parser-demo/README.md"),
+      resolve(root, "examples/parser-demo-expanded/README.md"),
       "utf-8",
     );
 
@@ -288,11 +302,33 @@ coveredTest(
     );
 
     try {
-      execFileSync(resolve(root, "node_modules/.bin/biome"), ["check", "."], {
-        cwd: root,
-        encoding: "utf-8",
-        stdio: ["ignore", "pipe", "pipe"],
-      });
+      execFileSync(
+        resolve(root, "node_modules/.bin/biome"),
+        [
+          "check",
+          "--config-path",
+          "configs/biome.jsonc",
+          "--files-ignore-unknown=true",
+          "AGENTS.md",
+          "README.md",
+          "package.json",
+          "tsconfig.json",
+          "bin",
+          "configs",
+          "docs",
+          "examples",
+          "extensions",
+          "scripts",
+          "skills",
+          "src",
+          "tests",
+        ],
+        {
+          cwd: root,
+          encoding: "utf-8",
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      );
     } finally {
       rmSync(evidencePath, { force: true });
     }

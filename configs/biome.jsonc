@@ -2,11 +2,11 @@
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
   "files": {
     "ignore": [
-      ".local/live-evidence/**",
-      "coverage/**",
-      "dist/**",
-      "node_modules/**",
-      "schemas/pi-autoclanker.config.schema.json"
+      "../.local/live-evidence/**",
+      "../coverage/**",
+      "../dist/**",
+      "../node_modules/**",
+      "../schemas/pi-autoclanker.config.schema.json"
     ]
   },
   "formatter": {

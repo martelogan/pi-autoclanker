@@ -8,11 +8,11 @@ run = "npm ci"
 
 [tasks.format]
 description = "Auto-format and apply safe lint fixes"
-run = "npm exec -- biome check --write ."
+run = "npm exec -- biome check --config-path configs/biome.jsonc --files-ignore-unknown=true --write AGENTS.md README.md package.json tsconfig.json bin configs docs examples extensions scripts skills src tests"
 
 [tasks.lint]
 description = "Run lint checks"
-run = "npm exec -- biome check ."
+run = "npm exec -- biome check --config-path configs/biome.jsonc --files-ignore-unknown=true AGENTS.md README.md package.json tsconfig.json bin configs docs examples extensions scripts skills src tests"
 
 [tasks.tscheck]
 description = "Run strict compiler validation for the TypeScript runtime surface"
@@ -28,11 +28,11 @@ run = "npm exec -- knip --config configs/knip.json"
 
 [tasks.test]
 description = "Run the default test lane"
-run = "npm exec -- vitest run --config configs/vitest.config.ts --coverage"
+run = "mkdir -p coverage/.tmp && npm exec -- vitest run --config configs/vitest.config.ts --coverage"
 
 [tasks."test-unit"]
 description = "Run unit tests only"
-run = "npm exec -- vitest run --config configs/vitest.config.ts --coverage"
+run = "mkdir -p coverage/.tmp && npm exec -- vitest run --config configs/vitest.config.ts --coverage"
 
 [tasks."test-integration"]
 description = "Run integration tests if any exist"

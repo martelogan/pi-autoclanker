@@ -15,6 +15,9 @@
 **[Commands](#commands)** ·
 **[Tools](#tools)** ·
 **[Skills](#skills)** ·
+**[Start simple](#start-simple)** ·
+**[Optimization loop](#optimization-loop)** ·
+**[Why this is different](#why-this-is-different)** ·
 **[Files & output](#files--output)** ·
 **[Developer](#developer)**
 
@@ -31,11 +34,11 @@ simple from the pi side:
 - shell out to `autoclanker` for preview, apply, ingest, fit, suggest, and
   commit recommendation.
 
-If you like the clarity of
-[cEvolve](https://github.com/jnormore/cevolve) or
-[Autoresearch](https://github.com/karpathy/autoresearch), this is the same
-idea -> explore -> rethink loop, but with a stricter `autoclanker` session
-behind it.
+If you like the optimization flow of
+[Autoresearch](https://github.com/karpathy/autoresearch) or
+[cEvolve](https://github.com/jnormore/cevolve), this is the same
+`idea -> explore -> rethink` routine, but supported by Bayesian typed priors and
+the snapshot-eval outer loop harness provided by `autoclanker`.
 
 ## Install
 
@@ -109,9 +112,11 @@ start with:
 | Local files | resumable checked-in session files at the project root |
 | Upstream artifacts | `.autoclanker/<session>/` JSON, reports, and charts from `autoclanker` |
 
-The parser demo in
-[`examples/parser-demo`](examples/parser-demo)
-shows the intended beginner path end to end.
+The fastest way to understand the repo now is:
+
+- [`examples/minimal`](examples/minimal) for the smallest kickoff shape
+- [`examples/parser-demo-expanded`](examples/parser-demo-expanded) for a fuller
+  worked session after the extension has already materialized local files
 
 ## Commands
 
@@ -169,36 +174,129 @@ The common flow is:
 - move to `autoclanker-advanced-beliefs` only when risks, relations, or
   graph-structured priors actually matter.
 
-## Usage
+## Start Simple
 
-The first useful session usually looks like this:
+You do not need advanced Bayes JSON or a complex population file to begin. The
+smallest useful input is still just a goal, a few rough ideas, and optional
+constraints:
 
-1. Start with a goal and a few rough ideas.
-2. Let the extension write the local session files.
-3. Keep the checked-in `autoclanker.eval.sh` surface fixed for that session.
-4. Ingest eval JSON, run `fit`, then call `suggest`.
-5. When several pathways matter, keep them in a checked-in `candidates.json`
-   pool so they can be ranked and compared together instead of buried in prompt
-   history.
+```text
+goal: lower latency without reducing quality
+rough ideas:
+- cache repeated work
+- try batch sizes 16 / 32 / 64
+- reduce allocation churn
+constraints:
+- keep output quality stable
+- keep the eval surface fixed while comparing paths
+```
 
-That is where `pi-autoclanker` earns its keep: it keeps the search structured.
+That is enough to start a session. `autoclanker.beliefs.json` can keep those as
+plain strings at first. Candidate-pool JSON, graph directives, and advanced
+belief authoring stay opt-in until the search actually needs them.
 
-- rough ideas stay in files instead of disappearing into chat history
-- candidate lanes can stay explicit
-- available lanes can be evaluated in parallel when practical
-- the eval surface is snapshotted and drift-checked
-- the session is resumable for humans and agents
+## Optimization Loop
 
-If you already think in evolve-style terms, treat `pi-autoclanker` as the same
-outer loop with stronger structure:
+`pi-autoclanker` should feel easy to start from rough optimization ideas:
+
+```text
+rough ideas
+    ↓ preview as typed beliefs
+candidate lanes:   [A]   [B]   [A+B]
+    ↓ evaluate available lanes in parallel when practical
+eval JSON per lane
+    ↓ ingest -> fit
+ranked candidates + influence notes + next query
+    ↓ keep / merge / split / drop lanes
+next era
+```
+
+That loop is the core product:
+
+- start from rough ideas, not hand-authored Bayes syntax
+- keep isolated paths and combined paths explicit instead of burying them in
+  prompt history
+- evaluate candidates against a fixed checked-in `autoclanker.eval.sh` surface
+  with explicit parallel lane exploration when you have the workers to do it
+- use `fit`, `suggest`, and `recommend-commit` to decide whether to drop,
+  merge, split, or strengthen lanes in the next era
+
+If you already like the
+[Autoresearch](https://github.com/karpathy/autoresearch) or
+[cEvolve](https://github.com/jnormore/cevolve) intuition, the important
+difference is that `pi-autoclanker` can run that same search loop while also
+recording typed beliefs, explicit relations, and machine-readable uncertainty.
+
+An evolve-style epoch still maps cleanly:
+
+```text
+Era 0 lanes: [A], [B], [C], [A+B]
+              -> evaluate available lanes in parallel
+              -> rank, compare, and query the interesting differences
+              -> keep / merge / split / drop lanes
+Era 1 lanes: [A], [B+C], [A+B], [A+B+C], ...
+```
+
+## Why This Is Different
+
+`pi-autoclanker` should give pi users a thin, inspectable path into
+`autoclanker`:
+
+- gather rough optimization ideas from a user
+- turn them into previewable `autoclanker` sessions
+- help escalate rough ideas into advanced Bayes declarations when needed
+- structure multiple candidate pathways explicitly so `autoclanker` can rank,
+  compare, and query them
+- keep a resumable project-local session surface
+- expose thin tools and skills rather than reimplementing the Bayesian engine
+
+`pi-autoclanker` is not meant to compete with a loose planning chat on
+free-form brainstorming alone. The value shows up when you want the exploration
+to stay structured and comparable:
+
+- rough ideas become inspectable belief batches instead of disappearing into
+  prompt history
+- candidate lanes can stay explicit instead of getting buried inside a single
+  prompt thread
+- `suggest` can evaluate an explicit candidate pool so several pathways can be
+  ranked and compared together
+- advanced beliefs can express when pathways should reinforce, combine with, or
+  stay separate from each other through explicit priors and graph directives
+- the checked-in eval shell stays fixed for the life of a session, so long
+  optimization loops cannot quietly rewrite that local eval surface mid-run
+- `fit`, `suggest`, and `recommend-commit` keep the downstream reasoning
+  machine-readable through ranked candidates, follow-up queries, and influence
+  summaries when upstream provides them
+
+If you want the simplest mental model, treat `pi-autoclanker` as a strict
+superset of an evolve-style workflow:
 
 | Evolve-style intuition | `pi-autoclanker` equivalent |
 | --- | --- |
-| idea list | rough ideas plus previewable belief batch |
+| idea list | rough ideas and canonical belief batch |
 | population | explicit candidate pool |
-| fitness run | `autoclanker.eval.sh` -> ingest -> fit |
-| rethink pass | revise beliefs, candidate lanes, or both |
+| crossover | explicit combined candidates or positive graph links |
+| mutation | revised candidate variants or updated belief parameters |
+| fitness run | eval shell -> ingest -> fit |
+| rethink pass | revise beliefs, candidate lanes, or both for the next era |
 | winner | ranked candidate plus commit recommendation |
+
+What Bayes adds on top of that loop:
+
+- ideas can reinforce each other, conflict, or stay intentionally separate
+  through explicit priors and graph directives
+- confidence and risk can be encoded directly instead of staying implicit in
+  prompt prose
+- follow-up queries can say what evidence would most reduce uncertainty next
+- a candidate pool can emulate 1:1 evolution epochs, but the belief layer can
+  also explain why a combination should exist, not just whether it happened to
+  score well once
+
+That is the main claim of the project: `autoclanker` should make
+[Autoresearch](https://github.com/karpathy/autoresearch) or
+[cEvolve](https://github.com/jnormore/cevolve)-style exploration easy to
+reproduce, while also making the search space more inspectable, more expressive,
+and easier to hand off honestly.
 
 ## Files & output
 
@@ -215,6 +313,23 @@ Every session keeps five project-local files:
 Those files live at the project root. They are enough for local inspection and
 lightweight handoff.
 
+A run has three layers:
+
+- `autoclanker.md`: the wrapper-local summary at the project root
+- `autoclanker.history.jsonl`: the local chronological log of what the wrapper
+  did
+- `.autoclanker/<session>/RESULTS.md` plus the session PNGs: the upstream
+  summary and visual report bundle
+- `.autoclanker/<session>/...`: the deeper upstream JSON and YAML artifacts when
+  you want posterior details, influence summaries, queries, or export,
+  including `observations.jsonl`, `posterior_summary.json`,
+  `influence_summary.json`, and `query.json`
+
+That means the public story stays simple even though the underlying model is
+stronger than a plain evolve loop. You can begin from plain strings at first,
+read the summary, and only drop into the deeper artifact tree when you actually
+need the extra structure.
+
 The upstream session root, usually `.autoclanker/<session>/`, keeps the deeper
 `autoclanker` artifacts:
 
@@ -230,20 +345,37 @@ The upstream session root, usually `.autoclanker/<session>/`, keeps the deeper
 session start and refuses eval ingest if that local eval file drifts during the
 life of the session.
 
-## Example demo
+If you compare that with a lighter `cevolve`-style run directory:
 
-The shipped beginner example is:
+| `cevolve`-style artifact | `autoclanker` equivalent or stronger |
+| --- | --- |
+| `config.json` | `autoclanker.config.json` |
+| `ideas.json` | rough ideas plus `autoclanker.beliefs.json` |
+| `population.json` | candidate pool plus ranked candidates and posterior state |
+| `history.jsonl` | `autoclanker.history.jsonl` plus upstream `observations.jsonl` |
+| `RESULTS.md` | upstream `.autoclanker/<session>/RESULTS.md` plus wrapper-local `autoclanker.md` |
+| chart PNGs | upstream `convergence.png`, `candidate_rankings.png`, `belief_graph_prior.png`, and `belief_graph_posterior.png` |
 
-- [`examples/parser-demo`](examples/parser-demo)
+The upstream session root now emits the small report bundle directly after
+`fit`, `suggest`, or `recommend-commit`, and it can be refreshed explicitly
+with `autoclanker session render-report`. The underlying JSON and YAML
+artifacts are still there when you need the deeper Bayesian state.
 
-It includes:
+## Example demos
 
-- `rough-ideas.json`
-- `candidates.json`
-- the five local session files
+The shipped examples now separate kickoff inputs from a fuller realized
+session:
 
-That demo is the best place to see the intended first-run shape without having
-to read the full spec first.
+- [`examples/minimal`](examples/minimal): smallest useful kickoff shape,
+  centered on `rough-ideas.json` plus a goal supplied to
+  `/autoclanker start`
+- [`examples/parser-demo-expanded`](examples/parser-demo-expanded): fuller
+  worked session with `candidates.json`, the five local session files, and a
+  checked-in eval surface
+
+Use `examples/minimal` to see what the wrapper can start from. Use
+`examples/parser-demo-expanded` to see what the project looks like after
+`pi-autoclanker` has already written the resumable files.
 
 ## Developer
 
