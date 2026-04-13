@@ -8,7 +8,7 @@ import type { TSchema } from "@sinclair/typebox";
 
 type JsonObject = Record<string, unknown>;
 type JsonSchema = {
-  type: "array" | "boolean" | "object" | "string";
+  type: "array" | "boolean" | "number" | "object" | "string";
   description?: string;
   enum?: readonly string[];
   items?: JsonSchema;
@@ -27,15 +27,28 @@ type ToolRegistration = {
 const TOOL_NAMES = [
   "autoclanker_init_session",
   "autoclanker_session_status",
+  "autoclanker_frontier_status",
   "autoclanker_preview_beliefs",
   "autoclanker_apply_beliefs",
   "autoclanker_ingest_eval",
   "autoclanker_fit",
   "autoclanker_suggest",
+  "autoclanker_compare_frontier",
+  "autoclanker_merge_pathways",
   "autoclanker_recommend_commit",
 ] as const;
 
-const COMMAND_NAMES = ["start", "resume", "status", "off", "clear", "export"] as const;
+const COMMAND_NAMES = [
+  "start",
+  "resume",
+  "status",
+  "frontier-status",
+  "compare-frontier",
+  "merge-pathways",
+  "off",
+  "clear",
+  "export",
+] as const;
 
 type ToolName = (typeof TOOL_NAMES)[number];
 type CommandName = (typeof COMMAND_NAMES)[number];
@@ -44,14 +57,21 @@ type AutoclankerPayload = JsonObject & {
   autoclankerBinary?: string;
   autoclankerRepo?: string;
   canonicalizationModel?: string;
+  candidateIds?: string[];
   command?: string;
   constraints?: string[];
   enabled?: boolean;
   error?: string;
   evalCommand?: string;
+  familyIds?: string[];
+  frontierInputPath?: string;
   goal?: string;
+  budgetWeight?: number;
+  mergedCandidateId?: string;
+  mergedGenotype?: unknown;
   mode?: string;
   name?: string;
+  notes?: string;
   ok?: boolean;
   outputPath?: string;
   payload?: unknown;
@@ -65,7 +85,12 @@ const IDEAS_MODE_ENUM = ["rough", "canonicalize", "advanced_json"] as const;
 
 const COMMAND_SUMMARIES: Record<CommandName, string> = {
   clear: "Clear the current project-local pi-autoclanker session files.",
+  "compare-frontier":
+    "Persist or reuse autoclanker.frontier.json and compare pathways through autoclanker.",
   export: "Export the current project-local pi-autoclanker session bundle.",
+  "frontier-status": "Show the current local frontier and upstream frontier status.",
+  "merge-pathways":
+    "Merge selected pathways into autoclanker.frontier.json and re-rank them.",
   off: "Disable the current project-local pi-autoclanker session.",
   resume: "Resume the current project-local pi-autoclanker session.",
   start: "Start or resume a project-local pi-autoclanker session.",
@@ -89,15 +114,34 @@ const COMMON_PROPERTIES = {
     type: "string",
     description: "Optional upstream canonicalization model alias for billed live mode.",
   },
+  candidateIds: {
+    type: "array",
+    description: "Explicit candidate ids to compare or merge from the local frontier.",
+    items: {
+      type: "string",
+    },
+  },
   candidates: {
     type: "object",
     description:
-      "Optional inline autoclanker candidate-pool payload for comparing multiple pathways during suggest.",
+      "Optional inline autoclanker frontier payload for comparing multiple pathways during suggest.",
   },
   candidatesInputPath: {
     type: "string",
     description:
-      "Optional path to a checked-in autoclanker candidate-pool JSON file for suggest.",
+      "Optional path to a checked-in autoclanker candidate-pool or frontier JSON file.",
+  },
+  familyIds: {
+    type: "array",
+    description: "Family ids to merge when each family currently has one candidate.",
+    items: {
+      type: "string",
+    },
+  },
+  frontierInputPath: {
+    type: "string",
+    description:
+      "Optional path to a checked-in autoclanker frontier JSON file for compare-frontier or suggest.",
   },
   constraints: {
     type: "array",
@@ -120,10 +164,27 @@ const COMMON_PROPERTIES = {
     type: "string",
     description: "Optimization goal for the project-local session.",
   },
+  budgetWeight: {
+    type: "number",
+    description: "Optional budget weight for a merged frontier candidate.",
+  },
+  mergedCandidateId: {
+    type: "string",
+    description: "Optional candidate id for a merged pathway candidate.",
+  },
+  mergedGenotype: {
+    type: "object",
+    description:
+      "Optional explicit merged genotype when the merge cannot be inferred safely.",
+  },
   mode: {
     type: "string",
     description: "Ideas mode override for preview or initialization.",
     enum: IDEAS_MODE_ENUM,
+  },
+  notes: {
+    type: "string",
+    description: "Optional notes stored beside a merged frontier candidate.",
   },
   outputPath: {
     type: "string",
@@ -164,6 +225,17 @@ const TOOL_DEFINITIONS: readonly ToolRegistration[] = [
     label: "Session Status",
     description:
       "Read local session files and ask autoclanker for the upstream session status.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: COMMON_PROPERTIES,
+    },
+  },
+  {
+    name: "autoclanker_frontier_status",
+    label: "Frontier Status",
+    description:
+      "Read the local frontier file and ask autoclanker for upstream frontier status.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -216,7 +288,29 @@ const TOOL_DEFINITIONS: readonly ToolRegistration[] = [
     name: "autoclanker_suggest",
     label: "Suggest Next Step",
     description:
-      "Ask autoclanker for the next suggested action, optionally against an explicit candidate pool.",
+      "Ask autoclanker for the next suggested action, optionally against an explicit frontier.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: COMMON_PROPERTIES,
+    },
+  },
+  {
+    name: "autoclanker_compare_frontier",
+    label: "Compare Frontier",
+    description:
+      "Persist or reuse autoclanker.frontier.json and compare explicit pathways through autoclanker.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: COMMON_PROPERTIES,
+    },
+  },
+  {
+    name: "autoclanker_merge_pathways",
+    label: "Merge Pathways",
+    description:
+      "Merge selected pathways into autoclanker.frontier.json and ask autoclanker to re-rank them.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -257,6 +351,7 @@ export const runtimeNotes = {
     "autoclanker.config.json",
     "autoclanker.beliefs.json",
     "autoclanker.eval.sh",
+    "autoclanker.frontier.json",
     "autoclanker.history.jsonl",
   ],
   stance: "thin wrapper over the autoclanker CLI",
@@ -469,6 +564,19 @@ export function parseAutoclankerCommandArgs(raw: string): {
         index = nextIndex;
         break;
       }
+      case "--candidate-id": {
+        const [value, nextIndex] = consumeFlagValue(rest, index, token);
+        payload.candidateIds = [...(payload.candidateIds ?? []), value];
+        index = nextIndex;
+        break;
+      }
+      case "--candidates-input":
+      case "--frontier-input": {
+        const [value, nextIndex] = consumeFlagValue(rest, index, token);
+        payload.frontierInputPath = value;
+        index = nextIndex;
+        break;
+      }
       case "--constraint": {
         const [value, nextIndex] = consumeFlagValue(rest, index, token);
         appendStringList(payload, "constraints", value);
@@ -487,6 +595,12 @@ export function parseAutoclankerCommandArgs(raw: string): {
         index = nextIndex;
         break;
       }
+      case "--family-id": {
+        const [value, nextIndex] = consumeFlagValue(rest, index, token);
+        payload.familyIds = [...(payload.familyIds ?? []), value];
+        index = nextIndex;
+        break;
+      }
       case "--idea": {
         const [value, nextIndex] = consumeFlagValue(rest, index, token);
         appendStringList(payload, "roughIdeas", value);
@@ -499,9 +613,27 @@ export function parseAutoclankerCommandArgs(raw: string): {
         index = nextIndex;
         break;
       }
+      case "--merged-candidate-id": {
+        const [value, nextIndex] = consumeFlagValue(rest, index, token);
+        payload.mergedCandidateId = value;
+        index = nextIndex;
+        break;
+      }
+      case "--notes": {
+        const [value, nextIndex] = consumeFlagValue(rest, index, token);
+        payload.notes = value;
+        index = nextIndex;
+        break;
+      }
       case "--output-path": {
         const [value, nextIndex] = consumeFlagValue(rest, index, token);
         payload.outputPath = value;
+        index = nextIndex;
+        break;
+      }
+      case "--budget-weight": {
+        const [value, nextIndex] = consumeFlagValue(rest, index, token);
+        payload.budgetWeight = Number(value);
         index = nextIndex;
         break;
       }
@@ -561,6 +693,15 @@ function summarizeCommandResult(
     const enabled = result.enabled === true ? "enabled" : "disabled";
     return `pi-autoclanker status loaded; session is ${enabled}.`;
   }
+  if (command === "frontier-status") {
+    return "pi-autoclanker frontier status loaded.";
+  }
+  if (command === "compare-frontier") {
+    return "pi-autoclanker compared the current frontier.";
+  }
+  if (command === "merge-pathways") {
+    return "pi-autoclanker merged pathways and refreshed the frontier ranking.";
+  }
   return `pi-autoclanker ${command} completed.`;
 }
 
@@ -579,21 +720,21 @@ function toolResultPayload(result: unknown): {
   };
 }
 
-export function handleAutoclankerToolCall(
+function handleAutoclankerToolCall(
   name: ToolName,
   payload: AutoclankerPayload,
 ): unknown {
   return invokeRuntime("tool", name, payload);
 }
 
-export function handleAutoclankerCommand(
+function handleAutoclankerCommand(
   name: CommandName,
   payload: AutoclankerPayload,
 ): unknown {
   return invokeRuntime("command", name, payload);
 }
 
-export function handleAutoclankerSlashInput(
+function handleAutoclankerSlashInput(
   raw: string,
   payload: AutoclankerPayload,
 ): unknown {

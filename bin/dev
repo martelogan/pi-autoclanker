@@ -182,8 +182,7 @@ fallback_core_task() {
             dev_run_tool knip --config configs/knip.json
             ;;
         test|test-unit)
-            mkdir -p coverage/.tmp
-            dev_run_tool vitest run --config configs/vitest.config.ts --coverage
+            bash "${ROOT_DIR}/scripts/test-with-coverage.sh"
             ;;
         test-integration)
             bash "${ROOT_DIR}/scripts/test-integration.sh"

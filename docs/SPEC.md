@@ -18,7 +18,7 @@ The extension should make it easy for a user to:
 4. keep a resumable project-local session,
 5. escalate rough ideas into advanced Bayes declarations when needed,
 6. structure multiple candidate pathways explicitly so they can be compared,
-   ranked, and queried through `autoclanker`.
+   ranked, merged, and queried through `autoclanker`.
 
 The beginner input surface should stay simple: goal, rough ideas, and optional
 constraints must be enough to start. Advanced JSON beliefs and graph directives
@@ -33,6 +33,12 @@ fixed for the life of the session: the wrapper should snapshot it, surface the
 snapshot in status, and refuse eval ingest if the local `autoclanker.eval.sh`
 file drifts.
 
+The checked-in eval shell is a local reflection of the upstream eval contract,
+not a second trust model. The wrapper must pass the locked upstream eval
+contract through to the checked-in shell or generated default stub at ingest
+time, then surface the same locked contract and drift state that upstream
+`autoclanker` reports.
+
 ## Optimization loop mental model
 
 The product should make the following loop obvious from the outset:
@@ -42,7 +48,7 @@ The product should make the following loop obvious from the outset:
 3. keep several isolated and combined candidate lanes explicit at the same time,
 4. evaluate those lanes in parallel when practical through the checked-in eval surface,
 5. ingest results, fit the session, and inspect ranked candidates,
-6. rethink the beliefs or candidate pool for the next era.
+6. compare frontier families, merge promising pathways, and rethink the next era.
 
 That framing is intentionally inspired by the clarity of
 [cEvolve](https://github.com/jnormore/cevolve)'s idea-and-rethink loop, but
@@ -82,12 +88,15 @@ The extension must expose tool surfaces that map onto `autoclanker` operations:
 
 - session bootstrap
 - session status
+- frontier status
 - beliefs preview / canonicalize
 - apply beliefs
 - ingest eval
 - fit
 - suggest, including optional explicit candidate-pool input for structured
   pathway comparison
+- compare frontier
+- merge pathways
 - recommend commit
 
 ### 2. Slash-command style entrypoint
@@ -96,6 +105,9 @@ The repo must document and implement a `/autoclanker` family with at least:
 
 - start or resume
 - `status`
+- `frontier-status`
+- `compare-frontier`
+- `merge-pathways`
 - `off`
 - `clear`
 - `export`
@@ -125,6 +137,7 @@ The extension must operate through explicit project-local files:
 - `autoclanker.config.json`
 - `autoclanker.beliefs.json`
 - `autoclanker.eval.sh`
+- `autoclanker.frontier.json`
 - `autoclanker.history.jsonl`
 
 These files must be sufficient for local inspection, lightweight metadata handoff,
@@ -142,6 +155,9 @@ that includes those artifacts.
    explicit candidate pool is available; keep candidate comparison inspectable
    through `autoclanker session suggest` rather than reducing it to a single
    prompt thread.
+6. Keep local frontier edits thin and reviewable: `compare-frontier` and
+   `merge-pathways` may update `autoclanker.frontier.json`, but they must still
+   call upstream `autoclanker` for ranking and query logic.
 
 ## Value boundary
 
@@ -151,6 +167,8 @@ should be most useful when a user needs to:
 - turn rough ideas into inspectable beliefs,
 - keep several plausible pathways visible at once,
 - compare those pathways through explicit candidate pools and ranked results,
+- keep the frontier summary, pending merges, and trust drift visible in status
+  and export,
 - run evolve-style exploration epochs without giving up typed beliefs,
   structured relations, or machine-readable uncertainty,
 - keep the checked-in local eval surface fixed while a session is running so

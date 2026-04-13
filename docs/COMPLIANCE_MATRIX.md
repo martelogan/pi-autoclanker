@@ -23,13 +23,16 @@ acceptance script completes successfully and records evidence under
 | `M2-003` | `required` | The explicit session files are sufficient for local inspection, lightweight metadata handoff, and export initiation; complete operational handoff uses the export bundle with upstream artifacts when available. |
 | `M2-004` | `required` | Runtime command resolution prefers an installed `autoclanker` CLI, supports a sibling checkout fallback, and keeps `autoclanker` as the Bayesian source of truth. |
 | `M2-005` | `required` | Advanced JSON belief promotion is explicitly gated by `allowBilledLive` and forwards a live opt-in signal upstream without changing non-billed behavior. |
-| `M2-006` | `required` | The beginner start path can bootstrap a session from a goal alone by generating a checked-in default eval shell stub while still allowing an explicit eval command override. |
+| `M2-006` | `required` | The beginner start path can bootstrap a session from a goal alone by generating a checked-in default eval shell stub, while still allowing an explicit eval command override and preserving hardened upstream eval-contract compatibility at ingest time. |
 | `M2-007` | `required` | Suggest can accept an explicit autoclanker candidate-pool input so multiple pathways remain inspectable, rankable, and comparable instead of collapsing into a single prompt thread. |
-| `M2-008` | `required` | The checked-in `autoclanker.eval.sh` surface is snapshotted at session initialization, exposed in session status, and rejected at eval ingest time if it drifts during the life of that session. |
+| `M2-008` | `required` | The checked-in `autoclanker.eval.sh` surface is snapshotted at session initialization, receives the locked upstream eval contract at ingest time, is exposed in session status, and is rejected if it drifts during the life of that session. |
+| `M2-009` | `required` | A local `autoclanker.frontier.json` file can persist explicit pathway families and stays readable through frontier-status surfaces. |
+| `M2-010` | `required` | `compare-frontier` and `merge-pathways` only edit the local frontier file and call upstream `autoclanker` surfaces instead of adding a second inference layer. |
+| `M2-011` | `required` | Status and export surfaces expose locked eval-contract trust plus frontier counts, pending queries, and pending merge suggestions. |
 | `M3-001` | `required` | The deterministic required gate excludes the opt-in live lanes. |
 | `M3-002` | `required` | The required gate includes TypeScript validation alongside lint, typecheck, tests, build, and strict-environment parity. |
 | `M3-003` | `required` | A separate `./bin/dev check-live` surface runs the opt-in live acceptance lanes. |
 | `M3-004` | `required` | `./bin/codex-autonomous` targets the realized spec pack and requires live completion when live env knobs are enabled. |
 | `M4-001` | `required` | The human-readable compliance matrix mirrors `tests/compliance_matrix.json`, and every active requirement is referenced by at least one tagged test while higher-risk behaviors keep focused contract checks. |
-| `M5-LIVE-001` | `live` | The repo provides an upstream live acceptance lane and records proof artifacts when it successfully exercises the extension tool bridge against a real CLI. |
+| `M5-LIVE-001` | `live` | The repo provides an upstream live acceptance lane and records proof artifacts, including upstream revision and locked eval-contract trust state when available, after it successfully exercises the extension tool bridge against a real CLI. |
 | `M5-LIVE-002` | `live` | The repo provides a billed provider-backed acceptance lane and records proof artifacts when it successfully exercises advanced belief promotion from rough ideas into advanced JSON beliefs with explicit live opt-in. |

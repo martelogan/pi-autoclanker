@@ -52,6 +52,11 @@ coveredTest(
     expect(readme).toContain("Tools");
     expect(readme).toContain("Skills");
     expect(readme).toContain("Files & output");
+    expect(readme).toContain("compare-frontier");
+    expect(readme).toContain("merge-pathways");
+    expect(readme).toContain("autoclanker_frontier_status");
+    expect(readme).toContain("autoclanker.frontier.json");
+    expect(readme).toContain("locked contract");
     expect(readme).toContain("[cEvolve](https://github.com/jnormore/cevolve)");
     expect(readme).toContain(
       "[Autoresearch](https://github.com/karpathy/autoresearch)",

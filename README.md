@@ -78,6 +78,10 @@ That is the shortest useful path. If you do not provide a real eval command
 yet, `pi-autoclanker` can generate a default checked-in `autoclanker.eval.sh`
 stub so the session starts immediately and stays inspectable.
 
+Once you want explicit multi-path comparison, keep a checked-in
+`autoclanker.frontier.json` beside the session files and use the frontier
+commands instead of burying alternative paths in prompt history.
+
 The simplest mental model is:
 
 ```text
@@ -129,6 +133,9 @@ The fastest way to understand the repo now is:
 | `/autoclanker start <goal>` | Start a new session or resume the current one from a goal. |
 | `/autoclanker resume` | Mark the current session active again without changing beliefs. |
 | `/autoclanker status` | Summarize the current local session files and upstream `autoclanker` status. |
+| `/autoclanker frontier-status` | Show local frontier state plus upstream frontier summary. |
+| `/autoclanker compare-frontier` | Persist or reuse `autoclanker.frontier.json` and compare explicit pathways upstream. |
+| `/autoclanker merge-pathways` | Merge selected pathways into the local frontier file and re-rank them upstream. |
 | `/autoclanker off` | Disable the current session without deleting resumable files. |
 | `/autoclanker clear` | Delete local `pi-autoclanker` files and the upstream session root. |
 | `/autoclanker export` | Export the current session bundle as machine-readable JSON. |
@@ -137,6 +144,7 @@ Useful examples:
 
 ```text
 /autoclanker start Reduce API latency without hurting correctness.
+/autoclanker compare-frontier
 /autoclanker status
 /autoclanker export
 /autoclanker off
@@ -150,11 +158,14 @@ These are the extension tools available to pi:
 | --- | --- |
 | `autoclanker_init_session` | Bootstrap local session files and upstream session state. |
 | `autoclanker_session_status` | Read resumable local state and ask `autoclanker` for upstream status. |
+| `autoclanker_frontier_status` | Read the local frontier file and ask `autoclanker` for upstream frontier status. |
 | `autoclanker_preview_beliefs` | Preview or canonicalize rough ideas before apply. |
 | `autoclanker_apply_beliefs` | Apply the current belief batch through `autoclanker`. |
-| `autoclanker_ingest_eval` | Run the checked-in eval surface and ingest its JSON result. |
+| `autoclanker_ingest_eval` | Run the checked-in eval surface under the locked upstream eval contract and ingest its JSON result. |
 | `autoclanker_fit` | Fit the active upstream `autoclanker` session. |
 | `autoclanker_suggest` | Request the next suggestion, optionally against an explicit candidate pool. |
+| `autoclanker_compare_frontier` | Persist or reuse `autoclanker.frontier.json`, then compare explicit pathways through upstream `autoclanker`. |
+| `autoclanker_merge_pathways` | Merge selected pathways into the local frontier file and ask upstream `autoclanker` to re-rank them. |
 | `autoclanker_recommend_commit` | Ask `autoclanker` for a commit recommendation. |
 
 The point of these tools is not to reimplement `autoclanker` in TypeScript. The
@@ -218,8 +229,12 @@ That loop is the core product:
 - start from rough ideas, not hand-authored Bayes syntax
 - keep isolated paths and combined paths explicit instead of burying them in
   prompt history
-- evaluate candidates against a fixed checked-in `autoclanker.eval.sh` surface
-  with explicit parallel lane exploration when you have the workers to do it
+- evaluate candidates against a fixed checked-in `autoclanker.eval.sh` surface,
+  with the wrapper threading the locked upstream eval contract into that shell
+  before ingest and supporting explicit parallel lane exploration when you have
+  the workers to do it
+- keep the locked contract and frontier summary visible in `status` and
+  `export`, so trust drift and lane counts stay inspectable
 - use `fit`, `suggest`, and `recommend-commit` to decide whether to drop,
   merge, split, or strengthen lanes in the next era
 
@@ -302,7 +317,8 @@ and easier to hand off honestly.
 
 ## Files & output
 
-Every session keeps five project-local files:
+Every session keeps five always-present project-local files, plus one optional
+frontier file for explicit multi-path runs:
 
 | File | Purpose |
 | --- | --- |
@@ -310,6 +326,7 @@ Every session keeps five project-local files:
 | `autoclanker.config.json` | Wrapper config, including the upstream session root. |
 | `autoclanker.beliefs.json` | Rough or advanced beliefs for the session. |
 | `autoclanker.eval.sh` | The checked-in eval surface for this session. |
+| `autoclanker.frontier.json` | Optional reviewable local frontier for multi-path runs. |
 | `autoclanker.history.jsonl` | Local chronological wrapper log. |
 
 Those files live at the project root. They are enough for local inspection and
@@ -320,6 +337,8 @@ A run has three layers:
 - `autoclanker.md`: the wrapper-local summary at the project root
 - `autoclanker.history.jsonl`: the local chronological log of what the wrapper
   did
+- `autoclanker.frontier.json`: the optional local frontier document for
+  explicit path comparison and merges
 - `.autoclanker/<session>/RESULTS.md` plus the session PNGs: the upstream
   summary and visual report bundle
 - `.autoclanker/<session>/...`: the deeper upstream JSON and YAML artifacts when
@@ -344,8 +363,21 @@ The upstream session root, usually `.autoclanker/<session>/`, keeps the deeper
 - `belief_graph_posterior.png`
 
 `pi-autoclanker` also snapshots the checked-in `autoclanker.eval.sh` surface at
-session start and refuses eval ingest if that local eval file drifts during the
+session start, passes the locked upstream eval contract into that shell at
+ingest time, and refuses eval ingest if the local eval file drifts during the
 life of the session.
+
+`/autoclanker status` also surfaces the wrapper-side trust and frontier state
+directly:
+
+- locked vs current eval-contract digest
+- eval drift status
+- last measured eval lease / stabilization summary when upstream has executed a
+  hardened eval
+- compared lane count
+- frontier family count
+- pending queries
+- pending merge suggestions
 
 If you compare that with a lighter `cevolve`-style run directory:
 

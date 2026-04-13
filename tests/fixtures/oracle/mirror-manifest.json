@@ -34,11 +34,11 @@
     },
     {
       "path": "examples/targets/parser-quickstart/benchmark.py",
-      "sha256": "375db3ac64001e8a5084f707836aa4043676ef7836bd9d3fb254a80546c6972e"
+      "sha256": "4300b4321771b78efd75ba230e513a816f1eb1a3761956dd29cfdbbb3d0bfa7e"
     },
     {
       "path": "examples/targets/parser-quickstart/autoclanker.eval.sh",
-      "sha256": "c4fc82a08536f902c703192ed4bc54f52c070d6e4bdf38d65c7e06357dcdf93a"
+      "sha256": "574bbfcc23d6545e9bd1541d7966883675064e3e8ad8b133d5d5ba423962e6a5"
     },
     {
       "path": "examples/targets/parser-quickstart/candidates.json",
@@ -54,7 +54,7 @@
     },
     {
       "path": "examples/parser-demo-expanded/README.md",
-      "sha256": "ab3a7882cd103ee9dd0638c942f0702269a2220e9aeff4a3fe0ae3d7b0e35e63"
+      "sha256": "298732a30fb8d8f731ea57e4644c68c18cf71e4ea7f86f11d5a7176dca763cf9"
     },
     {
       "path": "examples/parser-demo-expanded/candidates.json",
@@ -70,7 +70,7 @@
     },
     {
       "path": "examples/parser-demo-expanded/autoclanker.eval.sh",
-      "sha256": "894e0df482355e75b174d5c9f99dbf330b3f26a9c369e1f30876c146876ef774"
+      "sha256": "2691ad24c4b6766774ccf232780be38bd3c8c81c41f1402a1fd8196d83889765"
     },
     {
       "path": "examples/parser-demo-expanded/autoclanker.history.jsonl",
@@ -78,7 +78,7 @@
     },
     {
       "path": "examples/parser-demo-expanded/autoclanker.md",
-      "sha256": "cf0f22774aeb10781d5e440088ebe913e7e7323e9fdc1ee78aef300fe4766f30"
+      "sha256": "df1c71df4bf5bd924442430625e71d9355defe6009b016e81ee4e8dbce71e014"
     },
     {
       "path": "examples/parser-demo-expanded/rough-ideas.json",

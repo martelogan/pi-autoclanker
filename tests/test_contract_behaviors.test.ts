@@ -32,6 +32,9 @@ type HistoryEntry = {
 
 type EvalResult = {
   candidate_id: string;
+  eval_contract?: {
+    contract_digest?: string;
+  };
   peak_vram_mb: number;
   raw_metrics: {
     score: number;
@@ -96,6 +99,7 @@ coveredTest(
       "autoclanker.config.json",
       "autoclanker.beliefs.json",
       "autoclanker.eval.sh",
+      "autoclanker.frontier.json",
       "autoclanker.history.jsonl",
       "candidates.json",
       "rough-ideas.json",
@@ -141,6 +145,8 @@ coveredTest(
     expect(readme).toContain("actual parser source");
     expect(readme).toContain("default");
     expect(readme).toContain("autoclanker.eval.sh");
+    expect(readme).toContain("autoclanker.frontier.json");
+    expect(readme).toContain("explicit frontier");
     expect(String(config.evalCommand)).toContain("benchmark.py");
     expect(String(config.evalCommand)).toContain("PI_AUTOCLANKER_TARGET_CANDIDATE_ID");
     expect(beliefs.mode).toBe("canonicalize");
@@ -152,6 +158,7 @@ coveredTest(
     expect(summary).toContain("upstream preview digest");
     expect(summary).toContain("eval surface sha256");
     expect(summary).toContain("eval surface lock valid");
+    expect(summary).toContain("local frontier file");
     expect(summary).toContain("source: `user-provided`");
     expect(history[0]?.usedDefaultEvalCommand).toBe(false);
     expect(history[0]?.evalSurfaceSha256).toBe(beliefs.evalSurfaceSha256);
@@ -164,12 +171,24 @@ coveredTest(
   () => {
     const root = repoRoot();
     const targetDir = resolve(root, "examples/targets/parser-quickstart");
+    const evalContract = {
+      contract_digest: "sha256:test-contract",
+      benchmark_tree_digest: "sha256:test-benchmark",
+      eval_harness_digest: "sha256:test-harness",
+      adapter_config_digest: "sha256:test-adapter",
+      environment_digest: "sha256:test-env",
+    };
+    const pythonEnv = {
+      ...process.env,
+      PYTHONDONTWRITEBYTECODE: "1",
+      PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_JSON: JSON.stringify(evalContract),
+    };
 
     const appPayload = JSON.parse(
       execFileSync(
         "python3",
         [resolve(targetDir, "app.py"), "--candidate-id", "cand_b_compiled_matcher"],
-        { cwd: root, encoding: "utf-8" },
+        { cwd: root, encoding: "utf-8", env: pythonEnv },
       ),
     ) as AppRenderResult;
     expect(appPayload.candidate_id).toBe("cand_b_compiled_matcher");
@@ -183,22 +202,29 @@ coveredTest(
           "--candidate-id",
           "cand_c_compiled_context_pair",
         ],
-        { cwd: root, encoding: "utf-8" },
+        { cwd: root, encoding: "utf-8", env: pythonEnv },
       ),
     ) as EvalResult;
     expect(evalPayload.candidate_id).toBe("cand_c_compiled_context_pair");
     expect(evalPayload.raw_metrics.score).toBeGreaterThan(1);
     expect(evalPayload.peak_vram_mb).toBeGreaterThan(0);
     expect(evalPayload.utility).toBeGreaterThan(0);
+    expect(evalPayload.eval_contract?.contract_digest).toBe(
+      evalContract.contract_digest,
+    );
 
     const shellPayload = JSON.parse(
       execFileSync("bash", [resolve(targetDir, "autoclanker.eval.sh")], {
         cwd: root,
         encoding: "utf-8",
+        env: pythonEnv,
       }),
     ) as EvalResult;
     expect(shellPayload.candidate_id).toBe("cand_c_compiled_context_pair");
     expect(shellPayload.raw_metrics.score).toBe(evalPayload.raw_metrics.score);
+    expect(shellPayload.eval_contract?.contract_digest).toBe(
+      evalContract.contract_digest,
+    );
   },
 );
 
@@ -228,6 +254,7 @@ coveredTest(
     );
 
     expect(readme.toLowerCase()).toContain("candidate pool");
+    expect(readme.toLowerCase()).toContain("frontier");
     expect(readme.toLowerCase()).toContain("parallel");
     expect(readme).toContain("ranked and compared together");
     expect(readme).toContain("candidate lanes can stay explicit");
@@ -240,6 +267,8 @@ coveredTest(
     expect(readme).toContain("belief_graph_prior.png");
     expect(readme).toContain("belief_graph_posterior.png");
     expect(spec).toContain("explicit candidate pools");
+    expect(spec).toContain("autoclanker.frontier.json");
+    expect(spec).toContain("merge-pathways");
     expect(spec).toContain("goal, rough ideas, and optional constraints");
     expect(spec).toContain("population-style");
     expect(spec).toContain("convergence");
@@ -247,6 +276,7 @@ coveredTest(
     expect(spec).toContain("upstream report bundle");
     expect(spec).toContain("candidate_rankings.png");
     expect(design).toContain("explicit candidate pools");
+    expect(design).toContain("frontier");
     expect(design).toContain("explicit population");
     expect(design).toContain("interaction maps");
     expect(design).toContain("goal + rough ideas + optional");
@@ -290,7 +320,8 @@ coveredTest(
     expect(spec).toContain("default `autoclanker.eval.sh`");
     expect(design).toContain("default checked-in");
     expect(readme).toContain("snapshots the checked-in");
-    expect(readme).toContain("refuses eval ingest if that local eval");
+    expect(readme).toContain("refuses eval ingest if the local eval file drifts");
+    expect(readme).toContain("locked contract");
     expect(spec).toContain(
       "refuse eval ingest if the local `autoclanker.eval.sh` file drifts",
     );

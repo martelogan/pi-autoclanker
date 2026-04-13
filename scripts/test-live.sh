@@ -51,9 +51,15 @@ if [[ -n "${AUTOCLANKER_REPO}" ]]; then
 fi
 
 eval_command="$(cat <<'EOF'
+if [[ -n "${PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_JSON:-}" ]]; then
+cat <<EVAL
+{"era_id":"${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"cand_live_billed","intended_genotype":[{"gene_id":"parser.matcher","state_id":"matcher_compiled"}],"realized_genotype":[{"gene_id":"parser.matcher","state_id":"matcher_compiled"}],"patch_hash":"sha256:pi-autoclanker-billed-demo","status":"valid","seed":11,"runtime_sec":1.7,"peak_vram_mb":48.0,"raw_metrics":{"score":0.63},"delta_perf":0.03,"utility":0.02,"replication_index":0,"stdout_digest":"stdout:billed","stderr_digest":"stderr:clean","artifact_paths":[],"failure_metadata":{},"eval_contract":${PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_JSON}}
+EVAL
+else
 cat <<EVAL
 {"era_id":"${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"cand_live_billed","intended_genotype":[{"gene_id":"parser.matcher","state_id":"matcher_compiled"}],"realized_genotype":[{"gene_id":"parser.matcher","state_id":"matcher_compiled"}],"patch_hash":"sha256:pi-autoclanker-billed-demo","status":"valid","seed":11,"runtime_sec":1.7,"peak_vram_mb":48.0,"raw_metrics":{"score":0.63},"delta_perf":0.03,"utility":0.02,"replication_index":0,"stdout_digest":"stdout:billed","stderr_digest":"stderr:clean","artifact_paths":[],"failure_metadata":{}}
 EVAL
+fi
 EOF
 )"
 

@@ -17,14 +17,17 @@ materialized a resumable session:
 6. ingest eval JSON emitted by the checked-in shell surface,
 7. keep the session resumable through explicit files,
 8. compare several plausible pathways through an explicit `candidates.json`
-   pool once the session is ready for `suggest`.
+   pool once the session is ready for `suggest`,
+9. persist the explicit frontier state locally in `autoclanker.frontier.json`
+   once multi-path comparison starts.
 
 In a fresh workspace, `pi-autoclanker` can generate a default
 `autoclanker.eval.sh` stub automatically. This expanded demo instead shows a
 checked-in shell surface that calls the packaged parser benchmark in
 `../targets/parser-quickstart/benchmark.py`, so the session is inspectable
 end-to-end against a real target. The wrapper snapshots that checked-in eval
-shell for the life of the session and expects a new session if the local eval
+shell for the life of the session, threads the locked upstream eval contract
+into the shell at ingest time, and expects a new session if the local eval
 surface changes.
 
 The five local files are enough for local inspection and lightweight handoff.
@@ -37,6 +40,7 @@ Included files:
 - `autoclanker.config.json`
 - `autoclanker.beliefs.json`
 - `autoclanker.eval.sh`
+- `autoclanker.frontier.json`
 - `autoclanker.history.jsonl`
 - `rough-ideas.json`
 - `candidates.json`

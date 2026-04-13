@@ -18,6 +18,9 @@ Improve parser throughput without trading away alarm context.
 - belief apply state: `previewed`
 - eval surface sha256: `sha256:894e0df482355e75b174d5c9f99dbf330b3f26a9c369e1f30876c146876ef774`
 - eval surface lock valid: `true`
+- local frontier file: `present`
+- compared lanes: `4`
+- frontier families: `4`
 - canonical beliefs: `2`
 
 ## Constraints

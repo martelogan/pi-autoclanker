@@ -18,6 +18,7 @@ import {
   CONFIG_FILENAME,
   DEFAULT_EVAL_COMMAND,
   EVAL_FILENAME,
+  FRONTIER_FILENAME,
   HISTORY_FILENAME,
   SESSION_FILENAMES,
   SUMMARY_FILENAME,
@@ -25,6 +26,13 @@ import {
   dispatchTool,
 } from "../src/runtime.js";
 import { coveredTest } from "./compliance.js";
+
+const REPO_ROOT = resolve(import.meta.dirname, "..");
+
+type EvalContractRecord = {
+  [key: string]: unknown;
+  contract_digest?: unknown;
+};
 
 type JsonRecord = {
   [key: string]: unknown;
@@ -35,8 +43,10 @@ type JsonRecord = {
   beliefs_input?: unknown;
   beliefs_status?: unknown;
   billedLive?: unknown;
+  budget_weight?: unknown;
   candidateCount?: unknown;
   candidateInput?: unknown;
+  candidates?: unknown;
   canonicalBeliefs?: unknown;
   canonicalization?: unknown;
   canonicalization_summary?: unknown;
@@ -47,6 +57,9 @@ type JsonRecord = {
   directive?: unknown;
   enabled?: unknown;
   evalCommand?: unknown;
+  evalResultPath?: unknown;
+  eval_contract?: EvalContractRecord;
+  evalContractDriftStatus?: unknown;
   evalSummary?: unknown;
   evalSurfaceMatchesLock?: unknown;
   evalSurfaceSha256?: unknown;
@@ -54,8 +67,13 @@ type JsonRecord = {
   exists?: unknown;
   exportPath?: unknown;
   files?: unknown;
+  filePresent?: unknown;
   fit?: unknown;
   fitSummary?: unknown;
+  frontier?: unknown;
+  frontierFamilyCount?: unknown;
+  frontierFilePresent?: unknown;
+  familyCount?: unknown;
   gene?: unknown;
   gene_id?: unknown;
   goal?: unknown;
@@ -63,12 +81,22 @@ type JsonRecord = {
   ingest?: unknown;
   kind?: unknown;
   llmLive?: unknown;
+  lastEvalMeasurementMode?: unknown;
+  lastEvalStabilizationMode?: unknown;
+  lastEvalUsedLease?: unknown;
+  lastEvalNoisySystem?: unknown;
+  lockedEvalContractDigest?: unknown;
   lockedEvalSurfaceSha256?: unknown;
   metadata?: unknown;
+  mergedCandidate?: unknown;
   mode?: unknown;
   model_name?: unknown;
   nextAction?: unknown;
   ok?: unknown;
+  origin_kind?: unknown;
+  parent_candidate_ids?: unknown;
+  pendingMergeSuggestionCount?: unknown;
+  pendingQueryCount?: unknown;
   preview?: unknown;
   queries?: unknown;
   query_type?: unknown;
@@ -78,12 +106,18 @@ type JsonRecord = {
   status?: unknown;
   suggestion?: unknown;
   tool?: unknown;
+  trust?: unknown;
   upstream?: unknown;
+  upstreamFrontier?: unknown;
+  currentEvalContractDigest?: unknown;
+  evalContractMatchesCurrent?: unknown;
   upstreamPreviewDigest?: unknown;
   upstreamPreviewInputMode?: unknown;
   usedDefaultEvalCommand?: unknown;
   argv?: unknown;
   candidate_id?: unknown;
+  candidate_count?: unknown;
+  comparedLaneCount?: unknown;
 };
 
 function asRecord(value: unknown): JsonRecord {
@@ -100,7 +134,8 @@ function writeFakeAutoclanker(tmpPath: string): {
   const binaryPath = resolve(tmpPath, "fake-autoclanker");
   const logPath = resolve(tmpPath, "fake-autoclanker.log");
   const script = String.raw`#!/usr/bin/env node
-const { appendFileSync, readFileSync } = require("node:fs");
+const { appendFileSync, existsSync, readFileSync } = require("node:fs");
+const { resolve } = require("node:path");
 
 const logPath = process.env.FAKE_AUTOCLANKER_LOG;
 appendFileSync(
@@ -115,7 +150,66 @@ appendFileSync(
 const args = process.argv.slice(2);
 const command = args.slice(0, 2).join(" ");
 const billed = process.env.PI_AUTOCLANKER_ALLOW_BILLED_LIVE === "1";
+const fakeEvalContract = {
+  contract_digest: "sha256:contract-locked",
+  benchmark_tree_digest: "sha256:benchmark-locked",
+  eval_harness_digest: "sha256:harness-locked",
+  adapter_config_digest: "sha256:adapter-locked",
+  environment_digest: "sha256:env-locked",
+  workspace_snapshot_mode: "git_worktree",
+};
 let payload;
+
+function frontierSummaryFromWorkspace() {
+  const frontierPath = resolve(process.cwd(), "autoclanker.frontier.json");
+  if (!existsSync(frontierPath)) {
+    return {
+      frontier_id: "frontier_default",
+      candidate_count: 0,
+      family_count: 0,
+      family_representatives: [],
+      dropped_family_reasons: {},
+      pending_queries: [],
+      pending_merge_suggestions: [],
+      budget_allocations: {},
+    };
+  }
+  const frontier = JSON.parse(readFileSync(frontierPath, "utf-8"));
+  const candidates = Array.isArray(frontier.candidates) ? frontier.candidates : [];
+  const defaultFamilyId = frontier.default_family_id || "family_default";
+  const familyIds = [...new Set(candidates.map((candidate) => candidate.family_id || defaultFamilyId))];
+  return {
+    frontier_id: frontier.frontier_id || "frontier_default",
+    candidate_count: candidates.length,
+    family_count: familyIds.length,
+    family_representatives: [],
+    dropped_family_reasons: {},
+    pending_queries:
+      candidates.length === 0
+        ? []
+        : [
+            {
+              prompt:
+                "Do compiled matching and context pairing belong together, or should they be evaluated independently first?",
+              query_type: "pairwise_compare",
+            },
+          ],
+    pending_merge_suggestions:
+      familyIds.length >= 2
+        ? [
+            {
+              merge_id: "merge_" + familyIds[0] + "_" + familyIds[1],
+              family_ids: familyIds.slice(0, 2),
+              candidate_ids: candidates.slice(0, 2).map((candidate) => candidate.candidate_id),
+              rationale: "Compare or merge the strongest remaining pathways.",
+            },
+          ]
+        : [],
+    budget_allocations: Object.fromEntries(
+      familyIds.map((familyId) => [familyId, Number((1 / Math.max(familyIds.length, 1)).toFixed(3))]),
+    ),
+  };
+}
 
 if (command === "beliefs canonicalize-ideas") {
   if (billed) {
@@ -261,6 +355,17 @@ if (command === "beliefs canonicalize-ideas") {
 } else if (command === "session apply-beliefs") {
   payload = { beliefs_status: "applied" };
 } else if (command === "session ingest-eval") {
+  const evalPayload = JSON.parse(
+    readFileSync(args[args.indexOf("--input") + 1], "utf-8"),
+  );
+  if (!evalPayload.eval_contract) {
+    console.log(JSON.stringify({ error: "Eval result did not include eval_contract for this hardened session." }));
+    process.exit(1);
+  }
+  if (evalPayload.eval_contract.contract_digest !== fakeEvalContract.contract_digest) {
+    console.log(JSON.stringify({ error: "Eval result contract did not match the locked session contract." }));
+    process.exit(1);
+  }
   payload = { evalSummary: "Eval ingested" };
 } else if (command === "session fit") {
   payload = { fitSummary: "Fit complete" };
@@ -270,6 +375,7 @@ if (command === "beliefs canonicalize-ideas") {
       readFileSync(args[args.indexOf("--candidates-input") + 1], "utf-8"),
     );
     const candidateItems = candidatesPayload.candidates;
+    const familySummary = frontierSummaryFromWorkspace();
     payload = {
       candidateCount: candidateItems.length,
       nextAction: "Compare the top pathways before applying more beliefs",
@@ -282,8 +388,10 @@ if (command === "beliefs canonicalize-ideas") {
       ],
       ranked_candidates: candidateItems.map((candidate, index) => ({
         candidate_id: candidate.candidate_id,
+        family_id: candidate.family_id || candidatesPayload.default_family_id || "family_default",
         rank: index + 1,
       })),
+      frontier_summary: familySummary,
     };
   } else {
     payload = { nextAction: "Run another candidate" };
@@ -291,7 +399,24 @@ if (command === "beliefs canonicalize-ideas") {
 } else if (command === "session recommend-commit") {
   payload = { commitSummary: "Commit the previewed belief set" };
 } else if (command === "session status") {
-  payload = { status: "healthy" };
+  const frontierSummary = frontierSummaryFromWorkspace();
+  payload = {
+    status: "healthy",
+    eval_contract: fakeEvalContract,
+    current_eval_contract: fakeEvalContract,
+    eval_contract_digest: fakeEvalContract.contract_digest,
+    current_eval_contract_digest: fakeEvalContract.contract_digest,
+    eval_contract_matches_current: true,
+    eval_contract_drift_status: "locked",
+    frontier_candidate_count: frontierSummary.candidate_count,
+    frontier_family_count: frontierSummary.family_count,
+    pending_query_count: frontierSummary.pending_queries.length,
+    pending_merge_suggestion_count: frontierSummary.pending_merge_suggestions.length,
+  };
+} else if (command === "session frontier-status") {
+  payload = {
+    frontier_summary: frontierSummaryFromWorkspace(),
+  };
 } else {
   payload = { argv: args };
 }
@@ -333,6 +458,7 @@ function candidatePool(): JsonRecord {
     candidates: [
       {
         candidate_id: "cand_parser_default",
+        family_id: "family_default",
         genotype: [
           { gene_id: "parser.matcher", state_id: "matcher_basic" },
           { gene_id: "parser.plan", state_id: "plan_default" },
@@ -340,6 +466,7 @@ function candidatePool(): JsonRecord {
       },
       {
         candidate_id: "cand_parser_compiled_context",
+        family_id: "family_context_pair",
         genotype: [
           { gene_id: "parser.matcher", state_id: "matcher_compiled" },
           { gene_id: "parser.plan", state_id: "plan_context_pair" },
@@ -347,6 +474,7 @@ function candidatePool(): JsonRecord {
       },
       {
         candidate_id: "cand_parser_wide_window",
+        family_id: "family_memory_risk",
         genotype: [
           { gene_id: "parser.matcher", state_id: "matcher_basic" },
           { gene_id: "capture.window", state_id: "window_wide" },
@@ -389,6 +517,255 @@ function withFakeAutoclanker<T>(
   }
 }
 
+function withCustomAutoclanker<T>(
+  workspace: string,
+  context: { binaryPath: string; logPath: string },
+  fn: () => T,
+): T {
+  // biome-ignore lint/complexity/useLiteralKeys: process.env requires bracket access under repo TS settings.
+  const previous = process.env["FAKE_AUTOCLANKER_LOG"];
+  // biome-ignore lint/complexity/useLiteralKeys: process.env requires bracket access under repo TS settings.
+  process.env["FAKE_AUTOCLANKER_LOG"] = context.logPath;
+  try {
+    return fn();
+  } finally {
+    if (previous === undefined) {
+      // biome-ignore lint/complexity/useLiteralKeys: process.env requires bracket access under repo TS settings.
+      process.env["FAKE_AUTOCLANKER_LOG"] = undefined;
+    } else {
+      // biome-ignore lint/complexity/useLiteralKeys: process.env requires bracket access under repo TS settings.
+      process.env["FAKE_AUTOCLANKER_LOG"] = previous;
+    }
+  }
+}
+
+function writeSparseStatusAutoclanker(tmpPath: string): {
+  binaryPath: string;
+  logPath: string;
+} {
+  const binaryPath = resolve(tmpPath, "sparse-status-autoclanker");
+  const logPath = resolve(tmpPath, "sparse-status-autoclanker.log");
+  const script = String.raw`#!/usr/bin/env node
+const { appendFileSync } = require("node:fs");
+
+appendFileSync(
+  process.env.FAKE_AUTOCLANKER_LOG,
+  JSON.stringify({ argv: process.argv.slice(2) }) + "\n",
+);
+
+const args = process.argv.slice(2);
+const command = args.slice(0, 2).join(" ");
+let payload;
+
+if (command === "beliefs canonicalize-ideas") {
+  payload = {
+    session_context: {
+      session_id: "demo_session",
+      era_id: "era_demo_v1",
+    },
+    beliefs: [],
+    canonicalization_summary: {
+      mode: "deterministic",
+      model_name: null,
+      records: [],
+    },
+  };
+} else if (command === "session init") {
+  payload = {
+    session: "initialized",
+    beliefs_status: "preview_pending",
+    preview_digest: "digest-preview-123",
+    session_path: "/tmp/fake-session",
+  };
+} else if (command === "session status") {
+  payload = { status: "healthy" };
+} else if (command === "session frontier-status") {
+  payload = {};
+} else {
+  payload = { argv: args };
+}
+
+console.log(JSON.stringify(payload));
+`;
+
+  writeFileSync(binaryPath, script, "utf-8");
+  chmodSync(binaryPath, 0o755);
+  return { binaryPath, logPath };
+}
+
+function writeEmptyFrontierSummaryAutoclanker(tmpPath: string): {
+  binaryPath: string;
+  logPath: string;
+} {
+  const binaryPath = resolve(tmpPath, "empty-frontier-summary-autoclanker");
+  const logPath = resolve(tmpPath, "empty-frontier-summary-autoclanker.log");
+  const script = String.raw`#!/usr/bin/env node
+const { appendFileSync } = require("node:fs");
+
+appendFileSync(
+  process.env.FAKE_AUTOCLANKER_LOG,
+  JSON.stringify({ argv: process.argv.slice(2) }) + "\n",
+);
+
+const args = process.argv.slice(2);
+const command = args.slice(0, 2).join(" ");
+let payload;
+
+if (command === "beliefs canonicalize-ideas") {
+  payload = {
+    session_context: {
+      session_id: "demo_session",
+      era_id: "era_demo_v1",
+    },
+    beliefs: [],
+    canonicalization_summary: {
+      mode: "deterministic",
+      model_name: null,
+      records: [],
+    },
+  };
+} else if (command === "session init") {
+  payload = {
+    session: "initialized",
+    beliefs_status: "preview_pending",
+    preview_digest: "digest-preview-empty-frontier",
+    session_path: "/tmp/fake-session",
+  };
+} else if (command === "session status") {
+  payload = { status: "healthy" };
+} else if (command === "session frontier-status") {
+  payload = { frontier_summary: {} };
+} else {
+  payload = { argv: args };
+}
+
+console.log(JSON.stringify(payload));
+`;
+
+  writeFileSync(binaryPath, script, "utf-8");
+  chmodSync(binaryPath, 0o755);
+  return { binaryPath, logPath };
+}
+
+function writeDigestMatchStatusAutoclanker(tmpPath: string): {
+  binaryPath: string;
+  logPath: string;
+} {
+  const binaryPath = resolve(tmpPath, "digest-match-status-autoclanker");
+  const logPath = resolve(tmpPath, "digest-match-status-autoclanker.log");
+  const script = String.raw`#!/usr/bin/env node
+const { appendFileSync } = require("node:fs");
+
+appendFileSync(
+  process.env.FAKE_AUTOCLANKER_LOG,
+  JSON.stringify({ argv: process.argv.slice(2) }) + "\n",
+);
+
+const args = process.argv.slice(2);
+const command = args.slice(0, 2).join(" ");
+let payload;
+
+if (command === "beliefs canonicalize-ideas") {
+  payload = {
+    session_context: {
+      session_id: "demo_session",
+      era_id: "era_demo_v1",
+    },
+    beliefs: [],
+    canonicalization_summary: {
+      mode: "deterministic",
+      model_name: null,
+      records: [],
+    },
+  };
+} else if (command === "session init") {
+  payload = {
+    session: "initialized",
+    beliefs_status: "preview_pending",
+    preview_digest: "digest-preview-digest-match",
+    session_path: "/tmp/fake-session",
+  };
+} else if (command === "session status") {
+  payload = {
+    eval_contract_digest: "contract:demo",
+    current_eval_contract_digest: "contract:demo",
+  };
+} else if (command === "session frontier-status") {
+  payload = { frontier_summary: {} };
+} else {
+  payload = { argv: args };
+}
+
+console.log(JSON.stringify(payload));
+`;
+
+  writeFileSync(binaryPath, script, "utf-8");
+  chmodSync(binaryPath, 0o755);
+  return { binaryPath, logPath };
+}
+
+function writeLeaseStatusAutoclanker(tmpPath: string): {
+  binaryPath: string;
+  logPath: string;
+} {
+  const binaryPath = resolve(tmpPath, "lease-status-autoclanker");
+  const logPath = resolve(tmpPath, "lease-status-autoclanker.log");
+  const script = String.raw`#!/usr/bin/env node
+const { appendFileSync } = require("node:fs");
+
+appendFileSync(
+  process.env.FAKE_AUTOCLANKER_LOG,
+  JSON.stringify({ argv: process.argv.slice(2) }) + "\n",
+);
+
+const args = process.argv.slice(2);
+const command = args.slice(0, 2).join(" ");
+let payload;
+
+if (command === "beliefs canonicalize-ideas") {
+  payload = {
+    session_context: {
+      session_id: "demo_session",
+      era_id: "era_demo_v1",
+    },
+    beliefs: [],
+    canonicalization_summary: {
+      mode: "deterministic",
+      model_name: null,
+      records: [],
+    },
+  };
+} else if (command === "session init") {
+  payload = {
+    session: "initialized",
+    beliefs_status: "preview_pending",
+    preview_digest: "digest-preview-lease-status",
+    session_path: "/tmp/fake-session",
+  };
+} else if (command === "session status") {
+  payload = {
+    eval_contract_digest: "contract:demo",
+    current_eval_contract_digest: "contract:demo",
+    eval_contract_drift_status: "locked",
+    last_eval_measurement_mode: "exclusive",
+    last_eval_stabilization_mode: "soft",
+    last_eval_used_lease: true,
+    last_eval_noisy_system: false,
+  };
+} else if (command === "session frontier-status") {
+  payload = { frontier_summary: {} };
+} else {
+  payload = { argv: args };
+}
+
+console.log(JSON.stringify(payload));
+`;
+
+  writeFileSync(binaryPath, script, "utf-8");
+  chmodSync(binaryPath, 0o755);
+  return { binaryPath, logPath };
+}
+
 coveredTest(
   ["M1-002", "M2-003", "M2-008"],
   "runtime session flow persists resumable files and shells out to autoclanker",
@@ -402,9 +779,12 @@ coveredTest(
       expect(initResult.tool).toBe("autoclanker_init_session");
       expect(initResult.billedLive).toBe(false);
 
-      for (const fileName of SESSION_FILENAMES) {
+      for (const fileName of SESSION_FILENAMES.filter(
+        (name) => name !== FRONTIER_FILENAME,
+      )) {
         expect(existsSync(resolve(workspace, fileName))).toBe(true);
       }
+      expect(existsSync(resolve(workspace, FRONTIER_FILENAME))).toBe(false);
 
       const previewResult = asRecord(
         dispatchTool("autoclanker_preview_beliefs", { workspace }),
@@ -426,6 +806,14 @@ coveredTest(
         dispatchTool("autoclanker_ingest_eval", { workspace }),
       );
       expect(asRecord(ingestResult.ingest).evalSummary).toBe("Eval ingested");
+      const evalResultPayload = asRecord(
+        JSON.parse(
+          readFileSync(String(ingestResult.evalResultPath), "utf-8"),
+        ) as JsonRecord,
+      );
+      expect(
+        (evalResultPayload.eval_contract as EvalContractRecord).contract_digest,
+      ).toBe("sha256:contract-locked");
 
       const fitResult = asRecord(dispatchTool("autoclanker_fit", { workspace }));
       expect(asRecord(fitResult.fit).fitSummary).toBe("Fit complete");
@@ -455,6 +843,7 @@ coveredTest(
         sha256(resolve(workspace, EVAL_FILENAME)),
       );
       expect(statusResult.evalSurfaceMatchesLock).toBe(true);
+      expect(statusResult.evalContractDriftStatus).toBe("locked");
 
       const beliefsDocument = asRecord(
         JSON.parse(readFileSync(resolve(workspace, BELIEFS_FILENAME), "utf-8")),
@@ -477,6 +866,7 @@ coveredTest(
         "latest commit recommendation: Commit the previewed belief set",
       );
       expect(summaryText).toContain("eval surface lock valid");
+      expect(summaryText).toContain("local frontier file: `absent`");
       expect(summaryText).toContain("RESULTS.md");
       expect(summaryText).toContain("belief_graph_posterior.png");
 
@@ -499,8 +889,47 @@ coveredTest(
 );
 
 coveredTest(
-  ["M1-002", "M2-007"],
-  "default suite covers explicit candidate-pool forwarding",
+  ["M2-002", "M2-006", "M2-008"],
+  "the packaged parser target emits hardened-ingest-compatible eval JSON through the wrapper",
+  () => {
+    const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-parser-"));
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      const parserEvalPath = resolve(
+        REPO_ROOT,
+        "examples/targets/parser-quickstart/autoclanker.eval.sh",
+      );
+      dispatchTool("autoclanker_init_session", {
+        autoclankerBinary: binaryPath,
+        evalCommand: `bash "${parserEvalPath}"`,
+        goal: "Improve parser throughput without losing context quality.",
+        roughIdeas: [
+          "Compiled regex matching probably helps repeated incident formats.",
+        ],
+        constraints: ["Keep incident recall stable."],
+        workspace,
+      });
+      dispatchTool("autoclanker_preview_beliefs", { workspace });
+      dispatchTool("autoclanker_apply_beliefs", { workspace });
+      const ingestResult = asRecord(
+        dispatchTool("autoclanker_ingest_eval", { workspace }),
+      );
+      expect(asRecord(ingestResult.ingest).evalSummary).toBe("Eval ingested");
+      const evalResultPayload = asRecord(
+        JSON.parse(
+          readFileSync(String(ingestResult.evalResultPath), "utf-8"),
+        ) as JsonRecord,
+      );
+      expect(evalResultPayload.candidate_id).toBe("cand_c_compiled_context_pair");
+      expect(
+        (evalResultPayload.eval_contract as EvalContractRecord).contract_digest,
+      ).toBe("sha256:contract-locked");
+    });
+  },
+);
+
+coveredTest(
+  ["M1-002", "M2-007", "M2-009"],
+  "default suite covers explicit frontier forwarding and frontier status",
   () => {
     const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-candidates-"));
     withFakeAutoclanker(workspace, ({ binaryPath, logPath }) => {
@@ -517,16 +946,294 @@ coveredTest(
         asRecord((asRecord(suggestResult.suggestion).queries as unknown[])[0])
           .query_type,
       ).toBe("pairwise_compare");
+      expect(existsSync(resolve(workspace, FRONTIER_FILENAME))).toBe(true);
+      const frontierDocument = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, FRONTIER_FILENAME), "utf-8")),
+      );
+      expect((frontierDocument.candidates as unknown[]).length).toBe(3);
       const suggestRecord = readCommandLog(logPath).find(
         (command) =>
           Array.isArray(command.argv) &&
           (command.argv as string[]).slice(0, 2).join(" ") === "session suggest",
       );
       expect(suggestRecord?.argv).toContain("--candidates-input");
+      const frontierStatus = asRecord(
+        dispatchTool("autoclanker_frontier_status", { workspace }),
+      );
+      expect(asRecord(frontierStatus.frontier).candidateCount).toBe(3);
+      expect(asRecord(frontierStatus.frontier).familyCount).toBe(3);
+      expect(frontierStatus.pendingMergeSuggestionCount).toBeUndefined();
       const summaryText = readFileSync(resolve(workspace, SUMMARY_FILENAME), "utf-8");
       expect(summaryText).toContain("compared lanes: `3`");
+      expect(summaryText).toContain("frontier families: `3`");
       expect(summaryText).toContain("top candidate: `cand_parser_default`");
       expect(summaryText).toContain("follow-up query:");
+    });
+  },
+);
+
+coveredTest(
+  ["M1-002", "M1-003", "M2-009", "M2-010", "M2-011"],
+  "frontier compare and merge pathways stay local-reviewable and upstream-driven",
+  () => {
+    const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-frontier-"));
+    withFakeAutoclanker(workspace, ({ binaryPath, logPath }) => {
+      dispatchTool("autoclanker_init_session", sessionPayload(binaryPath, workspace));
+      const compareResult = asRecord(
+        dispatchCommand("compare-frontier", {
+          workspace,
+          candidates: candidatePool(),
+        }),
+      );
+      expect(compareResult.command).toBe("compare-frontier");
+      expect(asRecord(compareResult.frontier).candidate_count).toBe(3);
+
+      const mergeResult = asRecord(
+        dispatchTool("autoclanker_merge_pathways", {
+          workspace,
+          candidateIds: ["cand_parser_default", "cand_parser_wide_window"],
+          mergedCandidateId: "cand_parser_merged_default_window",
+          notes:
+            "Keep default planning but add the wide-window lane as a merged probe.",
+        }),
+      );
+      expect(asRecord(mergeResult.mergedCandidate).candidate_id).toBe(
+        "cand_parser_merged_default_window",
+      );
+      const mergedFrontier = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, FRONTIER_FILENAME), "utf-8")),
+      );
+      expect((mergedFrontier.candidates as unknown[]).length).toBe(4);
+      const mergedCandidate = (mergedFrontier.candidates as unknown[])
+        .map((candidate) => asRecord(candidate))
+        .find(
+          (candidate) => candidate.candidate_id === "cand_parser_merged_default_window",
+        );
+      expect(mergedCandidate?.origin_kind).toBe("merge");
+      expect(mergedCandidate?.parent_candidate_ids).toEqual([
+        "cand_parser_default",
+        "cand_parser_wide_window",
+      ]);
+
+      const commandLog = readCommandLog(logPath).filter(
+        (command) =>
+          Array.isArray(command.argv) &&
+          (command.argv as string[]).slice(0, 2).join(" ") === "session suggest",
+      );
+      expect(commandLog.length).toBeGreaterThanOrEqual(2);
+
+      const statusResult = asRecord(dispatchCommand("frontier-status", { workspace }));
+      expect(statusResult.command).toBe("frontier-status");
+      expect(asRecord(statusResult.frontier).candidateCount).toBe(4);
+      expect(asRecord(statusResult.trust).evalContractDriftStatus).toBe("locked");
+
+      const sessionStatus = asRecord(dispatchCommand("status", { workspace }));
+      expect(sessionStatus.frontierFilePresent).toBe(true);
+      expect(sessionStatus.comparedLaneCount).toBe(4);
+      expect(sessionStatus.frontierFamilyCount).toBe(4);
+      expect(asRecord(sessionStatus.trust).evalContractDriftStatus).toBe("locked");
+
+      const exportResult = asRecord(
+        dispatchCommand("export", {
+          workspace,
+          outputPath: "frontier-export.json",
+        }),
+      );
+      const exportBundle = asRecord(
+        JSON.parse(readFileSync(String(exportResult.exportPath), "utf-8")),
+      );
+      expect(asRecord(exportBundle.files)[FRONTIER_FILENAME]).toBeTruthy();
+      expect(asRecord(exportBundle.status).frontierFilePresent).toBe(true);
+      expect(
+        asRecord(asRecord(exportBundle.status).trust).evalContractDriftStatus,
+      ).toBe("locked");
+    });
+  },
+);
+
+coveredTest(
+  ["M1-002", "M2-009", "M2-010"],
+  "frontier dispatch surfaces cover persisted reuse and budgeted merges",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-frontier-dispatch-"),
+    );
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      dispatchTool("autoclanker_init_session", sessionPayload(binaryPath, workspace));
+
+      const compared = asRecord(
+        dispatchCommand("compare-frontier", {
+          workspace,
+          candidates: candidatePool(),
+        }),
+      );
+      expect(compared.command).toBe("compare-frontier");
+
+      const comparedViaTool = asRecord(
+        dispatchTool("autoclanker_compare_frontier", { workspace }),
+      );
+      expect(asRecord(comparedViaTool.frontier).candidate_count).toBe(3);
+
+      const mergedViaCommand = asRecord(
+        dispatchCommand("merge-pathways", {
+          workspace,
+          candidateIds: ["cand_parser_default", "cand_parser_wide_window"],
+          mergedCandidateId: "cand_parser_budgeted_merge",
+          budgetWeight: 0.6,
+          notes: "Budget a merged parser pathway for the next frontier step.",
+        }),
+      );
+      expect(mergedViaCommand.command).toBe("merge-pathways");
+      expect(asRecord(mergedViaCommand.mergedCandidate).candidate_id).toBe(
+        "cand_parser_budgeted_merge",
+      );
+      expect(asRecord(mergedViaCommand.mergedCandidate).budget_weight).toBe(0.6);
+    });
+  },
+);
+
+coveredTest(
+  ["M1-002", "M2-009", "M2-010"],
+  "init can seed the local frontier from a checked-in frontier input and merge-pathways can infer a default merged candidate id",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-frontier-seeded-init-"),
+    );
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      const frontierInputPath = resolve(workspace, "seed-frontier.json");
+      writeFileSync(
+        frontierInputPath,
+        `${JSON.stringify(candidatePool(), null, 2)}\n`,
+        "utf-8",
+      );
+
+      const initResult = asRecord(
+        dispatchTool("autoclanker_init_session", {
+          autoclankerBinary: binaryPath,
+          workspace,
+          goal: "Seed the frontier at init time from a checked-in file.",
+          evalCommand: "printf 'seeded\\n'",
+          roughIdeas: ["Keep multiple parser pathways explicit from the start."],
+          frontierInputPath,
+        }),
+      );
+      expect(asRecord(initResult.frontier).candidate_count).toBe(3);
+      expect(existsSync(resolve(workspace, FRONTIER_FILENAME))).toBe(true);
+
+      const mergeResult = asRecord(
+        dispatchCommand("merge-pathways", {
+          workspace,
+          candidateIds: ["cand_parser_default", "cand_parser_wide_window"],
+        }),
+      );
+      expect(asRecord(mergeResult.mergedCandidate).candidate_id).toBe(
+        "cand_merge_cand_parser_default_cand_parser_wide_window",
+      );
+    });
+  },
+);
+
+coveredTest(
+  ["M1-003", "M2-009", "M2-011"],
+  "status falls back to local frontier counts when upstream frontier detail is absent",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-frontier-fallback-"),
+    );
+    const context = writeSparseStatusAutoclanker(workspace);
+    withCustomAutoclanker(workspace, context, () => {
+      dispatchTool(
+        "autoclanker_init_session",
+        sessionPayload(context.binaryPath, workspace),
+      );
+      writeFileSync(
+        resolve(workspace, FRONTIER_FILENAME),
+        `${JSON.stringify(candidatePool(), null, 2)}\n`,
+        "utf-8",
+      );
+
+      const statusResult = asRecord(dispatchCommand("status", { workspace }));
+      expect(statusResult.evalContractDriftStatus).toBe("unverified");
+      expect(statusResult.comparedLaneCount).toBe(3);
+      expect(statusResult.frontierFamilyCount).toBe(3);
+      expect(statusResult.pendingQueryCount).toBe(0);
+      expect(statusResult.pendingMergeSuggestionCount).toBe(0);
+      expect(asRecord(statusResult.frontier).candidateCount).toBe(3);
+      expect(asRecord(statusResult.frontier).familyCount).toBe(3);
+      expect(asRecord(statusResult.trust).evalContractDriftStatus).toBe("unverified");
+    });
+  },
+);
+
+coveredTest(
+  ["M1-003", "M2-009", "M2-011"],
+  "status falls back to zero counts when upstream frontier summary is empty and no local frontier exists",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-frontier-zero-fallback-"),
+    );
+    const context = writeEmptyFrontierSummaryAutoclanker(workspace);
+    withCustomAutoclanker(workspace, context, () => {
+      dispatchTool(
+        "autoclanker_init_session",
+        sessionPayload(context.binaryPath, workspace),
+      );
+
+      const statusResult = asRecord(dispatchCommand("status", { workspace }));
+      expect(statusResult.evalContractDriftStatus).toBe("unverified");
+      expect(statusResult.comparedLaneCount).toBe(0);
+      expect(statusResult.frontierFamilyCount).toBe(0);
+      expect(statusResult.pendingQueryCount).toBe(0);
+      expect(statusResult.pendingMergeSuggestionCount).toBe(0);
+      expect(asRecord(statusResult.frontier).candidateCount).toBe(0);
+      expect(asRecord(statusResult.frontier).familyCount).toBe(0);
+      expect(asRecord(statusResult.trust).evalContractDriftStatus).toBe("unverified");
+    });
+  },
+);
+
+coveredTest(
+  ["M1-003", "M2-009"],
+  "status derives eval-contract match from equal digests when upstream omits the boolean flag",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-digest-match-status-"),
+    );
+    const context = writeDigestMatchStatusAutoclanker(workspace);
+    withCustomAutoclanker(workspace, context, () => {
+      dispatchTool(
+        "autoclanker_init_session",
+        sessionPayload(context.binaryPath, workspace),
+      );
+
+      const statusResult = asRecord(dispatchCommand("status", { workspace }));
+      expect(statusResult.lockedEvalContractDigest).toBe("contract:demo");
+      expect(statusResult.currentEvalContractDigest).toBe("contract:demo");
+      expect(statusResult.evalContractMatchesCurrent).toBe(true);
+      expect(asRecord(statusResult.trust).evalContractMatchesCurrent).toBe(true);
+    });
+  },
+);
+
+coveredTest(
+  ["M1-003", "M2-009"],
+  "status surfaces the last measured eval lease and stabilization summary from upstream",
+  () => {
+    const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-lease-status-"));
+    const context = writeLeaseStatusAutoclanker(workspace);
+    withCustomAutoclanker(workspace, context, () => {
+      dispatchTool(
+        "autoclanker_init_session",
+        sessionPayload(context.binaryPath, workspace),
+      );
+
+      const statusResult = asRecord(dispatchCommand("status", { workspace }));
+      expect(statusResult.lastEvalMeasurementMode).toBe("exclusive");
+      expect(statusResult.lastEvalStabilizationMode).toBe("soft");
+      expect(statusResult.lastEvalUsedLease).toBe(true);
+      expect(statusResult.lastEvalNoisySystem).toBe(false);
+      expect(asRecord(statusResult.trust).lastEvalUsedLease).toBe(true);
+      expect(asRecord(statusResult.trust).lastEvalMeasurementMode).toBe("exclusive");
     });
   },
 );

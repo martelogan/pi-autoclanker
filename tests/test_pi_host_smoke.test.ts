@@ -12,11 +12,14 @@ import { repoRoot } from "./oracle.js";
 const EXPECTED_TOOL_NAMES = [
   "autoclanker_init_session",
   "autoclanker_session_status",
+  "autoclanker_frontier_status",
   "autoclanker_preview_beliefs",
   "autoclanker_apply_beliefs",
   "autoclanker_ingest_eval",
   "autoclanker_fit",
   "autoclanker_suggest",
+  "autoclanker_compare_frontier",
+  "autoclanker_merge_pathways",
   "autoclanker_recommend_commit",
 ] as const;
 
@@ -29,6 +32,8 @@ coveredTest(
     expect(readme).toContain(
       "/autoclanker start Improve parser throughput without losing context quality.",
     );
+    expect(readme).toContain("/autoclanker compare-frontier");
+    expect(readme).toContain("autoclanker.frontier.json");
   },
 );
 

@@ -14,7 +14,7 @@
   {
     "requirement_id": "M0-003",
     "gate": "required",
-    "description": "Wheel and sdist artifacts ship the required contract surface, and installed artifacts can load packaged runtime assets.",
+    "description": "Published package artifacts ship the required contract surface, and installed package assets keep the runtime contract loadable from the TypeScript distribution.",
     "status": "active"
   },
   {
@@ -26,7 +26,7 @@
   {
     "requirement_id": "M1-002",
     "gate": "required",
-    "description": "The Python tool bridge shells out to `autoclanker` for session bootstrap, status, preview, apply, ingest, fit, suggest, and commit recommendation.",
+    "description": "The TypeScript tool bridge shells out to `autoclanker` for session bootstrap, status, preview, apply, ingest, fit, suggest, and commit recommendation.",
     "status": "active"
   },
   {
@@ -99,6 +99,24 @@
     "requirement_id": "M2-008",
     "gate": "required",
     "description": "The checked-in `autoclanker.eval.sh` surface is snapshotted at session initialization, exposed in session status, and rejected at eval ingest time if it drifts during the life of that session.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-009",
+    "gate": "required",
+    "description": "A local `autoclanker.frontier.json` file can persist explicit pathway families and stays readable through frontier-status surfaces.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-010",
+    "gate": "required",
+    "description": "`compare-frontier` and `merge-pathways` only edit the local frontier file and call upstream `autoclanker` surfaces instead of adding a second inference layer.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-011",
+    "gate": "required",
+    "description": "Status and export surfaces expose locked eval-contract trust plus frontier counts, pending queries, and pending merge suggestions.",
     "status": "active"
   },
   {

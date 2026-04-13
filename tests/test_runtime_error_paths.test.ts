@@ -62,6 +62,110 @@ function touchExecutable(path: string): string {
   return path;
 }
 
+function writeBrokenFrontierStatusAutoclanker(tmpPath: string): string {
+  const binaryPath = resolve(tmpPath, "broken-frontier-status-autoclanker");
+  const script = String.raw`#!/usr/bin/env node
+const args = process.argv.slice(2);
+const command = args.slice(0, 2).join(" ");
+
+if (command === "beliefs canonicalize-ideas") {
+  console.log(JSON.stringify({
+    session_context: {
+      session_id: "demo_session",
+      era_id: "era_demo_v1",
+    },
+    beliefs: [],
+    canonicalization_summary: {
+      mode: "deterministic",
+      model_name: null,
+      records: [],
+    },
+  }));
+  process.exit(0);
+}
+
+if (command === "session init") {
+  console.log(JSON.stringify({
+    session: "initialized",
+    beliefs_status: "preview_pending",
+    preview_digest: "digest-preview-broken-frontier",
+    session_path: "/tmp/fake-session",
+  }));
+  process.exit(0);
+}
+
+if (command === "session status") {
+  console.log(JSON.stringify({ status: "healthy" }));
+  process.exit(0);
+}
+
+if (command === "session frontier-status") {
+  console.error("frontier probe exploded");
+  process.exit(1);
+}
+
+console.log(JSON.stringify({ argv: args }));
+`;
+  writeFileSync(binaryPath, script, "utf-8");
+  chmodSync(binaryPath, 0o755);
+  return binaryPath;
+}
+
+function writeMissingContractAutoclanker(tmpPath: string): string {
+  const binaryPath = resolve(tmpPath, "missing-contract-autoclanker");
+  const script = String.raw`#!/usr/bin/env node
+const args = process.argv.slice(2);
+const command = args.slice(0, 2).join(" ");
+
+if (command === "beliefs canonicalize-ideas") {
+  console.log(JSON.stringify({
+    session_context: {
+      session_id: "demo_session",
+      era_id: "era_demo_v1",
+    },
+    beliefs: [],
+    canonicalization_summary: {
+      mode: "deterministic",
+      model_name: null,
+      records: [],
+    },
+  }));
+  process.exit(0);
+}
+
+if (command === "session init") {
+  console.log(JSON.stringify({
+    session: "initialized",
+    beliefs_status: "preview_pending",
+    preview_digest: "digest-preview-missing-contract",
+    session_path: "/tmp/fake-session",
+  }));
+  process.exit(0);
+}
+
+if (command === "session apply-beliefs") {
+  console.log(JSON.stringify({ beliefs_status: "applied" }));
+  process.exit(0);
+}
+
+if (command === "session status") {
+  console.log(JSON.stringify({
+    status: "healthy",
+    eval_contract_digest: "sha256:contract-locked",
+    current_eval_contract_digest: "sha256:contract-locked",
+    eval_contract_matches_current: true,
+    eval_contract_drift_status: "locked",
+  }));
+  process.exit(0);
+}
+
+console.log(JSON.stringify({ argv: args }));
+`;
+  writeFileSync(binaryPath, script, "utf-8");
+  chmodSync(binaryPath, 0o755);
+  return binaryPath;
+}
+
 function runnerFactory(options?: {
   returncode?: number;
   stdout?: string;
@@ -292,6 +396,127 @@ coveredTest(
       ),
     );
     expect(asRecord(fitResult.fit).raw).toBe("plain text output");
+  },
+);
+
+coveredTest(
+  ["M1-003", "M2-009"],
+  "status rethrows unexpected frontier-status failures instead of masking them",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-frontier-status-error-"),
+    );
+    const fakeBinary = writeBrokenFrontierStatusAutoclanker(workspace);
+    dispatchTool("autoclanker_init_session", {
+      autoclankerBinary: fakeBinary,
+      workspace,
+      goal: "Exercise frontier status error propagation.",
+      evalCommand: "printf 'frontier\\n'",
+      roughIdeas: ["A"],
+    });
+
+    expect(() =>
+      dispatchTool("autoclanker_session_status", {
+        autoclankerBinary: fakeBinary,
+        workspace,
+      }),
+    ).toThrowError(/frontier probe exploded/);
+  },
+);
+
+coveredTest(
+  ["M2-008"],
+  "eval ingest fails clearly when upstream status omits the locked eval contract object",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-missing-contract-"),
+    );
+    const fakeBinary = writeMissingContractAutoclanker(workspace);
+
+    dispatchTool("autoclanker_init_session", {
+      autoclankerBinary: fakeBinary,
+      workspace,
+      goal: "Exercise missing eval-contract status failures.",
+      evalCommand:
+        'printf \'{"era_id":"${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"cand_demo","status":"valid"}\\n\'',
+      roughIdeas: [],
+    });
+    dispatchTool("autoclanker_preview_beliefs", { workspace });
+    dispatchTool("autoclanker_apply_beliefs", { workspace });
+
+    expect(() => dispatchTool("autoclanker_ingest_eval", { workspace })).toThrowError(
+      "Upstream autoclanker session status did not include a locked eval contract.",
+    );
+  },
+);
+
+coveredTest(
+  ["M1-002", "M2-009", "M2-010"],
+  "merge-pathways rejects inferred genotypes when parent candidates disagree on a gene state",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-merge-conflict-"),
+    );
+    const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
+    dispatchTool("autoclanker_init_session", {
+      autoclankerBinary: fakeBinary,
+      workspace,
+      goal: "Keep conflicting candidates separate until explicitly resolved.",
+      evalCommand: "printf 'merge-conflict\\n'",
+      roughIdeas: ["A"],
+      candidates: {
+        candidates: [
+          {
+            candidate_id: "cand_left",
+            genotype: [{ gene_id: "parser.matcher", state_id: "matcher_basic" }],
+          },
+          {
+            candidate_id: "cand_right",
+            genotype: [{ gene_id: "parser.matcher", state_id: "matcher_compiled" }],
+          },
+        ],
+      },
+    });
+
+    expect(() =>
+      dispatchCommand("merge-pathways", {
+        workspace,
+        candidateIds: ["cand_left", "cand_right"],
+      }),
+    ).toThrowError(/conflicting states across parent candidates/u);
+  },
+);
+
+coveredTest(
+  ["M1-002", "M2-009", "M2-010"],
+  "merge-pathways rejects missing parent candidates in the local frontier",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-merge-missing-"),
+    );
+    const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
+    dispatchTool("autoclanker_init_session", {
+      autoclankerBinary: fakeBinary,
+      workspace,
+      goal: "Reject merge requests that reference missing candidates.",
+      evalCommand: "printf 'merge-missing\\n'",
+      roughIdeas: ["A"],
+      candidates: {
+        candidates: [
+          {
+            candidate_id: "cand_left",
+            genotype: [{ gene_id: "parser.matcher", state_id: "matcher_basic" }],
+          },
+        ],
+      },
+    });
+
+    expect(() =>
+      dispatchCommand("merge-pathways", {
+        workspace,
+        candidateIds: ["cand_left", "cand_missing"],
+      }),
+    ).toThrowError(/Candidate cand_missing is not present/u);
   },
 );
 

@@ -22,6 +22,7 @@ WORKSPACE="$(mktemp -d "${TMPDIR:-/tmp}/pi-autoclanker-live.XXXXXX")"
 INIT_JSON="${WORKSPACE}/init-result.json"
 PREVIEW_JSON="${WORKSPACE}/preview-result.json"
 STATUS_JSON="${WORKSPACE}/status-result.json"
+PARSER_EVAL_PATH="${ROOT_DIR}/examples/targets/parser-quickstart/autoclanker.eval.sh"
 trap 'rm -rf "${WORKSPACE}"' EXIT
 
 if [[ -n "${AUTOCLANKER_REPO}" && "${AUTOCLANKER_REPO}" != /* ]]; then
@@ -42,10 +43,10 @@ if [[ -n "${AUTOCLANKER_REPO}" ]]; then
     common_args+=(--autoclanker-repo "${AUTOCLANKER_REPO}")
 fi
 
-cat >"${WORKSPACE}/init-payload.json" <<'EOF'
+cat >"${WORKSPACE}/init-payload.json" <<EOF
 {
   "goal": "Optimize parser throughput without increasing memory blowups.",
-  "evalCommand": "cat <<EVAL\n{\"era_id\":\"${PI_AUTOCLANKER_UPSTREAM_ERA_ID}\",\"candidate_id\":\"cand_live_demo\",\"intended_genotype\":[{\"gene_id\":\"parser.matcher\",\"state_id\":\"matcher_compiled\"}],\"realized_genotype\":[{\"gene_id\":\"parser.matcher\",\"state_id\":\"matcher_compiled\"}],\"patch_hash\":\"sha256:pi-autoclanker-live-demo\",\"status\":\"valid\",\"seed\":7,\"runtime_sec\":1.5,\"peak_vram_mb\":32.0,\"raw_metrics\":{\"score\":0.61},\"delta_perf\":0.02,\"utility\":0.01,\"replication_index\":0,\"stdout_digest\":\"stdout:demo\",\"stderr_digest\":\"stderr:clean\",\"artifact_paths\":[],\"failure_metadata\":{}}\nEVAL",
+  "evalCommand": "bash \"${PARSER_EVAL_PATH}\"",
   "roughIdeas": [
     "Smaller regex caches may trim peak memory.",
     "Context breadcrumbs could improve ranking confidence.",
@@ -72,6 +73,18 @@ dev_run_port_cli tool autoclanker_fit "${common_args[@]}"
 dev_run_port_cli tool autoclanker_session_status \
   "${common_args[@]}" >"${STATUS_JSON}"
 cat "${STATUS_JSON}"
+node --input-type=module - "${STATUS_JSON}" <<'JS'
+import { readFileSync } from "node:fs";
+
+const [statusPath] = process.argv.slice(2);
+const status = JSON.parse(readFileSync(statusPath, "utf-8"));
+if (status.lockedEvalContractDigest === null || status.lockedEvalContractDigest === undefined) {
+  throw new Error("expected lockedEvalContractDigest in wrapper status");
+}
+if (status.evalContractDriftStatus !== "locked") {
+  throw new Error(`expected evalContractDriftStatus=locked, got ${status.evalContractDriftStatus}`);
+}
+JS
 dev_run_port_cli tool autoclanker_suggest "${common_args[@]}"
 dev_run_port_cli tool autoclanker_recommend_commit "${common_args[@]}"
 

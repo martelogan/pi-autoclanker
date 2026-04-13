@@ -18,6 +18,23 @@ export const surfaceManifest = {
       slashCommand: "/autoclanker status",
     },
     {
+      description: "Show the current local frontier plus upstream frontier status.",
+      name: "frontier-status",
+      slashCommand: "/autoclanker frontier-status",
+    },
+    {
+      description:
+        "Persist or reuse autoclanker.frontier.json and compare explicit pathways through upstream autoclanker.",
+      name: "compare-frontier",
+      slashCommand: "/autoclanker compare-frontier",
+    },
+    {
+      description:
+        "Merge selected pathways into autoclanker.frontier.json and re-rank them upstream.",
+      name: "merge-pathways",
+      slashCommand: "/autoclanker merge-pathways",
+    },
+    {
       description: "Disable the session without deleting the resumable files.",
       name: "off",
       slashCommand: "/autoclanker off",
@@ -51,6 +68,7 @@ export const surfaceManifest = {
     "examples/parser-demo-expanded/autoclanker.beliefs.json",
     "examples/parser-demo-expanded/autoclanker.config.json",
     "examples/parser-demo-expanded/autoclanker.eval.sh",
+    "examples/parser-demo-expanded/autoclanker.frontier.json",
     "examples/parser-demo-expanded/autoclanker.history.jsonl",
     "examples/parser-demo-expanded/autoclanker.md",
     "examples/parser-demo-expanded/rough-ideas.json",
@@ -63,6 +81,7 @@ export const surfaceManifest = {
     "autoclanker.config.json",
     "autoclanker.beliefs.json",
     "autoclanker.eval.sh",
+    "autoclanker.frontier.json",
     "autoclanker.history.jsonl",
   ],
   slashCommandPrefix: "/autoclanker",
@@ -75,6 +94,11 @@ export const surfaceManifest = {
       description:
         "Read resumable local state and ask autoclanker for upstream status.",
       name: "autoclanker_session_status",
+    },
+    {
+      description:
+        "Read the local frontier file and ask autoclanker for upstream frontier status.",
+      name: "autoclanker_frontier_status",
     },
     {
       description:
@@ -96,6 +120,16 @@ export const surfaceManifest = {
     {
       description: "Request the next autoclanker suggestion.",
       name: "autoclanker_suggest",
+    },
+    {
+      description:
+        "Persist or reuse autoclanker.frontier.json, then compare the frontier through autoclanker suggest.",
+      name: "autoclanker_compare_frontier",
+    },
+    {
+      description:
+        "Merge selected pathways into autoclanker.frontier.json and ask autoclanker to re-rank them.",
+      name: "autoclanker_merge_pathways",
     },
     {
       description: "Ask autoclanker for a commit recommendation.",

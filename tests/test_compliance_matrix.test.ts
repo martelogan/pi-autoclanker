@@ -22,6 +22,9 @@ const behavioralEvidenceIds = new Set([
   "M2-006",
   "M2-007",
   "M2-008",
+  "M2-009",
+  "M2-010",
+  "M2-011",
   "M3-001",
   "M3-002",
   "M3-003",
@@ -57,6 +60,25 @@ const focusedContractChecks = new Map<string, string[]>([
     [
       "test_runtime_error_paths.test.ts::eval ingest rejects a drifted eval surface",
       "test_runtime_error_paths.test.ts::eval ingest rejects a missing stored eval lock",
+    ],
+  ],
+  [
+    "M2-009",
+    [
+      "test_runtime_behavior.test.ts::default suite covers explicit frontier forwarding and frontier status",
+    ],
+  ],
+  [
+    "M2-010",
+    [
+      "test_runtime_behavior.test.ts::frontier compare and merge pathways stay local-reviewable and upstream-driven",
+    ],
+  ],
+  [
+    "M2-011",
+    [
+      "test_runtime_behavior.test.ts::frontier compare and merge pathways stay local-reviewable and upstream-driven",
+      "test_runtime_bridge.test.ts::command surface supports start resume status off clear and export",
     ],
   ],
 ]);

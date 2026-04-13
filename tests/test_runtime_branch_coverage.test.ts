@@ -46,6 +46,8 @@ type JsonRecord = {
   encoding?: unknown;
   enabled?: unknown;
   evalCommand?: unknown;
+  eval_contract?: unknown;
+  evalResultPath?: unknown;
   evalSurfaceSha256?: unknown;
   exportPath?: unknown;
   files?: unknown;
@@ -54,6 +56,7 @@ type JsonRecord = {
   ingest?: unknown;
   mean?: unknown;
   mode?: unknown;
+  observedDigest?: unknown;
   overlay?: unknown;
   pathRelativeToWorkspace?: unknown;
   present?: unknown;
@@ -75,6 +78,11 @@ type JsonRecord = {
   upstreamPreviewDigest?: unknown;
   usedDefaultEvalCommand?: unknown;
   value?: unknown;
+};
+
+type EvalContractRecord = {
+  [key: string]: unknown;
+  environment_digest?: unknown;
 };
 
 function asRecord(value: unknown): JsonRecord {
@@ -182,6 +190,24 @@ function baseConfig(
 }
 
 const JSON_EVAL_COMMAND = "printf '{\"ok\":true}\\n'";
+const LOCKED_EVAL_CONTRACT = {
+  contract_digest: "sha256:locked-contract",
+  benchmark_tree_digest: "sha256:benchmark-tree",
+  eval_harness_digest: "sha256:eval-harness",
+  adapter_config_digest: "sha256:adapter-config",
+  environment_digest: "sha256:environment",
+};
+
+function hardenedStatusPayload(): string {
+  return JSON.stringify({
+    eval_contract: LOCKED_EVAL_CONTRACT,
+    current_eval_contract: LOCKED_EVAL_CONTRACT,
+    eval_contract_digest: LOCKED_EVAL_CONTRACT.contract_digest,
+    current_eval_contract_digest: LOCKED_EVAL_CONTRACT.contract_digest,
+    eval_contract_matches_current: true,
+    eval_contract_drift_status: "locked",
+  });
+}
 
 function initEvalWorkspace(options: {
   evalCommand: string;
@@ -488,6 +514,13 @@ coveredTest(
           stderr: "",
         };
       }
+      if (argv.includes("session") && argv.includes("status")) {
+        return {
+          returncode: 0,
+          stdout: hardenedStatusPayload(),
+          stderr: "",
+        };
+      }
       if (argv.includes("ingest-eval")) {
         return {
           returncode: 0,
@@ -594,6 +627,13 @@ coveredTest(["M1-002"], "eval ingest rejects array stdout", () => {
         stderr: "",
       };
     }
+    if (argv.includes("session") && argv.includes("status")) {
+      return {
+        returncode: 0,
+        stdout: hardenedStatusPayload(),
+        stderr: "",
+      };
+    }
     return { returncode: 0, stdout: "{}", stderr: "" };
   };
   const workspace = initEvalWorkspace({
@@ -618,6 +658,13 @@ coveredTest(["M1-002"], "eval ingest rejects invalid text stdout", () => {
       return {
         returncode: 0,
         stdout: '{"preview_digest":"digest-invalid-eval"}',
+        stderr: "",
+      };
+    }
+    if (argv.includes("session") && argv.includes("status")) {
+      return {
+        returncode: 0,
+        stdout: hardenedStatusPayload(),
         stderr: "",
       };
     }
@@ -648,6 +695,13 @@ coveredTest(["M1-002"], "eval ingest rejects empty stdout", () => {
         stderr: "",
       };
     }
+    if (argv.includes("session") && argv.includes("status")) {
+      return {
+        returncode: 0,
+        stdout: hardenedStatusPayload(),
+        stderr: "",
+      };
+    }
     return { returncode: 0, stdout: "{}", stderr: "" };
   };
   const workspace = initEvalWorkspace({
@@ -664,6 +718,76 @@ coveredTest(["M1-002"], "eval ingest rejects empty stdout", () => {
     }),
   ).toThrowError(/must emit exactly one JSON object/u);
 });
+
+coveredTest(
+  ["M1-002", "M2-008"],
+  "eval ingest falls back to an empty digest env when upstream omits contract digests",
+  () => {
+    const initRunner = (argv: string[], cwd: string): InvocationResult => {
+      void cwd;
+      if (argv.includes("session") && argv.includes("init")) {
+        return {
+          returncode: 0,
+          stdout: '{"preview_digest":"digest-no-contract-digest"}',
+          stderr: "",
+        };
+      }
+      if (argv.includes("session") && argv.includes("status")) {
+        return {
+          returncode: 0,
+          stdout: JSON.stringify({
+            eval_contract: {
+              benchmark_tree_digest: "sha256:benchmark-tree",
+              eval_harness_digest: "sha256:eval-harness",
+              adapter_config_digest: "sha256:adapter-config",
+              environment_digest: "sha256:environment",
+            },
+            current_eval_contract: {
+              benchmark_tree_digest: "sha256:benchmark-tree",
+              eval_harness_digest: "sha256:eval-harness",
+              adapter_config_digest: "sha256:adapter-config",
+              environment_digest: "sha256:environment",
+            },
+            eval_contract_matches_current: true,
+            eval_contract_drift_status: "locked",
+          }),
+          stderr: "",
+        };
+      }
+      if (argv.includes("ingest-eval")) {
+        return {
+          returncode: 0,
+          stdout: '{"ingested":true}',
+          stderr: "",
+        };
+      }
+      return { returncode: 0, stdout: "{}", stderr: "" };
+    };
+    const workspace = initEvalWorkspace({
+      evalCommand:
+        'printf \'{"observedDigest":"%s"}\\n\' "${PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_DIGEST}"',
+      goal: "Allow hardened ingest when the upstream omits digest fields.",
+      prefix: "pi-autoclanker-ts-empty-contract-digest-",
+      runner: initRunner,
+    });
+
+    const ingestResult = asRecord(
+      dispatchTool("autoclanker_ingest_eval", undefined, {
+        workspace,
+        runner: initRunner,
+      }),
+    );
+    const evalPayload = asRecord(
+      JSON.parse(
+        readFileSync(String(ingestResult.evalResultPath), "utf-8"),
+      ) as JsonRecord,
+    );
+    expect(evalPayload.observedDigest).toBe("");
+    expect((evalPayload.eval_contract as EvalContractRecord).environment_digest).toBe(
+      "sha256:environment",
+    );
+  },
+);
 
 coveredTest(
   ["M1-002", "M2-005"],

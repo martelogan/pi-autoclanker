@@ -10,6 +10,11 @@ import { repoRoot } from "./oracle.js";
 
 type LiveEvidenceRecord = {
   canonicalizationDigest?: unknown;
+  autoclankerRevision?: unknown;
+  currentEvalContractDigest?: unknown;
+  evalContractDriftStatus?: unknown;
+  evalContractMatchesCurrent?: unknown;
+  lockedEvalContractDigest?: unknown;
 };
 
 function writeLiveEvidence(payload: object, requirementId: string): LiveEvidenceRecord {
@@ -60,6 +65,11 @@ coveredTest(
     expect(upstream).toContain("dev_run_port_cli tool autoclanker_init_session");
     expect(upstream).toContain("dev_run_port_cli tool autoclanker_preview_beliefs");
     expect(upstream).toContain("dev_run_port_cli tool autoclanker_session_status");
+    expect(upstream).toContain(
+      "examples/targets/parser-quickstart/autoclanker.eval.sh",
+    );
+    expect(upstream).toContain("lockedEvalContractDigest");
+    expect(upstream).toContain("evalContractDriftStatus");
     expect(upstream).toContain("dev_run_port_cli tool autoclanker_suggest");
     expect(upstream).toContain("dev_run_port_cli tool autoclanker_recommend_commit");
     expect(upstream).toContain("M5-LIVE-001");
@@ -119,5 +129,27 @@ coveredTest(
     expect(typeof left.canonicalizationDigest).toBe("string");
     expect(typeof right.canonicalizationDigest).toBe("string");
     expect(left.canonicalizationDigest).not.toBe(right.canonicalizationDigest);
+  },
+);
+
+coveredTest(
+  ["M5-LIVE-001", "M5-LIVE-002"],
+  "live evidence records upstream trust digests when wrapper status provides them",
+  () => {
+    const evidence = writeLiveEvidence(
+      {
+        ok: true,
+        lockedEvalContractDigest: "sha256:locked",
+        currentEvalContractDigest: "sha256:locked",
+        evalContractMatchesCurrent: true,
+        evalContractDriftStatus: "locked",
+      },
+      "audit-trust",
+    );
+
+    expect(evidence.lockedEvalContractDigest).toBe("sha256:locked");
+    expect(evidence.currentEvalContractDigest).toBe("sha256:locked");
+    expect(evidence.evalContractMatchesCurrent).toBe(true);
+    expect(evidence.evalContractDriftStatus).toBe("locked");
   },
 );

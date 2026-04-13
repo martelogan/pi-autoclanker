@@ -1,5 +1,13 @@
 {
   "$schema": "https://unpkg.com/knip@latest/schema.json",
-  "project": ["src/**/*.ts", "tests/**/*.ts", "bin/dev", "scripts/**/*.sh"],
-  "ignoreDependencies": ["tsx"]
+  "entry": ["tests/**/*.test.ts", "configs/vitest*.ts", "bin/dev", "scripts/**/*.sh"],
+  "project": [
+    "src/**/*.ts",
+    "tests/**/*.ts",
+    "configs/**/*.ts",
+    "extensions/**/*.ts",
+    "bin/dev",
+    "scripts/**/*.sh"
+  ],
+  "ignoreDependencies": ["tsx", "@vitest/coverage-v8"]
 }

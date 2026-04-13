@@ -86,7 +86,7 @@
   {
     "requirement_id": "M2-006",
     "gate": "required",
-    "description": "The beginner start path can bootstrap a session from a goal alone by generating a checked-in default eval shell stub while still allowing an explicit eval command override.",
+    "description": "The beginner start path can bootstrap a session from a goal alone by generating a checked-in default eval shell stub, while still allowing an explicit eval command override and preserving hardened upstream eval-contract compatibility at ingest time.",
     "status": "active"
   },
   {
@@ -98,7 +98,25 @@
   {
     "requirement_id": "M2-008",
     "gate": "required",
-    "description": "The checked-in `autoclanker.eval.sh` surface is snapshotted at session initialization, exposed in session status, and rejected at eval ingest time if it drifts during the life of that session.",
+    "description": "The checked-in `autoclanker.eval.sh` surface is snapshotted at session initialization, receives the locked upstream eval contract at ingest time, is exposed in session status, and is rejected if it drifts during the life of that session.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-009",
+    "gate": "required",
+    "description": "A local `autoclanker.frontier.json` file can persist explicit pathway families and stays readable through frontier-status surfaces.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-010",
+    "gate": "required",
+    "description": "`compare-frontier` and `merge-pathways` only edit the local frontier file and call upstream `autoclanker` surfaces instead of adding a second inference layer.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-011",
+    "gate": "required",
+    "description": "Status and export surfaces expose locked eval-contract trust plus frontier counts, pending queries, and pending merge suggestions.",
     "status": "active"
   },
   {
@@ -134,7 +152,7 @@
   {
     "requirement_id": "M5-LIVE-001",
     "gate": "live",
-    "description": "The repo provides an upstream live acceptance lane and records proof artifacts when it successfully exercises the extension tool bridge against a real CLI.",
+    "description": "The repo provides an upstream live acceptance lane and records proof artifacts, including upstream revision and locked eval-contract trust state when available, after it successfully exercises the extension tool bridge against a real CLI.",
     "status": "external"
   },
   {

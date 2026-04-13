@@ -67,6 +67,26 @@ dev_prepare_node_env() {
     export PATH="$(dev_local_bin_dir):$(dev_node_modules_bin_dir):${PATH}"
 }
 
+dev_prepare_coverage_dir() {
+    local repo_root
+    repo_root="$(dev_repo_root)"
+
+    local requested="${PI_AUTOCLANKER_COVERAGE_DIR:-}"
+    local coverage_dir
+    if [[ -n "${requested}" ]]; then
+        if [[ "${requested}" = /* ]]; then
+            coverage_dir="${requested}"
+        else
+            coverage_dir="${repo_root}/${requested}"
+        fi
+    else
+        coverage_dir="${repo_root}/coverage/run-$(date +%Y%m%d-%H%M%S)-$$"
+    fi
+
+    mkdir -p "${coverage_dir}/.tmp"
+    export PI_AUTOCLANKER_COVERAGE_DIR="${coverage_dir}"
+}
+
 dev_run_npm() {
     dev_prepare_node_env
     if ! command -v npm >/dev/null 2>&1; then
@@ -137,6 +157,7 @@ dev_write_live_evidence() {
     WORKSPACE_PATH="${workspace}" \
     EVIDENCE_DIR="${evidence_dir}" \
     node <<'JS'
+const { execFileSync } = require("node:child_process");
 const { createHash } = require("node:crypto");
 const { readFileSync, writeFileSync, existsSync } = require("node:fs");
 const { join } = require("node:path");
@@ -198,6 +219,27 @@ function findUpstream(data) {
   return data.upstream && typeof data.upstream === "object" ? data.upstream : null;
 }
 
+function asObject(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return null;
+  }
+  return data;
+}
+
+function gitRevision(repoPath) {
+  if (!repoPath || !existsSync(repoPath)) {
+    return null;
+  }
+  try {
+    return execFileSync("git", ["-C", repoPath, "rev-parse", "HEAD"], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
 const payloadFile = process.env.PI_AUTOCLANKER_LIVE_EVIDENCE_PAYLOAD_FILE;
 const statusFile = process.env.PI_AUTOCLANKER_LIVE_EVIDENCE_STATUS_FILE;
 const beliefsFile = process.env.PI_AUTOCLANKER_LIVE_EVIDENCE_BELIEFS_FILE;
@@ -212,9 +254,12 @@ const beliefSource = Array.isArray(canonicalization?.beliefs)
     ? beliefsJson.canonicalBeliefs
     : null;
 const upstream = findUpstream(statusJson) ?? findUpstream(payloadJson);
+const wrapperStatus = asObject(statusJson) ?? asObject(payloadJson);
+const autoclankerRepo = process.env.PI_AUTOCLANKER_AUTOCLANKER_REPO ?? null;
 const output = {
   autoclankerBinary: process.env.PI_AUTOCLANKER_AUTOCLANKER_BINARY ?? "autoclanker",
-  autoclankerRepo: process.env.PI_AUTOCLANKER_AUTOCLANKER_REPO ?? null,
+  autoclankerRepo,
+  autoclankerRevision: gitRevision(autoclankerRepo),
   beliefCount: Array.isArray(beliefSource) ? beliefSource.length : null,
   beliefDigest: Array.isArray(beliefSource) ? digestJson(beliefSource) : null,
   beliefsFileSha256: digestFile(beliefsFile),
@@ -227,6 +272,18 @@ const output = {
   status: "passed",
   workspace: process.env.WORKSPACE_PATH,
 };
+if (wrapperStatus && typeof wrapperStatus.lockedEvalContractDigest === "string") {
+  output.lockedEvalContractDigest = wrapperStatus.lockedEvalContractDigest;
+}
+if (wrapperStatus && typeof wrapperStatus.currentEvalContractDigest === "string") {
+  output.currentEvalContractDigest = wrapperStatus.currentEvalContractDigest;
+}
+if (wrapperStatus && typeof wrapperStatus.evalContractMatchesCurrent === "boolean") {
+  output.evalContractMatchesCurrent = wrapperStatus.evalContractMatchesCurrent;
+}
+if (wrapperStatus && typeof wrapperStatus.evalContractDriftStatus === "string") {
+  output.evalContractDriftStatus = wrapperStatus.evalContractDriftStatus;
+}
 if (process.env.PI_AUTOCLANKER_CANONICALIZATION_MODEL) {
   output.canonicalizationModel = process.env.PI_AUTOCLANKER_CANONICALIZATION_MODEL;
 }

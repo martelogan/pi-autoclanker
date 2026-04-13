@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 
 from typing import Any
 
@@ -34,6 +35,18 @@ def _estimated_runtime_sec(candidate_id: str) -> float:
     return round(runtime_sec, 3)
 
 
+def _optional_eval_contract_from_env() -> dict[str, Any] | None:
+    raw = os.environ.get("PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_JSON")
+    if raw is None or raw.strip() == "":
+        return None
+    payload = json.loads(raw)
+    if not isinstance(payload, dict):
+        raise ValueError(
+            "PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_JSON must decode to a JSON object."
+        )
+    return payload
+
+
 def build_eval_result(candidate_id: str, era_id: str) -> dict[str, Any]:
     config = config_from_candidate(candidate_id)
     preview = benchmark_preview(config)
@@ -44,7 +57,7 @@ def build_eval_result(candidate_id: str, era_id: str) -> dict[str, Any]:
     warning = preview["warning"]
     utility = round(score - (peak_vram_mb / 400.0), 3)
 
-    return {
+    payload: dict[str, Any] = {
         "era_id": era_id,
         "candidate_id": candidate_id,
         "intended_genotype": [
@@ -73,6 +86,10 @@ def build_eval_result(candidate_id: str, era_id: str) -> dict[str, Any]:
         "artifact_paths": [],
         "failure_metadata": {} if warning is None else {"warning": warning},
     }
+    eval_contract = _optional_eval_contract_from_env()
+    if eval_contract is not None:
+        payload["eval_contract"] = eval_contract
+    return payload
 
 
 def main(argv: list[str] | None = None) -> int:

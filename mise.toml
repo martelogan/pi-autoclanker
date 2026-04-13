@@ -28,11 +28,11 @@ run = "npm exec -- knip --config configs/knip.json"
 
 [tasks.test]
 description = "Run the default test lane"
-run = "mkdir -p coverage/.tmp && npm exec -- vitest run --config configs/vitest.config.ts --coverage"
+run = "bash scripts/test-with-coverage.sh"
 
 [tasks."test-unit"]
 description = "Run unit tests only"
-run = "mkdir -p coverage/.tmp && npm exec -- vitest run --config configs/vitest.config.ts --coverage"
+run = "bash scripts/test-with-coverage.sh"
 
 [tasks."test-integration"]
 description = "Run integration tests if any exist"

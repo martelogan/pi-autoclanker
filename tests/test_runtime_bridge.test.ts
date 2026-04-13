@@ -18,6 +18,7 @@ import {
   CONFIG_FILENAME,
   DEFAULT_EVAL_COMMAND,
   EVAL_FILENAME,
+  FRONTIER_FILENAME,
   HISTORY_FILENAME,
   SESSION_FILENAMES,
   SUMMARY_FILENAME,
@@ -52,6 +53,7 @@ type JsonRecord = {
   directive?: unknown;
   enabled?: unknown;
   evalCommand?: unknown;
+  evalContractDriftStatus?: unknown;
   evalSummary?: unknown;
   evalSurfaceMatchesLock?: unknown;
   evalSurfaceSha256?: unknown;
@@ -59,8 +61,10 @@ type JsonRecord = {
   exists?: unknown;
   exportPath?: unknown;
   files?: unknown;
+  filePresent?: unknown;
   fit?: unknown;
   fitSummary?: unknown;
+  frontier?: unknown;
   gene?: unknown;
   gene_id?: unknown;
   goal?: unknown;
@@ -84,6 +88,7 @@ type JsonRecord = {
   status?: unknown;
   suggestion?: unknown;
   tool?: unknown;
+  trust?: unknown;
   upstream?: unknown;
   upstreamArtifacts?: unknown;
   upstreamArtifactsIncluded?: unknown;
@@ -136,6 +141,14 @@ appendFileSync(
 const args = process.argv.slice(2);
 const command = args.slice(0, 2).join(" ");
 const billed = process.env.PI_AUTOCLANKER_ALLOW_BILLED_LIVE === "1";
+const fakeEvalContract = {
+  contract_digest: "sha256:contract-locked",
+  benchmark_tree_digest: "sha256:benchmark-locked",
+  eval_harness_digest: "sha256:harness-locked",
+  adapter_config_digest: "sha256:adapter-locked",
+  environment_digest: "sha256:env-locked",
+  workspace_snapshot_mode: "git_worktree",
+};
 let payload;
 
 if (command === "beliefs canonicalize-ideas") {
@@ -282,6 +295,17 @@ if (command === "beliefs canonicalize-ideas") {
 } else if (command === "session apply-beliefs") {
   payload = { beliefs_status: "applied" };
 } else if (command === "session ingest-eval") {
+  const evalPayload = JSON.parse(
+    readFileSync(args[args.indexOf("--input") + 1], "utf-8"),
+  );
+  if (!evalPayload.eval_contract) {
+    console.log(JSON.stringify({ error: "Eval result did not include eval_contract for this hardened session." }));
+    process.exit(1);
+  }
+  if (evalPayload.eval_contract.contract_digest !== fakeEvalContract.contract_digest) {
+    console.log(JSON.stringify({ error: "Eval result contract did not match the locked session contract." }));
+    process.exit(1);
+  }
   payload = { evalSummary: "Eval ingested" };
 } else if (command === "session fit") {
   payload = { fitSummary: "Fit complete" };
@@ -318,7 +342,15 @@ if (command === "beliefs canonicalize-ideas") {
 } else if (command === "session recommend-commit") {
   payload = { commitSummary: "Commit the previewed belief set" };
 } else if (command === "session status") {
-  payload = { status: "healthy" };
+  payload = {
+    status: "healthy",
+    eval_contract: fakeEvalContract,
+    current_eval_contract: fakeEvalContract,
+    eval_contract_digest: fakeEvalContract.contract_digest,
+    current_eval_contract_digest: fakeEvalContract.contract_digest,
+    eval_contract_matches_current: true,
+    eval_contract_drift_status: "locked",
+  };
 } else {
   payload = { argv: args };
 }
@@ -533,9 +565,12 @@ coveredTest(
       expect(initResult.tool).toBe("autoclanker_init_session");
       expect(initResult.billedLive).toBe(false);
 
-      for (const fileName of SESSION_FILENAMES) {
+      for (const fileName of SESSION_FILENAMES.filter(
+        (name) => name !== FRONTIER_FILENAME,
+      )) {
         expect(existsSync(resolve(workspace, fileName))).toBe(true);
       }
+      expect(existsSync(resolve(workspace, FRONTIER_FILENAME))).toBe(false);
       expect(existsSync(resolve(workspace, ".autoclanker"))).toBe(true);
 
       const previewResult = asRecord(
@@ -754,7 +789,7 @@ coveredTest(
 );
 
 coveredTest(
-  ["M1-003", "M2-003"],
+  ["M1-003", "M2-003", "M2-011"],
   "command surface supports start resume status off clear and export",
   () => {
     const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-command-"));
@@ -793,6 +828,7 @@ coveredTest(
       const exportedBundle = asRecord(JSON.parse(readFileSync(exportPath, "utf-8")));
       const exportedFiles = asRecord(exportedBundle.files);
       const exportedHandoff = asRecord(exportedBundle.handoff);
+      const exportedStatus = asRecord(exportedBundle.status);
       const exportedUpstream = asRecord(exportedBundle.upstreamArtifacts);
       const exportedUpstreamFiles = asRecord(exportedUpstream.files);
       const exportedConfig = asRecord(exportedFiles[CONFIG_FILENAME]);
@@ -801,14 +837,22 @@ coveredTest(
         "Improve parser throughput without losing context quality.",
       );
       expect(String(exportedFiles[EVAL_FILENAME])).toContain("#!/usr/bin/env bash");
+      expect(exportedFiles[FRONTIER_FILENAME]).toEqual({});
       expect(exportedHandoff.upstreamArtifactsIncluded).toBe(true);
       expect(exportedHandoff.autoclankerCliResolvable).toBe(true);
+      expect(asRecord(exportedStatus.frontier).filePresent).toBe(false);
       expect(
         exportedUpstreamFiles[".autoclanker/example-session/manifest.yaml"],
       ).toBeTruthy();
 
       const statusResult = asRecord(dispatchCommand("status", { workspace }));
       expect(statusResult.command).toBe("status");
+      expect(exportedStatus.evalContractDriftStatus).toBe(
+        statusResult.evalContractDriftStatus,
+      );
+      expect(asRecord(exportedStatus.trust).evalContractDriftStatus).toBe(
+        asRecord(statusResult.trust).evalContractDriftStatus,
+      );
       expect(asRecord(statusResult.files)[SUMMARY_FILENAME]).toBe(true);
       expect(asRecord(statusResult.handoff).autoclankerCliResolvable).toBe(true);
 

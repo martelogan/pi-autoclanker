@@ -20,12 +20,14 @@ export const CONFIG_FILENAME = "autoclanker.config.json";
 export const SUMMARY_FILENAME = "autoclanker.md";
 export const BELIEFS_FILENAME = "autoclanker.beliefs.json";
 export const EVAL_FILENAME = "autoclanker.eval.sh";
+export const FRONTIER_FILENAME = "autoclanker.frontier.json";
 export const HISTORY_FILENAME = "autoclanker.history.jsonl";
 export const SESSION_FILENAMES = [
   SUMMARY_FILENAME,
   CONFIG_FILENAME,
   BELIEFS_FILENAME,
   EVAL_FILENAME,
+  FRONTIER_FILENAME,
   HISTORY_FILENAME,
 ] as const;
 export const IDEAS_MODES = ["rough", "canonicalize", "advanced_json"] as const;
@@ -37,12 +39,18 @@ export const TOOL_NAMES = [
   "autoclanker_ingest_eval",
   "autoclanker_fit",
   "autoclanker_suggest",
+  "autoclanker_frontier_status",
+  "autoclanker_compare_frontier",
+  "autoclanker_merge_pathways",
   "autoclanker_recommend_commit",
 ] as const;
 export const COMMAND_NAMES = [
   "start",
   "resume",
   "status",
+  "frontier-status",
+  "compare-frontier",
+  "merge-pathways",
   "off",
   "clear",
   "export",
@@ -79,12 +87,22 @@ const GRAPH_DIRECTIVE_ALIASES = {
 const DEFAULT_STATUS_SESSION_ID = "status_workspace";
 const DEFAULT_STATUS_ERA_ID = "era_status_workspace_v1";
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
+const CHILD_ENV_BLOCKLIST = ["NODE_V8_COVERAGE"] as const;
 
-export const DEFAULT_EVAL_COMMAND = `cat <<EVAL
+export const DEFAULT_EVAL_COMMAND = `if [[ -n "\${PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_JSON:-}" ]]; then
+  cat <<EVAL
+{"era_id":"\${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"cand_default_eval","intended_genotype":[],"realized_genotype":[],"patch_hash":"sha256:pi-autoclanker-default-eval","status":"valid","seed":0,"runtime_sec":0.0,"peak_vram_mb":0.0,"raw_metrics":{"score":0.0},"delta_perf":0.0,"utility":0.0,"replication_index":0,"stdout_digest":"stdout:default","stderr_digest":"stderr:default","artifact_paths":[],"failure_metadata":{},"eval_contract":\${PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_JSON}}
+EVAL
+else
+  cat <<EVAL
 {"era_id":"\${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"cand_default_eval","intended_genotype":[],"realized_genotype":[],"patch_hash":"sha256:pi-autoclanker-default-eval","status":"valid","seed":0,"runtime_sec":0.0,"peak_vram_mb":0.0,"raw_metrics":{"score":0.0},"delta_perf":0.0,"utility":0.0,"replication_index":0,"stdout_digest":"stdout:default","stderr_digest":"stderr:default","artifact_paths":[],"failure_metadata":{}}
-EVAL`;
+EVAL
+fi`;
 
 type JsonObject = Record<string, unknown>;
+type EvalContractJson = JsonObject & {
+  contract_digest?: unknown;
+};
 export type ToolName = (typeof TOOL_NAMES)[number];
 export type CommandName = (typeof COMMAND_NAMES)[number];
 export type IdeasMode = (typeof IDEAS_MODES)[number];
@@ -150,6 +168,7 @@ type SummaryHistoryEntry = {
 
 type SummarySuggestionPayload = {
   candidateCount?: unknown;
+  frontier_summary?: unknown;
   influence_summary?: unknown;
   nextAction?: unknown;
   queries?: unknown;
@@ -192,6 +211,60 @@ type SummaryFitPayload = {
   [key: string]: unknown;
 };
 
+type FrontierSummaryRecord = {
+  frontier_id?: unknown;
+  candidate_count?: unknown;
+  family_count?: unknown;
+  family_representatives?: unknown;
+  dropped_family_reasons?: unknown;
+  pending_queries?: unknown;
+  pending_merge_suggestions?: unknown;
+  budget_allocations?: unknown;
+};
+
+type FrontierCandidateRecord = {
+  candidate_id?: unknown;
+  family_id?: unknown;
+  genotype?: unknown;
+  origin_kind?: unknown;
+  parent_candidate_ids?: unknown;
+  parent_belief_ids?: unknown;
+  origin_query_ids?: unknown;
+  notes?: unknown;
+  budget_weight?: unknown;
+};
+
+type FrontierGeneRecord = {
+  gene_id?: unknown;
+  state_id?: unknown;
+};
+
+type UpstreamStatusRecord = {
+  eval_contract?: unknown;
+  current_eval_contract?: unknown;
+  eval_contract_digest?: unknown;
+  current_eval_contract_digest?: unknown;
+  eval_contract_matches_current?: unknown;
+  eval_contract_drift_status?: unknown;
+  last_eval_measurement_mode?: unknown;
+  last_eval_stabilization_mode?: unknown;
+  last_eval_used_lease?: unknown;
+  last_eval_noisy_system?: unknown;
+  frontier_candidate_count?: unknown;
+  frontier_family_count?: unknown;
+  pending_query_count?: unknown;
+  pending_merge_suggestion_count?: unknown;
+};
+
+type ToolStatusPayload = {
+  sessionRoot?: unknown;
+  frontier?: unknown;
+  frontierFilePresent?: unknown;
+  trust?: unknown;
+  upstream?: unknown;
+  upstreamFrontier?: unknown;
+};
+
 type UpstreamPayload = {
   argv?: unknown;
   beliefs?: unknown;
@@ -206,19 +279,34 @@ type UpstreamPayload = {
 type CandidatePoolDocument = {
   candidate_id?: unknown;
   candidates?: unknown;
+  default_family_id?: unknown;
+  family_id?: unknown;
+  familyIds?: unknown;
   files?: unknown;
   gene_id?: unknown;
   genotype?: unknown;
   kind?: unknown;
   context?: unknown;
   directive?: unknown;
+  frontier_id?: unknown;
+  frontier_summary?: unknown;
   mean?: unknown;
+  mergedCandidateId?: unknown;
+  mergedGenotype?: unknown;
+  notes?: unknown;
+  origin_kind?: unknown;
+  parent_candidate_ids?: unknown;
+  parent_belief_ids?: unknown;
+  origin_query_ids?: unknown;
+  budget_weight?: unknown;
   pathRelativeToWorkspace?: unknown;
   present?: unknown;
   prior_mean?: unknown;
   prior_scale?: unknown;
   scale?: unknown;
   state_id?: unknown;
+  pending_merge_suggestions?: unknown;
+  pending_queries?: unknown;
   [key: string]: unknown;
 };
 
@@ -228,6 +316,7 @@ type SessionPaths = {
   configPath: string;
   beliefsPath: string;
   evalPath: string;
+  frontierPath: string;
   historyPath: string;
   upstreamSessionDir: string;
 };
@@ -243,11 +332,18 @@ type RuntimePayload = {
   defaultIdeasMode?: IdeasMode;
   enabled?: boolean;
   evalCommand?: string;
+  familyIds?: string[];
   goal?: string;
+  mergedCandidateId?: string;
+  mergedGenotype?: unknown;
   mode?: IdeasMode;
+  notes?: string;
   outputPath?: string;
   roughIdeas?: string[];
   sessionRoot?: string;
+  frontierInputPath?: string;
+  candidateIds?: string[];
+  budgetWeight?: number;
   workspace?: string;
   [key: string]: unknown;
 };
@@ -260,6 +356,7 @@ function defaultRunner(argv: string[], cwd: string): InvocationResult {
   const completed = spawnSync(command, args, {
     cwd,
     encoding: "utf-8",
+    env: childProcessEnv(),
     stdio: ["ignore", "pipe", "pipe"],
   });
   if (completed.error) {
@@ -276,7 +373,18 @@ function defaultRunner(argv: string[], cwd: string): InvocationResult {
   };
 }
 
-function ensureJsonObject<T extends JsonObject = JsonObject>(
+function childProcessEnv(extraEnv?: Record<string, string>): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  for (const key of CHILD_ENV_BLOCKLIST) {
+    delete env[key];
+  }
+  return {
+    ...env,
+    ...(extraEnv ?? {}),
+  };
+}
+
+function ensureJsonObject<T extends object = JsonObject>(
   value: unknown,
   message: string,
 ): T {
@@ -286,17 +394,11 @@ function ensureJsonObject<T extends JsonObject = JsonObject>(
   return { ...(value as JsonObject) } as T;
 }
 
-function loadJsonObject<T extends JsonObject = JsonObject>(
-  path: string,
-  label: string,
-): T {
+function loadJsonObject<T extends object = JsonObject>(path: string, label: string): T {
   return loadJsonText<T>(readFileSync(path, "utf-8"), label);
 }
 
-function loadJsonText<T extends JsonObject = JsonObject>(
-  raw: string,
-  label: string,
-): T {
+function loadJsonText<T extends object = JsonObject>(raw: string, label: string): T {
   return ensureJsonObject<T>(
     JSON.parse(raw) as unknown,
     `${label} must be a JSON object.`,
@@ -547,6 +649,7 @@ function sessionPathsForWorkspace(
     configPath: resolve(root, CONFIG_FILENAME),
     beliefsPath: resolve(root, BELIEFS_FILENAME),
     evalPath: resolve(root, EVAL_FILENAME),
+    frontierPath: resolve(root, FRONTIER_FILENAME),
     historyPath: resolve(root, HISTORY_FILENAME),
     upstreamSessionDir: resolve(root, sessionRoot),
   };
@@ -1221,10 +1324,7 @@ function runEvalScript(
   const completed = spawnSync(path, [], {
     cwd: workspace,
     encoding: "utf-8",
-    env: {
-      ...process.env,
-      ...(options?.extraEnv ?? {}),
-    },
+    env: childProcessEnv(options?.extraEnv),
     stdio: ["ignore", "pipe", "pipe"],
   });
   if (completed.error || (completed.status ?? 0) !== 0) {
@@ -1239,6 +1339,65 @@ function runEvalScript(
     completed.stdout ?? "",
     "autoclanker.eval.sh must emit exactly one JSON object to stdout.",
   );
+}
+
+function lockedUpstreamEvalContract(options: {
+  workspace: string;
+  config: RuntimeConfig;
+  paths: SessionPaths;
+  beliefsDocument: BeliefsDocument;
+  runner: Runner;
+}): {
+  status: UpstreamStatusRecord;
+  contract: JsonObject;
+  sessionId: string;
+  eraId: string;
+} {
+  const identity = upstreamSessionIdentity(options.workspace, options.beliefsDocument);
+  const upstream = invokeAutoclanker({
+    config: options.config,
+    workspace: options.workspace,
+    args: [
+      "session",
+      "status",
+      "--session-id",
+      identity.sessionId,
+      "--session-root",
+      options.paths.upstreamSessionDir,
+    ],
+    runner: options.runner,
+    requireUpstream: true,
+  });
+  const status = summaryObject<UpstreamStatusRecord>(upstream) ?? {};
+  const contract =
+    summaryObject<JsonObject>(status.eval_contract) ??
+    summaryObject<JsonObject>(status.current_eval_contract);
+  if (contract === null) {
+    throw new Error(
+      "Upstream autoclanker session status did not include a locked eval contract.",
+    );
+  }
+  return {
+    status,
+    contract,
+    sessionId: identity.sessionId,
+    eraId: identity.eraId,
+  };
+}
+
+function ensureEvalPayloadIncludesContract(
+  payload: JsonObject,
+  contract: JsonObject,
+): JsonObject {
+  const payloadWithContract = payload as JsonObject & { eval_contract?: unknown };
+  const existing = summaryObject<JsonObject>(payloadWithContract.eval_contract);
+  if (existing !== null) {
+    return payload;
+  }
+  return {
+    ...payload,
+    eval_contract: contract,
+  };
 }
 
 function usesDefaultEvalCommand(command: string | null): boolean {
@@ -1291,6 +1450,7 @@ function writeSummary(
   const evalSurfaceLockValid = String(
     lockedEvalSha256 !== null && currentEvalSha256 === lockedEvalSha256,
   );
+  const frontierPresent = existsSync(paths.frontierPath);
   const summarySnapshot = latestSummarySnapshot(history);
   let evalSource = "generated default shell stub";
   if (config.evalCommand === null) {
@@ -1312,6 +1472,17 @@ function writeSummary(
   }
   if (summarySnapshot.comparedLaneCount !== null) {
     lines.push(`- compared lanes: \`${summarySnapshot.comparedLaneCount}\``);
+  }
+  if (summarySnapshot.frontierFamilyCount !== null) {
+    lines.push(`- frontier families: \`${summarySnapshot.frontierFamilyCount}\``);
+  }
+  if (summarySnapshot.pendingQueryCount !== null) {
+    lines.push(`- pending queries: \`${summarySnapshot.pendingQueryCount}\``);
+  }
+  if (summarySnapshot.pendingMergeSuggestionCount !== null) {
+    lines.push(
+      `- pending merge suggestions: \`${summarySnapshot.pendingMergeSuggestionCount}\``,
+    );
   }
   if (summarySnapshot.nextAction !== null) {
     lines.push(`- next action: ${summarySnapshot.nextAction}`);
@@ -1340,6 +1511,7 @@ function writeSummary(
     "",
     "## Run files",
     "- `autoclanker.md`: current run summary",
+    "- `autoclanker.frontier.json`: optional reviewable local frontier for multi-path runs",
     "- `autoclanker.history.jsonl`: local chronological log",
     `- \`${config.sessionRoot}/<session>/RESULTS.md\`: upstream run summary`,
     `- \`${config.sessionRoot}/<session>/convergence.png\`, \`${config.sessionRoot}/<session>/candidate_rankings.png\`, \`${config.sessionRoot}/<session>/belief_graph_prior.png\`, and \`${config.sessionRoot}/<session>/belief_graph_posterior.png\`: upstream charts and belief graphs`,
@@ -1363,6 +1535,7 @@ function writeSummary(
     `- belief apply state: \`${previewState}\``,
     `- eval surface sha256: \`${currentEvalSha256 ?? "Not recorded"}\``,
     `- eval surface lock valid: \`${evalSurfaceLockValid.toLowerCase()}\``,
+    `- local frontier file: \`${frontierPresent ? "present" : "absent"}\``,
     "",
     "## Constraints",
   );
@@ -1380,7 +1553,7 @@ function writeSummary(
   writeFileSync(paths.summaryPath, `${lines.join("\n")}\n`, "utf-8");
 }
 
-function summaryObject<T extends JsonObject = JsonObject>(value: unknown): T | null {
+function summaryObject<T extends object = JsonObject>(value: unknown): T | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
@@ -1438,6 +1611,10 @@ function humanizeHistoryEvent(eventName: string | null): string | null {
       return "fit completed";
     case "suggested_next_step":
       return "suggestion generated";
+    case "frontier_compared":
+      return "frontier compared";
+    case "pathways_merged":
+      return "pathways merged";
     case "commit_recommended":
       return "commit recommendation generated";
     case "session_resumed":
@@ -1452,6 +1629,7 @@ function humanizeHistoryEvent(eventName: string | null): string | null {
 function latestSummarySnapshot(history: SummaryHistoryEntry[]): {
   commitRecommendation: string | null;
   comparedLaneCount: number | null;
+  frontierFamilyCount: number | null;
   followUpQuery: string | null;
   influenceNote: string | null;
   lastStep: string | null;
@@ -1459,6 +1637,8 @@ function latestSummarySnapshot(history: SummaryHistoryEntry[]): {
   latestEval: string | null;
   latestFit: string | null;
   nextAction: string | null;
+  pendingMergeSuggestionCount: number | null;
+  pendingQueryCount: number | null;
   topCandidate: string | null;
 } {
   const latestEvent = history.at(-1) ?? null;
@@ -1487,6 +1667,13 @@ function latestSummarySnapshot(history: SummaryHistoryEntry[]): {
     latestSuggestUpstream?.influence_summary,
   );
   const influenceNotes = summaryArray(influenceSummary?.notes);
+  const frontierSummary = summaryObject<FrontierSummaryRecord>(
+    latestSuggestUpstream?.frontier_summary,
+  );
+  const pendingQueries = summaryArray(frontierSummary?.pending_queries);
+  const pendingMergeSuggestions = summaryArray(
+    frontierSummary?.pending_merge_suggestions,
+  );
 
   return {
     commitRecommendation: summaryString(
@@ -1510,6 +1697,10 @@ function latestSummarySnapshot(history: SummaryHistoryEntry[]): {
       summaryObject<SummaryFitPayload>(latestFit?.upstream)?.fitSummary,
     ),
     nextAction: summaryString(latestSuggestUpstream?.nextAction),
+    frontierFamilyCount: summaryNumber(frontierSummary?.family_count),
+    pendingMergeSuggestionCount:
+      pendingMergeSuggestions === null ? null : pendingMergeSuggestions.length,
+    pendingQueryCount: pendingQueries === null ? null : pendingQueries.length,
     topCandidate: summaryString(firstRankedCandidate?.candidate_id),
   };
 }
@@ -1620,6 +1811,7 @@ function sessionFileMap(paths: SessionPaths): Record<string, boolean> {
     [CONFIG_FILENAME]: existsSync(paths.configPath),
     [BELIEFS_FILENAME]: existsSync(paths.beliefsPath),
     [EVAL_FILENAME]: existsSync(paths.evalPath),
+    [FRONTIER_FILENAME]: existsSync(paths.frontierPath),
     [HISTORY_FILENAME]: existsSync(paths.historyPath),
   };
 }
@@ -1630,6 +1822,7 @@ function requireSession(paths: SessionPaths, ...fileNames: string[]): void {
     [CONFIG_FILENAME]: paths.configPath,
     [BELIEFS_FILENAME]: paths.beliefsPath,
     [EVAL_FILENAME]: paths.evalPath,
+    [FRONTIER_FILENAME]: paths.frontierPath,
     [HISTORY_FILENAME]: paths.historyPath,
   };
   const missing = fileNames.filter((fileName) => {
@@ -1674,10 +1867,18 @@ function coerceBool(value: unknown, fieldName: string): boolean {
   return value;
 }
 
-function candidatePoolPayload(
-  value: unknown,
-  fieldName: string,
-): CandidatePoolDocument {
+function numberValue(value: unknown, fieldName: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${fieldName} must be a finite number.`);
+  }
+  return value;
+}
+
+function stringArray(value: unknown, fieldName: string): string[] {
+  return stringList(value, fieldName);
+}
+
+function frontierPayload(value: unknown, fieldName: string): CandidatePoolDocument {
   const payload = ensureJsonObject<CandidatePoolDocument>(
     value,
     `${fieldName} must be a JSON object with a 'candidates' list.`,
@@ -1689,68 +1890,155 @@ function candidatePoolPayload(
   if (rawCandidates.length === 0) {
     throw new Error(`${fieldName}.candidates must contain at least one entry.`);
   }
+  if (payload.frontier_id !== undefined && payload.frontier_id !== null) {
+    requireNonEmptyString(payload.frontier_id, `${fieldName}.frontier_id`);
+  }
+  if (payload.default_family_id !== undefined && payload.default_family_id !== null) {
+    requireNonEmptyString(payload.default_family_id, `${fieldName}.default_family_id`);
+  }
   rawCandidates.forEach((rawCandidate, candidateIndex) => {
     const candidate = ensureJsonObject<CandidatePoolDocument>(
       rawCandidate,
       "candidates entries must be JSON objects.",
     );
+    const prefix = `${fieldName}.candidates[${candidateIndex + 1}]`;
     if (candidate.candidate_id !== undefined && candidate.candidate_id !== null) {
-      requireNonEmptyString(
-        candidate.candidate_id,
-        `${fieldName}.candidates[${candidateIndex + 1}].candidate_id`,
+      requireNonEmptyString(candidate.candidate_id, `${prefix}.candidate_id`);
+    }
+    if (candidate.family_id !== undefined && candidate.family_id !== null) {
+      requireNonEmptyString(candidate.family_id, `${prefix}.family_id`);
+    }
+    if (candidate.origin_kind !== undefined && candidate.origin_kind !== null) {
+      const originKind = requireNonEmptyString(
+        candidate.origin_kind,
+        `${prefix}.origin_kind`,
       );
+      if (
+        !["legacy_pool", "manual", "belief", "query", "merge", "seed"].includes(
+          originKind,
+        )
+      ) {
+        throw new Error(
+          `${prefix}.origin_kind must be one of legacy_pool, manual, belief, query, merge, seed.`,
+        );
+      }
+    }
+    if (candidate.parent_candidate_ids !== undefined) {
+      stringArray(candidate.parent_candidate_ids, `${prefix}.parent_candidate_ids`);
+    }
+    if (candidate.parent_belief_ids !== undefined) {
+      stringArray(candidate.parent_belief_ids, `${prefix}.parent_belief_ids`);
+    }
+    if (candidate.origin_query_ids !== undefined) {
+      stringArray(candidate.origin_query_ids, `${prefix}.origin_query_ids`);
+    }
+    if (candidate.notes !== undefined && candidate.notes !== null) {
+      requireNonEmptyString(candidate.notes, `${prefix}.notes`);
+    }
+    if (candidate.budget_weight !== undefined && candidate.budget_weight !== null) {
+      numberValue(candidate.budget_weight, `${prefix}.budget_weight`);
     }
     if (!Array.isArray(candidate.genotype)) {
-      throw new Error(
-        `${fieldName}.candidates[${candidateIndex + 1}].genotype must be a list.`,
-      );
+      throw new Error(`${prefix}.genotype must be a list.`);
     }
     candidate.genotype.forEach((rawGene, geneIndex) => {
       const gene = ensureJsonObject<CandidatePoolDocument>(
         rawGene,
-        `${fieldName}.candidates[${candidateIndex + 1}].genotype[${geneIndex + 1}] must be a JSON object.`,
+        `${prefix}.genotype[${geneIndex + 1}] must be a JSON object.`,
       );
       requireNonEmptyString(
         gene.gene_id,
-        `${fieldName}.candidates[${candidateIndex + 1}].genotype[${geneIndex + 1}].gene_id`,
+        `${prefix}.genotype[${geneIndex + 1}].gene_id`,
       );
       requireNonEmptyString(
         gene.state_id,
-        `${fieldName}.candidates[${candidateIndex + 1}].genotype[${geneIndex + 1}].state_id`,
+        `${prefix}.genotype[${geneIndex + 1}].state_id`,
       );
     });
   });
   return payload;
 }
 
+function loadFrontierDocument(path: string, label: string): CandidatePoolDocument {
+  return frontierPayload(loadJsonObject<CandidatePoolDocument>(path, label), label);
+}
+
+function loadFrontierIfPresent(paths: SessionPaths): CandidatePoolDocument | null {
+  return existsSync(paths.frontierPath)
+    ? loadFrontierDocument(paths.frontierPath, FRONTIER_FILENAME)
+    : null;
+}
+
+function writeFrontierDocument(
+  paths: SessionPaths,
+  frontier: CandidatePoolDocument,
+): void {
+  writeJsonFile(paths.frontierPath, frontier);
+}
+
+function frontierCandidateItems(
+  frontier: CandidatePoolDocument,
+): FrontierCandidateRecord[] {
+  return (frontier.candidates as unknown[]).map((candidate) =>
+    ensureJsonObject<FrontierCandidateRecord>(
+      candidate,
+      "frontier candidates must be JSON objects.",
+    ),
+  );
+}
+
+function frontierFamilyCount(frontier: CandidatePoolDocument): number {
+  const defaultFamilyId =
+    optionalString(frontier.default_family_id, "default_family_id") ?? "family_default";
+  const familyIds = new Set<string>();
+  for (const candidate of frontierCandidateItems(frontier)) {
+    familyIds.add(optionalString(candidate.family_id, "family_id") ?? defaultFamilyId);
+  }
+  return familyIds.size;
+}
+
 function suggestCandidateInput(options: {
   workspace: string;
   paths: SessionPaths;
   payload: RuntimePayload;
-}): { args: string[]; temporaryPayload: string | null; candidateInput: JsonObject } {
+}): {
+  args: string[];
+  frontier: CandidatePoolDocument | null;
+  candidateInput: JsonObject;
+} {
   const inlineCandidates = options.payload.candidates;
   const pathInput = optionalString(
     options.payload.candidatesInputPath,
     "candidatesInputPath",
   );
+  const frontierPathInput = optionalString(
+    options.payload.frontierInputPath,
+    "frontierInputPath",
+  );
   if (inlineCandidates !== undefined && pathInput !== null) {
     throw new Error("Use either candidates or candidatesInputPath, not both.");
   }
+  if (inlineCandidates !== undefined && frontierPathInput !== null) {
+    throw new Error("Use either candidates or frontierInputPath, not both.");
+  }
+  if (pathInput !== null && frontierPathInput !== null) {
+    throw new Error("Use either candidatesInputPath or frontierInputPath, not both.");
+  }
 
-  if (pathInput !== null) {
-    const candidatePath = isAbsolute(pathInput)
-      ? pathInput
-      : resolve(options.workspace, pathInput);
+  const explicitInputPath = frontierPathInput ?? pathInput;
+  if (explicitInputPath !== null) {
+    const candidatePath = isAbsolute(explicitInputPath)
+      ? explicitInputPath
+      : resolve(options.workspace, explicitInputPath);
     if (!existsSync(candidatePath)) {
-      throw new Error(`Candidate pool input does not exist: ${candidatePath}`);
+      throw new Error(`Frontier input does not exist: ${candidatePath}`);
     }
-    const candidatePayload = candidatePoolPayload(
-      loadJsonObject<CandidatePoolDocument>(candidatePath, basename(candidatePath)),
-      "candidatesInputPath",
-    );
-    const candidateItems = candidatePayload.candidates as CandidatePoolDocument[];
+    const frontier = loadFrontierDocument(candidatePath, basename(candidatePath));
+    const candidateItems = frontierCandidateItems(frontier);
+    writeFrontierDocument(options.paths, frontier);
     const descriptor: CandidatePoolDocument = {
       candidateCount: candidateItems.length,
+      familyCount: frontierFamilyCount(frontier),
       mode: "path",
       path: candidatePath,
     };
@@ -1758,36 +2046,250 @@ function suggestCandidateInput(options: {
       descriptor.pathRelativeToWorkspace = relative(options.workspace, candidatePath);
     }
     return {
-      args: ["--candidates-input", candidatePath],
-      temporaryPayload: null,
+      args: ["--candidates-input", options.paths.frontierPath],
+      frontier,
       candidateInput: descriptor,
     };
   }
 
   if (inlineCandidates !== undefined) {
-    const candidatePayload = candidatePoolPayload(inlineCandidates, "candidates");
-    const candidateItems = candidatePayload.candidates as CandidatePoolDocument[];
-    const temporaryPayload = writeTemporaryJsonPayload(
-      options.paths.upstreamSessionDir,
-      {
-        prefix: "pi-autoclanker-candidates-",
-        payload: candidatePayload,
-      },
-    );
+    const frontier = frontierPayload(inlineCandidates, "candidates");
+    const candidateItems = frontierCandidateItems(frontier);
+    writeFrontierDocument(options.paths, frontier);
     return {
-      args: ["--candidates-input", temporaryPayload],
-      temporaryPayload,
+      args: ["--candidates-input", options.paths.frontierPath],
+      frontier,
       candidateInput: {
         candidateCount: candidateItems.length,
+        familyCount: frontierFamilyCount(frontier),
         mode: "inline",
+      },
+    };
+  }
+
+  const persistedFrontier = loadFrontierIfPresent(options.paths);
+  if (persistedFrontier !== null) {
+    const candidateItems = frontierCandidateItems(persistedFrontier);
+    return {
+      args: ["--candidates-input", options.paths.frontierPath],
+      frontier: persistedFrontier,
+      candidateInput: {
+        candidateCount: candidateItems.length,
+        familyCount: frontierFamilyCount(persistedFrontier),
+        mode: "frontier_file",
+        path: options.paths.frontierPath,
       },
     };
   }
 
   return {
     args: [],
-    temporaryPayload: null,
+    frontier: null,
     candidateInput: { mode: "generated" },
+  };
+}
+
+function defaultFrontierSummary(): FrontierSummaryRecord {
+  return {
+    frontier_id: "frontier_default",
+    candidate_count: 0,
+    family_count: 0,
+    family_representatives: [],
+    dropped_family_reasons: {},
+    pending_queries: [],
+    pending_merge_suggestions: [],
+    budget_allocations: {},
+  };
+}
+
+function frontierSummaryFromPayload(value: unknown): FrontierSummaryRecord {
+  const summary = summaryObject<FrontierSummaryRecord>(value);
+  return summary ?? defaultFrontierSummary();
+}
+
+function inferLocalFrontierSummary(frontier: CandidatePoolDocument | null): JsonObject {
+  if (frontier === null) {
+    return defaultFrontierSummary();
+  }
+  return {
+    frontier_id:
+      optionalString(frontier.frontier_id, "frontier_id") ?? "frontier_default",
+    candidate_count: frontierCandidateItems(frontier).length,
+    family_count: frontierFamilyCount(frontier),
+    family_representatives: [],
+    dropped_family_reasons: {},
+    pending_queries: [],
+    pending_merge_suggestions: [],
+    budget_allocations: {},
+  };
+}
+
+function ensureFrontierForWorkspace(
+  workspace: string,
+  paths: SessionPaths,
+  payload: RuntimePayload,
+): CandidatePoolDocument {
+  const inlineCandidates = payload.candidates;
+  const pathInput = optionalString(payload.candidatesInputPath, "candidatesInputPath");
+  const frontierPathInput = optionalString(
+    payload.frontierInputPath,
+    "frontierInputPath",
+  );
+  if (
+    inlineCandidates !== undefined ||
+    pathInput !== null ||
+    frontierPathInput !== null
+  ) {
+    const { frontier } = suggestCandidateInput({ workspace, paths, payload });
+    if (frontier !== null) {
+      return frontier;
+    }
+  }
+  const persisted = loadFrontierIfPresent(paths);
+  if (persisted !== null) {
+    return persisted;
+  }
+  throw new Error(
+    `${FRONTIER_FILENAME} is missing; provide candidates/frontier input or compare paths first.`,
+  );
+}
+
+function candidateMap(
+  frontier: CandidatePoolDocument,
+): Map<string, FrontierCandidateRecord> {
+  const map = new Map<string, FrontierCandidateRecord>();
+  for (const candidate of frontierCandidateItems(frontier)) {
+    const candidateId =
+      optionalString(candidate.candidate_id, "candidate_id") ?? `cand_${map.size + 1}`;
+    map.set(candidateId, candidate);
+  }
+  return map;
+}
+
+function normalizedCandidateIds(
+  frontier: CandidatePoolDocument,
+  payload: RuntimePayload,
+): string[] {
+  const explicitCandidateIds =
+    payload.candidateIds === undefined
+      ? []
+      : stringArray(payload.candidateIds, "candidateIds");
+  if (explicitCandidateIds.length > 0) {
+    return explicitCandidateIds;
+  }
+  const familyIds =
+    payload.familyIds === undefined ? [] : stringArray(payload.familyIds, "familyIds");
+  if (familyIds.length === 0) {
+    throw new Error("merge-pathways requires candidateIds or familyIds.");
+  }
+  const byFamily = new Map<string, string[]>();
+  const defaultFamilyId =
+    optionalString(frontier.default_family_id, "default_family_id") ?? "family_default";
+  for (const candidate of frontierCandidateItems(frontier)) {
+    const familyId =
+      optionalString(candidate.family_id, "family_id") ?? defaultFamilyId;
+    const candidateId = requireNonEmptyString(candidate.candidate_id, "candidate_id");
+    byFamily.set(familyId, [...(byFamily.get(familyId) ?? []), candidateId]);
+  }
+  return familyIds.map((familyId) => {
+    const candidates = byFamily.get(familyId) ?? [];
+    if (candidates.length === 0) {
+      throw new Error(`No candidates found for family ${familyId}.`);
+    }
+    if (candidates.length > 1) {
+      throw new Error(
+        `Family ${familyId} has multiple candidates; use candidateIds for an explicit merge.`,
+      );
+    }
+    return candidates[0] as string;
+  });
+}
+
+function mergedGenotypeFor(
+  frontier: CandidatePoolDocument,
+  candidateIds: string[],
+  payload: RuntimePayload,
+): JsonObject[] {
+  if (payload.mergedGenotype !== undefined) {
+    const document = frontierPayload(
+      { candidates: [{ genotype: payload.mergedGenotype }] },
+      "mergedGenotype",
+    );
+    const [candidate] = frontierCandidateItems(document);
+    return ensureJsonObject<FrontierCandidateRecord>(candidate, "merged candidate")
+      .genotype as JsonObject[];
+  }
+  const candidatesById = candidateMap(frontier);
+  const mergedByGene = new Map<string, FrontierGeneRecord>();
+  for (const candidateId of candidateIds) {
+    const candidate = candidatesById.get(candidateId);
+    if (!candidate) {
+      throw new Error(
+        `Candidate ${candidateId} is not present in ${FRONTIER_FILENAME}.`,
+      );
+    }
+    const genotype = candidate.genotype as unknown[];
+    for (const rawGene of genotype) {
+      const gene = ensureJsonObject<FrontierGeneRecord>(rawGene, "genotype entry");
+      const geneId = requireNonEmptyString(gene.gene_id, "gene_id");
+      const stateId = requireNonEmptyString(gene.state_id, "state_id");
+      const existing = mergedByGene.get(geneId);
+      if (
+        existing &&
+        requireNonEmptyString(existing.state_id, "state_id") !== stateId
+      ) {
+        throw new Error(
+          `Cannot infer merged genotype: ${geneId} has conflicting states across parent candidates. Provide mergedGenotype explicitly.`,
+        );
+      }
+      mergedByGene.set(geneId, { gene_id: geneId, state_id: stateId });
+    }
+  }
+  return [...mergedByGene.values()].sort((left, right) =>
+    requireNonEmptyString(left.gene_id, "gene_id").localeCompare(
+      requireNonEmptyString(right.gene_id, "gene_id"),
+    ),
+  );
+}
+
+function mergeFrontierPayload(
+  frontier: CandidatePoolDocument,
+  payload: RuntimePayload,
+): {
+  frontier: CandidatePoolDocument;
+  mergedCandidate: FrontierCandidateRecord;
+  parentCandidateIds: string[];
+} {
+  const parentCandidateIds = normalizedCandidateIds(frontier, payload);
+  const mergedCandidateId =
+    optionalString(payload.mergedCandidateId, "mergedCandidateId") ??
+    `cand_merge_${parentCandidateIds.join("_")}`;
+  const mergedGenotype = mergedGenotypeFor(frontier, parentCandidateIds, payload);
+  const mergedFamilyId = `family_${mergedCandidateId}`;
+  const mergedCandidate: FrontierCandidateRecord = {
+    candidate_id: mergedCandidateId,
+    family_id: mergedFamilyId,
+    origin_kind: "merge",
+    parent_candidate_ids: parentCandidateIds,
+    notes: optionalString(payload.notes, "notes") ?? null,
+    genotype: mergedGenotype,
+  };
+  if (payload.budgetWeight !== undefined) {
+    mergedCandidate.budget_weight = numberValue(payload.budgetWeight, "budgetWeight");
+  }
+  const candidates = frontierCandidateItems(frontier);
+  const nextCandidates = candidates.filter(
+    (candidate) =>
+      optionalString(candidate.candidate_id, "candidate_id") !== mergedCandidateId,
+  );
+  nextCandidates.push(mergedCandidate);
+  return {
+    frontier: {
+      ...frontier,
+      candidates: nextCandidates,
+    },
+    mergedCandidate,
+    parentCandidateIds,
   };
 }
 
@@ -1832,6 +2334,14 @@ function toolInitSession(
   writeJsonFile(paths.configPath, runtimeConfigToDocument(materializedConfig));
   writeJsonFile(paths.beliefsPath, beliefsDocument);
   writeEvalScript(paths.evalPath, evalCommand);
+  let localFrontier: CandidatePoolDocument | null = null;
+  if (
+    payload.candidates !== undefined ||
+    payload.candidatesInputPath !== undefined ||
+    payload.frontierInputPath !== undefined
+  ) {
+    localFrontier = ensureFrontierForWorkspace(workspace, paths, payload);
+  }
   const [lockedEvalSurfaceSha256] = ensureLockedEvalSurface(paths, beliefsDocument, {
     establishIfMissing: true,
   });
@@ -1854,6 +2364,10 @@ function toolInitSession(
     billedLive,
     usedDefaultEvalCommand,
     evalSurfaceSha256: lockedEvalSurfaceSha256,
+    frontierCandidateCount:
+      localFrontier === null ? 0 : frontierCandidateItems(localFrontier).length,
+    frontierFamilyCount:
+      localFrontier === null ? 0 : frontierFamilyCount(localFrontier),
     canonicalization,
     upstream: preview,
   });
@@ -1866,6 +2380,7 @@ function toolInitSession(
     billedLive,
     usedDefaultEvalCommand,
     files: sessionFileMap(paths),
+    frontier: inferLocalFrontierSummary(localFrontier),
     canonicalization,
     upstream: preview,
   };
@@ -1884,6 +2399,7 @@ function toolStatus(
   const runtimeConfig = runtimeConfigFromDocument(configDocument);
   const beliefsDocument = loadJsonIfPresent<BeliefsDocument>(paths.beliefsPath);
   const history = loadHistory(paths.historyPath);
+  const localFrontier = loadFrontierIfPresent(paths);
   const artifactsPresent = upstreamArtifactsPresent(paths.upstreamSessionDir);
   const autoclankerCliResolvable =
     resolveAutoclankerCommand(runtimeConfig, workspace) !== null;
@@ -1893,6 +2409,9 @@ function toolStatus(
     });
 
   let upstream: unknown;
+  let upstreamFrontier: unknown = {
+    frontier_summary: inferLocalFrontierSummary(localFrontier),
+  };
   let identity: { sessionId: string; eraId: string };
   if (existsSync(paths.configPath)) {
     identity = upstreamSessionIdentity(workspace, beliefsDocument);
@@ -1921,12 +2440,92 @@ function toolStatus(
         error: message,
       };
     }
+    try {
+      upstreamFrontier = invokeAutoclanker({
+        config: runtimeConfig,
+        workspace,
+        args: [
+          "session",
+          "frontier-status",
+          "--session-id",
+          identity.sessionId,
+          "--session-root",
+          paths.upstreamSessionDir,
+        ],
+        runner,
+        requireUpstream: false,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("Session manifest not found")) {
+        throw error;
+      }
+      upstreamFrontier = {
+        mode: "missing-upstream-session",
+        frontier_summary: inferLocalFrontierSummary(localFrontier),
+      };
+    }
   } else {
     identity = upstreamSessionIdentity(workspace, beliefsDocument, {
       defaultStatusFallback: Object.keys(beliefsDocument).length === 0,
     });
     upstream = { mode: "missing-session" };
+    upstreamFrontier = {
+      mode: "missing-session",
+      frontier_summary: inferLocalFrontierSummary(localFrontier),
+    };
   }
+
+  const upstreamStatus = summaryObject<UpstreamStatusRecord>(upstream) ?? {};
+  const upstreamFrontierRecord =
+    summaryObject<{ frontier_summary?: unknown }>(upstreamFrontier) ?? {};
+  const frontierSummary =
+    summaryObject<FrontierSummaryRecord>(upstreamFrontierRecord.frontier_summary) ??
+    inferLocalFrontierSummary(localFrontier);
+  const lockedEvalContractDigest =
+    summaryString(upstreamStatus.eval_contract_digest) ?? null;
+  const currentEvalContractDigest =
+    summaryString(upstreamStatus.current_eval_contract_digest) ?? null;
+  const evalContractMatchesCurrent =
+    typeof upstreamStatus.eval_contract_matches_current === "boolean"
+      ? (upstreamStatus.eval_contract_matches_current as boolean)
+      : lockedEvalContractDigest !== null &&
+        currentEvalContractDigest !== null &&
+        lockedEvalContractDigest === currentEvalContractDigest;
+  const evalContractDriftStatus =
+    summaryString(upstreamStatus.eval_contract_drift_status) ?? "unverified";
+  const lastEvalMeasurementMode =
+    summaryString(upstreamStatus.last_eval_measurement_mode) ?? null;
+  const lastEvalStabilizationMode =
+    summaryString(upstreamStatus.last_eval_stabilization_mode) ?? null;
+  const lastEvalUsedLease =
+    typeof upstreamStatus.last_eval_used_lease === "boolean"
+      ? (upstreamStatus.last_eval_used_lease as boolean)
+      : null;
+  const lastEvalNoisySystem =
+    typeof upstreamStatus.last_eval_noisy_system === "boolean"
+      ? (upstreamStatus.last_eval_noisy_system as boolean)
+      : null;
+  const frontierCandidateCount =
+    summaryNumber(upstreamStatus.frontier_candidate_count) ??
+    summaryNumber(frontierSummary.candidate_count) ??
+    (localFrontier === null ? 0 : frontierCandidateItems(localFrontier).length);
+  const frontierFamilyCountValue =
+    summaryNumber(upstreamStatus.frontier_family_count) ??
+    summaryNumber(frontierSummary.family_count) ??
+    (localFrontier === null ? 0 : frontierFamilyCount(localFrontier));
+  const pendingQueryCount =
+    summaryNumber(upstreamStatus.pending_query_count) ??
+    summaryArray(frontierSummary.pending_queries)?.length ??
+    0;
+  const pendingMergeSuggestionCount =
+    summaryNumber(upstreamStatus.pending_merge_suggestion_count) ??
+    summaryArray(frontierSummary.pending_merge_suggestions)?.length ??
+    0;
+  const providerStatus = optionalString(
+    beliefsDocument.canonicalizationModel,
+    "canonicalizationModel",
+  );
 
   return {
     ok: true,
@@ -1947,13 +2546,54 @@ function toolStatus(
       typeof beliefsDocument.billedLive === "boolean"
         ? beliefsDocument.billedLive
         : false,
+    canonicalizationModel: providerStatus,
     evalSurfaceSha256: currentEvalSha256 ?? null,
     lockedEvalSurfaceSha256: lockedEvalSha256 ?? null,
     evalSurfaceMatchesLock,
+    lockedEvalContractDigest,
+    currentEvalContractDigest,
+    evalContractMatchesCurrent,
+    evalContractDriftStatus,
+    lastEvalMeasurementMode,
+    lastEvalStabilizationMode,
+    lastEvalUsedLease,
+    lastEvalNoisySystem,
     previewDigest: beliefsDocument.upstreamPreviewDigest ?? null,
+    comparedLaneCount: frontierCandidateCount,
+    frontierFamilyCount: frontierFamilyCountValue,
+    pendingQueryCount,
+    pendingMergeSuggestionCount,
+    frontierFilePresent: existsSync(paths.frontierPath),
+    frontierSummary,
+    trust: {
+      evalSurfaceSha256: currentEvalSha256 ?? null,
+      lockedEvalSurfaceSha256: lockedEvalSha256 ?? null,
+      evalSurfaceMatchesLock,
+      lockedEvalContractDigest,
+      currentEvalContractDigest,
+      evalContractMatchesCurrent,
+      evalContractDriftStatus,
+      lastEvalMeasurementMode,
+      lastEvalStabilizationMode,
+      lastEvalUsedLease,
+      lastEvalNoisySystem,
+    },
+    frontier: {
+      filePresent: existsSync(paths.frontierPath),
+      candidateCount: frontierCandidateCount,
+      familyCount: frontierFamilyCountValue,
+      pendingQueryCount,
+      pendingMergeSuggestionCount,
+      summary: frontierSummary,
+    },
     files,
     historyCount: history.length,
-    exists: Object.values(files).every(Boolean),
+    exists:
+      files[SUMMARY_FILENAME] &&
+      files[CONFIG_FILENAME] &&
+      files[BELIEFS_FILENAME] &&
+      files[EVAL_FILENAME] &&
+      files[HISTORY_FILENAME],
     handoff: {
       autoclankerCliResolvable,
       localFilesSufficientFor: [
@@ -1965,6 +2605,7 @@ function toolStatus(
       upstreamArtifactsPresent: artifactsPresent,
     },
     upstream,
+    upstreamFrontier,
   };
 }
 
@@ -2088,14 +2729,31 @@ function toolIngestEval(
   );
   const evalSurfaceSha256 = requireLockedEvalSurface(paths, beliefsDocument);
   writeJsonFile(paths.beliefsPath, beliefsDocument);
-  const { sessionId, eraId } = upstreamSessionIdentity(workspace, beliefsDocument);
-  const evalPayload = runEvalScript(paths.evalPath, workspace, {
-    extraEnv: {
-      PI_AUTOCLANKER_UPSTREAM_SESSION_ID: sessionId,
-      PI_AUTOCLANKER_UPSTREAM_ERA_ID: eraId,
-    },
+  const upstreamContract = lockedUpstreamEvalContract({
+    workspace,
+    config,
+    paths,
+    beliefsDocument,
+    runner,
   });
-  const evalResultPath = upstreamEvalResultPath(paths, sessionId);
+  const lockedContract = upstreamContract.contract as EvalContractJson;
+  const evalPayload = ensureEvalPayloadIncludesContract(
+    runEvalScript(paths.evalPath, workspace, {
+      extraEnv: {
+        PI_AUTOCLANKER_UPSTREAM_SESSION_ID: upstreamContract.sessionId,
+        PI_AUTOCLANKER_UPSTREAM_ERA_ID: upstreamContract.eraId,
+        PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_JSON: JSON.stringify(
+          upstreamContract.contract,
+        ),
+        PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_DIGEST:
+          summaryString(upstreamContract.status.eval_contract_digest) ??
+          summaryString(lockedContract.contract_digest) ??
+          "",
+      },
+    }),
+    upstreamContract.contract,
+  );
+  const evalResultPath = upstreamEvalResultPath(paths, upstreamContract.sessionId);
   writeJsonFile(evalResultPath, evalPayload);
   const upstream = invokeAutoclanker({
     config,
@@ -2104,7 +2762,7 @@ function toolIngestEval(
       "session",
       "ingest-eval",
       "--session-id",
-      sessionId,
+      upstreamContract.sessionId,
       "--session-root",
       paths.upstreamSessionDir,
       "--input",
@@ -2191,7 +2849,116 @@ function toolFit(
   });
 }
 
+function runFrontierSuggest(options: {
+  workspace: string;
+  payload: RuntimePayload;
+  runner: Runner;
+  toolName: ToolName;
+  historyEvent: string;
+}): JsonObject {
+  const { config, paths } = runtimeContext(options.workspace, options.payload);
+  requireSession(paths, CONFIG_FILENAME, BELIEFS_FILENAME);
+  const beliefsDocument = loadJsonObject<BeliefsDocument>(
+    paths.beliefsPath,
+    BELIEFS_FILENAME,
+  );
+  const { sessionId } = upstreamSessionIdentity(options.workspace, beliefsDocument);
+  const { args, frontier, candidateInput } = suggestCandidateInput({
+    workspace: options.workspace,
+    paths,
+    payload: options.payload,
+  });
+  const upstream = invokeAutoclanker({
+    config,
+    workspace: options.workspace,
+    args: [
+      "session",
+      "suggest",
+      "--session-id",
+      sessionId,
+      "--session-root",
+      paths.upstreamSessionDir,
+      ...args,
+    ],
+    runner: options.runner,
+    requireUpstream: true,
+  });
+  appendHistory(paths.historyPath, {
+    candidateInput,
+    event: options.historyEvent,
+    frontierCandidateCount:
+      frontier === null ? 0 : frontierCandidateItems(frontier).length,
+    frontierFamilyCount: frontier === null ? 0 : frontierFamilyCount(frontier),
+    upstream,
+  });
+  writeSummary(paths, config, beliefsDocument);
+  return {
+    ok: true,
+    tool: options.toolName,
+    workspace: options.workspace,
+    sessionRoot: paths.upstreamSessionDir,
+    candidateInput,
+    frontier: inferLocalFrontierSummary(frontier ?? loadFrontierIfPresent(paths)),
+    suggestion: upstream,
+  };
+}
+
 function toolSuggest(
+  workspace: string,
+  payload: RuntimePayload,
+  runner: Runner,
+): JsonObject {
+  return runFrontierSuggest({
+    workspace,
+    payload,
+    runner,
+    toolName: "autoclanker_suggest",
+    historyEvent: "suggested_next_step",
+  });
+}
+
+function toolFrontierStatus(
+  workspace: string,
+  payload: RuntimePayload,
+  runner: Runner,
+): JsonObject {
+  const status = ensureJsonObject<ToolStatusPayload>(
+    toolStatus(workspace, payload, runner),
+    "frontier status payload must be a JSON object.",
+  );
+  return {
+    ok: true,
+    tool: "autoclanker_frontier_status",
+    workspace,
+    sessionRoot: status.sessionRoot,
+    frontier: status.frontier,
+    frontierFilePresent: status.frontierFilePresent,
+    trust: status.trust,
+    upstream: status.upstream,
+    upstreamFrontier: status.upstreamFrontier,
+  };
+}
+
+function toolCompareFrontier(
+  workspace: string,
+  payload: RuntimePayload,
+  runner: Runner,
+): JsonObject {
+  void ensureFrontierForWorkspace(
+    workspace,
+    runtimeContext(workspace, payload).paths,
+    payload,
+  );
+  return runFrontierSuggest({
+    workspace,
+    payload,
+    runner,
+    toolName: "autoclanker_compare_frontier",
+    historyEvent: "frontier_compared",
+  });
+}
+
+function toolMergePathways(
   workspace: string,
   payload: RuntimePayload,
   runner: Runner,
@@ -2202,47 +2969,44 @@ function toolSuggest(
     paths.beliefsPath,
     BELIEFS_FILENAME,
   );
+  const frontier = ensureFrontierForWorkspace(workspace, paths, payload);
+  const merged = mergeFrontierPayload(frontier, payload);
+  writeFrontierDocument(paths, merged.frontier);
   const { sessionId } = upstreamSessionIdentity(workspace, beliefsDocument);
-  const { args, temporaryPayload, candidateInput } = suggestCandidateInput({
+  const upstream = invokeAutoclanker({
+    config,
     workspace,
-    paths,
-    payload,
+    args: [
+      "session",
+      "suggest",
+      "--session-id",
+      sessionId,
+      "--session-root",
+      paths.upstreamSessionDir,
+      "--candidates-input",
+      paths.frontierPath,
+    ],
+    runner,
+    requireUpstream: true,
   });
-  try {
-    const upstream = invokeAutoclanker({
-      config,
-      workspace,
-      args: [
-        "session",
-        "suggest",
-        "--session-id",
-        sessionId,
-        "--session-root",
-        paths.upstreamSessionDir,
-        ...args,
-      ],
-      runner,
-      requireUpstream: true,
-    });
-    appendHistory(paths.historyPath, {
-      candidateInput,
-      event: "suggested_next_step",
-      upstream,
-    });
-    writeSummary(paths, config, beliefsDocument);
-    return {
-      ok: true,
-      tool: "autoclanker_suggest",
-      workspace,
-      sessionRoot: paths.upstreamSessionDir,
-      candidateInput,
-      suggestion: upstream,
-    };
-  } finally {
-    if (temporaryPayload !== null) {
-      rmSync(temporaryPayload, { force: true });
-    }
-  }
+  appendHistory(paths.historyPath, {
+    event: "pathways_merged",
+    mergedCandidateId: merged.mergedCandidate.candidate_id,
+    parentCandidateIds: merged.parentCandidateIds,
+    frontierCandidateCount: frontierCandidateItems(merged.frontier).length,
+    frontierFamilyCount: frontierFamilyCount(merged.frontier),
+    upstream,
+  });
+  writeSummary(paths, config, beliefsDocument);
+  return {
+    ok: true,
+    tool: "autoclanker_merge_pathways",
+    workspace,
+    sessionRoot: paths.upstreamSessionDir,
+    mergedCandidate: merged.mergedCandidate,
+    frontier: inferLocalFrontierSummary(merged.frontier),
+    suggestion: upstream,
+  };
 }
 
 function toolRecommendCommit(
@@ -2308,6 +3072,39 @@ function commandStatus(
   };
 }
 
+function commandFrontierStatus(
+  workspace: string,
+  payload: RuntimePayload,
+  runner: Runner,
+): JsonObject {
+  return {
+    ...toolFrontierStatus(workspace, payload, runner),
+    command: "frontier-status",
+  };
+}
+
+function commandCompareFrontier(
+  workspace: string,
+  payload: RuntimePayload,
+  runner: Runner,
+): JsonObject {
+  return {
+    ...toolCompareFrontier(workspace, payload, runner),
+    command: "compare-frontier",
+  };
+}
+
+function commandMergePathways(
+  workspace: string,
+  payload: RuntimePayload,
+  runner: Runner,
+): JsonObject {
+  return {
+    ...toolMergePathways(workspace, payload, runner),
+    command: "merge-pathways",
+  };
+}
+
 function commandOff(
   workspace: string,
   payload: RuntimePayload,
@@ -2338,6 +3135,7 @@ function commandClear(workspace: string, payload: RuntimePayload): JsonObject {
     paths.configPath,
     paths.beliefsPath,
     paths.evalPath,
+    paths.frontierPath,
     paths.historyPath,
   ]) {
     if (!existsSync(path)) {
@@ -2362,11 +3160,16 @@ function commandClear(workspace: string, payload: RuntimePayload): JsonObject {
   };
 }
 
-function commandExport(workspace: string, payload: RuntimePayload): JsonObject {
+function commandExport(
+  workspace: string,
+  payload: RuntimePayload,
+  runner: Runner,
+): JsonObject {
   const { config, paths } = runtimeContext(workspace, payload);
   const autoclankerCliResolvable =
     resolveAutoclankerCommand(config, workspace) !== null;
   const upstreamBundle = upstreamArtifactsPayload(paths.upstreamSessionDir, workspace);
+  const statusSnapshot = toolStatus(workspace, payload, runner);
   const bundle: JsonObject = {
     workspace,
     sessionRoot: paths.upstreamSessionDir,
@@ -2375,6 +3178,7 @@ function commandExport(workspace: string, payload: RuntimePayload): JsonObject {
       [CONFIG_FILENAME]: loadJsonIfPresent(paths.configPath),
       [BELIEFS_FILENAME]: loadJsonIfPresent(paths.beliefsPath),
       [EVAL_FILENAME]: readTextIfPresent(paths.evalPath),
+      [FRONTIER_FILENAME]: loadJsonIfPresent(paths.frontierPath),
       [HISTORY_FILENAME]: loadHistory(paths.historyPath),
     },
     handoff: {
@@ -2390,6 +3194,7 @@ function commandExport(workspace: string, payload: RuntimePayload): JsonObject {
       ],
       upstreamArtifactsIncluded: Boolean(upstreamBundle.present),
     },
+    status: statusSnapshot,
     upstreamArtifacts: upstreamBundle,
   };
   const outputPath = optionalString(payload.outputPath, "outputPath");
@@ -2441,6 +3246,15 @@ export function dispatchTool(
   if (name === "autoclanker_suggest") {
     return toolSuggest(workspace, normalized, runner);
   }
+  if (name === "autoclanker_frontier_status") {
+    return toolFrontierStatus(workspace, normalized, runner);
+  }
+  if (name === "autoclanker_compare_frontier") {
+    return toolCompareFrontier(workspace, normalized, runner);
+  }
+  if (name === "autoclanker_merge_pathways") {
+    return toolMergePathways(workspace, normalized, runner);
+  }
   if (name === "autoclanker_recommend_commit") {
     return toolRecommendCommit(workspace, normalized, runner);
   }
@@ -2464,6 +3278,15 @@ export function dispatchCommand(
   if (name === "status") {
     return commandStatus(workspace, normalized, runner);
   }
+  if (name === "frontier-status") {
+    return commandFrontierStatus(workspace, normalized, runner);
+  }
+  if (name === "compare-frontier") {
+    return commandCompareFrontier(workspace, normalized, runner);
+  }
+  if (name === "merge-pathways") {
+    return commandMergePathways(workspace, normalized, runner);
+  }
   if (name === "off") {
     return commandOff(workspace, normalized, runner);
   }
@@ -2471,7 +3294,7 @@ export function dispatchCommand(
     return commandClear(workspace, normalized);
   }
   if (name === "export") {
-    return commandExport(workspace, normalized);
+    return commandExport(workspace, normalized, runner);
   }
   throw new Error(`Unknown command: ${name}`);
 }

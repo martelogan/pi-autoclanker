@@ -1,20 +1,84 @@
 {
+  "ok": true,
+  "tool": "autoclanker_session_status",
+  "workspace": "<workspace>",
+  "sessionRoot": "<workspace>/.autoclanker",
+  "upstreamSessionId": "status_workspace",
+  "upstreamEraId": "era_status_workspace_v1",
+  "enabled": true,
+  "goal": null,
+  "evalCommand": null,
+  "usesDefaultEvalCommand": false,
   "applyState": null,
   "billedLive": false,
-  "command": "status",
-  "enabled": true,
-  "evalCommand": null,
-  "evalSurfaceMatchesLock": false,
+  "canonicalizationModel": null,
   "evalSurfaceSha256": null,
-  "exists": false,
-  "files": {
-    "autoclanker.beliefs.json": false,
-    "autoclanker.config.json": false,
-    "autoclanker.eval.sh": false,
-    "autoclanker.history.jsonl": false,
-    "autoclanker.md": false
+  "lockedEvalSurfaceSha256": null,
+  "evalSurfaceMatchesLock": false,
+  "lockedEvalContractDigest": null,
+  "currentEvalContractDigest": null,
+  "evalContractMatchesCurrent": false,
+  "evalContractDriftStatus": "unverified",
+  "previewDigest": null,
+  "comparedLaneCount": 0,
+  "frontierFamilyCount": 0,
+  "pendingQueryCount": 0,
+  "pendingMergeSuggestionCount": 0,
+  "lastEvalMeasurementMode": null,
+  "lastEvalStabilizationMode": null,
+  "lastEvalUsedLease": null,
+  "lastEvalNoisySystem": null,
+  "frontierFilePresent": false,
+  "frontierSummary": {
+    "frontier_id": "frontier_default",
+    "candidate_count": 0,
+    "family_count": 0,
+    "family_representatives": [],
+    "dropped_family_reasons": {},
+    "pending_queries": [],
+    "pending_merge_suggestions": [],
+    "budget_allocations": {}
   },
-  "goal": null,
+  "trust": {
+    "evalSurfaceSha256": null,
+    "lockedEvalSurfaceSha256": null,
+    "evalSurfaceMatchesLock": false,
+    "lockedEvalContractDigest": null,
+    "currentEvalContractDigest": null,
+    "evalContractMatchesCurrent": false,
+    "evalContractDriftStatus": "unverified",
+    "lastEvalMeasurementMode": null,
+    "lastEvalStabilizationMode": null,
+    "lastEvalUsedLease": null,
+    "lastEvalNoisySystem": null
+  },
+  "frontier": {
+    "filePresent": false,
+    "candidateCount": 0,
+    "familyCount": 0,
+    "pendingQueryCount": 0,
+    "pendingMergeSuggestionCount": 0,
+    "summary": {
+      "frontier_id": "frontier_default",
+      "candidate_count": 0,
+      "family_count": 0,
+      "family_representatives": [],
+      "dropped_family_reasons": {},
+      "pending_queries": [],
+      "pending_merge_suggestions": [],
+      "budget_allocations": {}
+    }
+  },
+  "files": {
+    "autoclanker.md": false,
+    "autoclanker.config.json": false,
+    "autoclanker.beliefs.json": false,
+    "autoclanker.eval.sh": false,
+    "autoclanker.frontier.json": false,
+    "autoclanker.history.jsonl": false
+  },
+  "historyCount": 0,
+  "exists": false,
   "handoff": {
     "autoclankerCliResolvable": false,
     "localFilesSufficientFor": [
@@ -25,17 +89,21 @@
     "operationalResumeReady": false,
     "upstreamArtifactsPresent": false
   },
-  "historyCount": 0,
-  "lockedEvalSurfaceSha256": null,
-  "ok": true,
-  "previewDigest": null,
-  "sessionRoot": "<workspace>/.autoclanker",
-  "tool": "autoclanker_session_status",
   "upstream": {
     "mode": "missing-session"
   },
-  "upstreamEraId": "era_status_workspace_v1",
-  "upstreamSessionId": "status_workspace",
-  "usesDefaultEvalCommand": false,
-  "workspace": "<workspace>"
+  "upstreamFrontier": {
+    "mode": "missing-session",
+    "frontier_summary": {
+      "frontier_id": "frontier_default",
+      "candidate_count": 0,
+      "family_count": 0,
+      "family_representatives": [],
+      "dropped_family_reasons": {},
+      "pending_queries": [],
+      "pending_merge_suggestions": [],
+      "budget_allocations": {}
+    }
+  },
+  "command": "status"
 }

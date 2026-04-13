@@ -45,9 +45,15 @@ tests/fixtures/oracle/
 - the checked-in `autoclanker.eval.sh` surface should be snapshotted per
   session so eval ingest can reject local benchmark drift instead of quietly
   accepting it
+- the checked-in eval shell is only the local reflection of the upstream
+  eval-contract lock; status and export should expose the same locked contract
+  digest and drift state that upstream reports
 - multiple plausible pathways should be representable as explicit candidate
   pools so `autoclanker session suggest` can compare them directly instead of
   hiding that comparison in prompt state
+- an optional local `autoclanker.frontier.json` file should keep explicit
+  pathway families, lineage, and merge-ready candidates reviewable at the
+  project root
 - advanced belief authoring should prefer JSON output
 - live or billed provider lanes must be separate from the required deterministic
   gate
@@ -59,8 +65,9 @@ The user-facing search model should be legible as:
 
 - rough ideas -> previewable beliefs
 - explicit candidate lanes like `[A]`, `[B]`, and `[A+B]`
+- optional checked-in frontier file for pathway families and merges
 - evaluate those lanes in parallel when practical -> eval results
-- ingest -> fit -> ranked suggestions -> follow-up query
+- ingest -> fit -> ranked suggestions -> follow-up query / merge guidance
 - rethink -> next era
 
 This is intentionally compatible with an evolve-style mental model, and it is
@@ -70,6 +77,8 @@ idea-explore-rethink framing, but the design should make the stronger
 
 - candidate pools act like an explicit population when the user wants parallel
   lane exploration
+- frontier files keep family membership, candidate lineage, and merge operations
+  explicit instead of burying them in wrapper prompt history
 - combined candidates can stand in for crossover without requiring hidden
   prompt-only state
 - priors and graph directives can express positive or negative interactions
@@ -88,6 +97,8 @@ The default human-facing surface should still stay simple:
 
 - `autoclanker.md` as the current run summary
 - `autoclanker.history.jsonl` as the chronological wrapper log
+- `autoclanker.frontier.json` as the optional local frontier surface for
+  explicit pathway comparison and merge review
 - `.autoclanker/<session>/RESULTS.md` as the upstream run summary
 - `.autoclanker/<session>/convergence.png`,
   `.autoclanker/<session>/candidate_rankings.png`,
@@ -101,6 +112,7 @@ reconstruct:
 
 - what ideas became typed beliefs
 - what candidate lanes were previewed or compared
+- what frontier families were compared or merged
 - what eval observations were ingested
 - how posterior strength changed across iterations
 - which interactions or synergies appeared strongest
@@ -120,5 +132,5 @@ freeze the expected public contract and guard parity for deterministic flows.
 Current v1 proof focuses on tool or command registration, project-local files,
 and CLI orchestration. It does not claim a widget layer. Its value
 proposition is structured optimization workflow: explicit belief batches,
-explicit candidate pools, and inspectable upstream suggestions rather than a
-single loose planning thread.
+explicit candidate pools and frontier files, and inspectable upstream
+suggestions rather than a single loose planning thread.

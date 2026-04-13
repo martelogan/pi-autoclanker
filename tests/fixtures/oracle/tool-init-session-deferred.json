@@ -1,23 +1,34 @@
 {
+  "ok": true,
+  "tool": "autoclanker_init_session",
+  "workspace": "<workspace>",
+  "sessionRoot": "<workspace>/.autoclanker",
   "billedLive": false,
+  "usedDefaultEvalCommand": false,
+  "files": {
+    "autoclanker.md": true,
+    "autoclanker.config.json": true,
+    "autoclanker.beliefs.json": true,
+    "autoclanker.eval.sh": true,
+    "autoclanker.frontier.json": false,
+    "autoclanker.history.jsonl": true
+  },
+  "frontier": {
+    "frontier_id": "frontier_default",
+    "candidate_count": 0,
+    "family_count": 0,
+    "family_representatives": [],
+    "dropped_family_reasons": {},
+    "pending_queries": [],
+    "pending_merge_suggestions": [],
+    "budget_allocations": {}
+  },
   "canonicalization": {
     "mode": "deferred",
     "reason": "autoclanker CLI unavailable"
   },
-  "files": {
-    "autoclanker.beliefs.json": true,
-    "autoclanker.config.json": true,
-    "autoclanker.eval.sh": true,
-    "autoclanker.history.jsonl": true,
-    "autoclanker.md": true
-  },
-  "ok": true,
-  "sessionRoot": "<workspace>/.autoclanker",
-  "tool": "autoclanker_init_session",
   "upstream": {
     "mode": "deferred",
     "reason": "autoclanker CLI unavailable"
-  },
-  "usedDefaultEvalCommand": false,
-  "workspace": "<workspace>"
+  }
 }

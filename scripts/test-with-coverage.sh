@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run integration tests first, then the default unit lane.
+# Run the default Vitest lane with an isolated coverage output directory.
 
 set -euo pipefail
 
@@ -10,10 +10,6 @@ source "${SCRIPT_DIR}/dev/common.sh"
 ROOT_DIR="$(dev_repo_root)"
 cd "${ROOT_DIR}"
 dev_load_repo_dotenv "${ROOT_DIR}"
+dev_prepare_coverage_dir
 
-echo "=== Integration tests ==="
-bash "${ROOT_DIR}/scripts/test-integration.sh"
-
-echo ""
-echo "=== Unit and default tests ==="
-bash "${ROOT_DIR}/scripts/test-with-coverage.sh"
+dev_run_tool vitest run --config configs/vitest.config.ts --coverage
