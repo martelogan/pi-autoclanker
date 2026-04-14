@@ -114,6 +114,7 @@ start with:
 | Extension | pi tools plus the `/autoclanker` command family |
 | Skills | beginner creation, advanced belief authoring, and session review |
 | Local files | resumable checked-in session files at the project root |
+| Status surface | trust digest, backend choice, and next concrete comparison without digging through raw JSON |
 | Upstream artifacts | `.autoclanker/<session>/` JSON, reports, and charts from `autoclanker` |
 
 The fastest way to understand the repo now is:
@@ -235,6 +236,9 @@ That loop is the core product:
   the workers to do it
 - keep the locked contract and frontier summary visible in `status` and
   `export`, so trust drift and lane counts stay inspectable
+- keep the currently active objective backend, acquisition backend, and any
+  concrete lane-vs-lane follow-up query visible in the wrapper summary instead
+  of hiding them in upstream JSON
 - use `fit`, `suggest`, and `recommend-commit` to decide whether to drop,
   merge, split, or strengthen lanes in the next era
 
@@ -282,8 +286,8 @@ to stay structured and comparable:
 - the checked-in eval shell stays fixed for the life of a session, so long
   optimization loops cannot quietly rewrite that local eval surface mid-run
 - `fit`, `suggest`, and `recommend-commit` keep the downstream reasoning
-  machine-readable through ranked candidates, follow-up queries, and influence
-  summaries when upstream provides them
+  machine-readable through ranked candidates, follow-up queries, backend
+  selection, and influence summaries when upstream provides them
 
 If you want the simplest mental model, treat `pi-autoclanker` as a strict
 superset of an evolve-style workflow:
@@ -374,6 +378,10 @@ directly:
 - eval drift status
 - last measured eval lease / stabilization summary when upstream has executed a
   hardened eval
+- objective backend and acquisition backend from the latest upstream status and
+  suggestion artifacts
+- concrete comparison focus when upstream asks a candidate-vs-candidate or
+  family-vs-family follow-up question
 - compared lane count
 - frontier family count
 - pending queries

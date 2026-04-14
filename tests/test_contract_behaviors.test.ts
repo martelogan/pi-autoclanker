@@ -260,6 +260,9 @@ coveredTest(
     expect(readme).toContain("candidate lanes can stay explicit");
     expect(readme).toContain("candidate lanes");
     expect(readme).toContain("evolve-style");
+    expect(readme).toContain("objective backend");
+    expect(readme).toContain("acquisition backend");
+    expect(readme).toContain("concrete comparison");
     expect(readme).toContain("observations.jsonl");
     expect(readme).toContain("query.json");
     expect(readme).toContain("plain strings at first");
@@ -271,6 +274,8 @@ coveredTest(
     expect(spec).toContain("merge-pathways");
     expect(spec).toContain("goal, rough ideas, and optional constraints");
     expect(spec).toContain("population-style");
+    expect(spec).toContain("objective backend");
+    expect(spec).toContain("acquisition backend");
     expect(spec).toContain("convergence");
     expect(spec).toContain("single prompt thread");
     expect(spec).toContain("upstream report bundle");
@@ -278,6 +283,8 @@ coveredTest(
     expect(design).toContain("explicit candidate pools");
     expect(design).toContain("frontier");
     expect(design).toContain("explicit population");
+    expect(design).toContain("backend detail");
+    expect(design).toContain("concrete candidate");
     expect(design).toContain("interaction maps");
     expect(design).toContain("goal + rough ideas + optional");
     expect(design).toContain("autoclanker.history.jsonl");

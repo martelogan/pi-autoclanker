@@ -48,6 +48,9 @@ tests/fixtures/oracle/
 - the checked-in eval shell is only the local reflection of the upstream
   eval-contract lock; status and export should expose the same locked contract
   digest and drift state that upstream reports
+- status and export should also surface additive upstream backend detail and any
+  concrete candidate or family comparison query without inventing a second
+  inference layer in the wrapper
 - multiple plausible pathways should be representable as explicit candidate
   pools so `autoclanker session suggest` can compare them directly instead of
   hiding that comparison in prompt state
@@ -85,6 +88,8 @@ idea-explore-rethink framing, but the design should make the stronger
   that a plain mutation-and-selection story leaves implicit
 - suggest queries and influence summaries explain what to test next instead of
   only naming the current winner
+- wrapper summaries can surface objective backend, acquisition backend, and
+  concrete comparison focus without turning those into a new user-facing model
 
 ## Artifact envelope
 

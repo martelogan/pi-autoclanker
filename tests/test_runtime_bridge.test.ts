@@ -78,6 +78,8 @@ type JsonRecord = {
   model_name?: unknown;
   nextAction?: unknown;
   ok?: unknown;
+  objectiveBackend?: unknown;
+  acquisitionBackend?: unknown;
   preview?: unknown;
   previewSummary?: unknown;
   queries?: unknown;
@@ -324,15 +326,21 @@ if (command === "beliefs canonicalize-ideas") {
         ],
       },
       nextAction: "Compare the top pathways before applying more beliefs",
+      objective_backend: "exact_joint_linear",
+      acquisition_backend: "constrained_thompson_sampling",
       queries: [
         {
+          candidate_ids: candidateItems.slice(0, 2).map((candidate) => candidate.candidate_id),
+          comparison_scope: "candidate",
           prompt:
             "Do compiled matching and context pairing belong together, or should they be evaluated independently first?",
-          query_type: "pairwise_compare",
+          query_type: "pairwise_preference",
         },
       ],
       ranked_candidates: candidateItems.map((candidate, index) => ({
+        acquisition_backend: "constrained_thompson_sampling",
         candidate_id: candidate.candidate_id,
+        objective_backend: "exact_joint_linear",
         rank: index + 1,
       })),
     };
@@ -350,6 +358,10 @@ if (command === "beliefs canonicalize-ideas") {
     current_eval_contract_digest: fakeEvalContract.contract_digest,
     eval_contract_matches_current: true,
     eval_contract_drift_status: "locked",
+    last_objective_backend: "exact_joint_linear",
+    last_acquisition_backend: "constrained_thompson_sampling",
+    last_follow_up_query_type: "pairwise_preference",
+    last_follow_up_comparison: "cand_primary vs cand_secondary",
   };
 } else {
   payload = { argv: args };
@@ -596,6 +608,12 @@ coveredTest(
       const fitResult = asRecord(dispatchTool("autoclanker_fit", { workspace }));
       expect(asRecord(fitResult.fit).fitSummary).toBe("Fit complete");
 
+      const postFitStatus = asRecord(
+        dispatchTool("autoclanker_session_status", { workspace }),
+      );
+      expect(postFitStatus.objectiveBackend).toBe("exact_joint_linear");
+      expect(postFitStatus.acquisitionBackend).toBe("constrained_thompson_sampling");
+
       const suggestResult = asRecord(
         dispatchTool("autoclanker_suggest", { workspace }),
       );
@@ -613,6 +631,10 @@ coveredTest(
       const statusResult = asRecord(
         dispatchTool("autoclanker_session_status", { workspace }),
       );
+      const statusView = statusResult as JsonRecord & {
+        followUpQueryType?: unknown;
+        followUpComparison?: unknown;
+      };
       expect(asRecord(statusResult.upstream).status).toBe("healthy");
       expect(statusResult.exists).toBe(true);
       expect(statusResult.billedLive).toBe(false);
@@ -623,6 +645,8 @@ coveredTest(
         sha256(resolve(workspace, EVAL_FILENAME)),
       );
       expect(statusResult.evalSurfaceMatchesLock).toBe(true);
+      expect(statusView.followUpQueryType).toBe("pairwise_preference");
+      expect(statusView.followUpComparison).toBe("cand_primary vs cand_secondary");
 
       const beliefsDocument = asRecord(
         JSON.parse(readFileSync(resolve(workspace, BELIEFS_FILENAME), "utf-8")),
@@ -771,7 +795,7 @@ coveredTest(
       );
       expect(asRecord(rankedCandidates[0]).candidate_id).toBe("cand_parser_default");
       expect(asRecord((suggestionPayload.queries as unknown[])[0]).query_type).toBe(
-        "pairwise_compare",
+        "pairwise_preference",
       );
 
       const suggestRecord = readCommandLog(logPath).find(
@@ -784,6 +808,10 @@ coveredTest(
       expect(summaryText).toContain("compared lanes: `3`");
       expect(summaryText).toContain("top candidate: `cand_parser_default`");
       expect(summaryText).toContain("follow-up query:");
+      expect(summaryText).toContain("objective backend: `exact_joint_linear`");
+      expect(summaryText).toContain(
+        "acquisition backend: `constrained_thompson_sampling`",
+      );
     });
   },
 );

@@ -57,6 +57,9 @@ coveredTest(
     expect(readme).toContain("autoclanker_frontier_status");
     expect(readme).toContain("autoclanker.frontier.json");
     expect(readme).toContain("locked contract");
+    expect(readme).toContain("objective backend");
+    expect(readme).toContain("acquisition backend");
+    expect(readme).toContain("concrete comparison");
     expect(readme).toContain("[cEvolve](https://github.com/jnormore/cevolve)");
     expect(readme).toContain(
       "[Autoresearch](https://github.com/karpathy/autoresearch)",
@@ -80,6 +83,8 @@ coveredTest(
     expect(spec).toContain("Optimization loop mental model");
     expect(spec).toContain("Artifact dominance");
     expect(spec).toContain("goal, rough ideas, and optional");
+    expect(spec).toContain("objective backend");
+    expect(spec).toContain("acquisition backend");
     expect(spec).toContain("belief_graph_posterior.png");
   },
 );

@@ -168,9 +168,11 @@ type SummaryHistoryEntry = {
 
 type SummarySuggestionPayload = {
   candidateCount?: unknown;
+  acquisition_backend?: unknown;
   frontier_summary?: unknown;
   influence_summary?: unknown;
   nextAction?: unknown;
+  objective_backend?: unknown;
   queries?: unknown;
   ranked_candidates?: unknown;
   [key: string]: unknown;
@@ -183,11 +185,17 @@ type SummaryCandidateInput = {
 
 type SummaryCandidate = {
   candidate_id?: unknown;
+  acquisition_backend?: unknown;
+  objective_backend?: unknown;
   [key: string]: unknown;
 };
 
 type SummaryQuery = {
+  candidate_ids?: unknown;
+  comparison_scope?: unknown;
+  family_ids?: unknown;
   prompt?: unknown;
+  query_type?: unknown;
   [key: string]: unknown;
 };
 
@@ -254,6 +262,10 @@ type UpstreamStatusRecord = {
   frontier_family_count?: unknown;
   pending_query_count?: unknown;
   pending_merge_suggestion_count?: unknown;
+  last_objective_backend?: unknown;
+  last_acquisition_backend?: unknown;
+  last_follow_up_query_type?: unknown;
+  last_follow_up_comparison?: unknown;
 };
 
 type ToolStatusPayload = {
@@ -1493,8 +1505,20 @@ function writeSummary(
   if (summarySnapshot.followUpQuery !== null) {
     lines.push(`- follow-up query: ${summarySnapshot.followUpQuery}`);
   }
+  if (summarySnapshot.followUpQueryType !== null) {
+    lines.push(`- query type: \`${summarySnapshot.followUpQueryType}\``);
+  }
+  if (summarySnapshot.followUpComparison !== null) {
+    lines.push(`- comparison focus: \`${summarySnapshot.followUpComparison}\``);
+  }
   if (summarySnapshot.influenceNote !== null) {
     lines.push(`- influence note: ${summarySnapshot.influenceNote}`);
+  }
+  if (summarySnapshot.objectiveBackend !== null) {
+    lines.push(`- objective backend: \`${summarySnapshot.objectiveBackend}\``);
+  }
+  if (summarySnapshot.acquisitionBackend !== null) {
+    lines.push(`- acquisition backend: \`${summarySnapshot.acquisitionBackend}\``);
   }
   if (summarySnapshot.latestEval !== null) {
     lines.push(`- latest eval ingest: ${summarySnapshot.latestEval}`);
@@ -1631,11 +1655,15 @@ function latestSummarySnapshot(history: SummaryHistoryEntry[]): {
   comparedLaneCount: number | null;
   frontierFamilyCount: number | null;
   followUpQuery: string | null;
+  followUpQueryType: string | null;
+  followUpComparison: string | null;
   influenceNote: string | null;
   lastStep: string | null;
   lastUpdatedAt: string | null;
   latestEval: string | null;
   latestFit: string | null;
+  objectiveBackend: string | null;
+  acquisitionBackend: string | null;
   nextAction: string | null;
   pendingMergeSuggestionCount: number | null;
   pendingQueryCount: number | null;
@@ -1674,6 +1702,14 @@ function latestSummarySnapshot(history: SummaryHistoryEntry[]): {
   const pendingMergeSuggestions = summaryArray(
     frontierSummary?.pending_merge_suggestions,
   );
+  const comparisonCandidateIds = summaryArray(firstQuery?.candidate_ids);
+  const comparisonFamilyIds = summaryArray(firstQuery?.family_ids);
+  const followUpComparison =
+    comparisonCandidateIds !== null && comparisonCandidateIds.length >= 2
+      ? `${String(comparisonCandidateIds[0])} vs ${String(comparisonCandidateIds[1])}`
+      : comparisonFamilyIds !== null && comparisonFamilyIds.length >= 2
+        ? `${String(comparisonFamilyIds[0])} vs ${String(comparisonFamilyIds[1])}`
+        : null;
 
   return {
     commitRecommendation: summaryString(
@@ -1684,6 +1720,8 @@ function latestSummarySnapshot(history: SummaryHistoryEntry[]): {
       summaryNumber(latestSuggestUpstream?.candidateCount) ??
       (rankedCandidates !== null ? rankedCandidates.length : null),
     followUpQuery: summaryString(firstQuery?.prompt),
+    followUpQueryType: summaryString(firstQuery?.query_type),
+    followUpComparison,
     influenceNote:
       influenceNotes !== null && influenceNotes.length > 0
         ? summaryString(influenceNotes[0])
@@ -1696,6 +1734,12 @@ function latestSummarySnapshot(history: SummaryHistoryEntry[]): {
     latestFit: summaryString(
       summaryObject<SummaryFitPayload>(latestFit?.upstream)?.fitSummary,
     ),
+    objectiveBackend:
+      summaryString(firstRankedCandidate?.objective_backend) ??
+      summaryString(latestSuggestUpstream?.objective_backend),
+    acquisitionBackend:
+      summaryString(firstRankedCandidate?.acquisition_backend) ??
+      summaryString(latestSuggestUpstream?.acquisition_backend),
     nextAction: summaryString(latestSuggestUpstream?.nextAction),
     frontierFamilyCount: summaryNumber(frontierSummary?.family_count),
     pendingMergeSuggestionCount:
@@ -2399,6 +2443,7 @@ function toolStatus(
   const runtimeConfig = runtimeConfigFromDocument(configDocument);
   const beliefsDocument = loadJsonIfPresent<BeliefsDocument>(paths.beliefsPath);
   const history = loadHistory(paths.historyPath);
+  const summarySnapshot = latestSummarySnapshot(history);
   const localFrontier = loadFrontierIfPresent(paths);
   const artifactsPresent = upstreamArtifactsPresent(paths.upstreamSessionDir);
   const autoclankerCliResolvable =
@@ -2522,6 +2567,18 @@ function toolStatus(
     summaryNumber(upstreamStatus.pending_merge_suggestion_count) ??
     summaryArray(frontierSummary.pending_merge_suggestions)?.length ??
     0;
+  const objectiveBackend =
+    summaryString(upstreamStatus.last_objective_backend) ??
+    summarySnapshot.objectiveBackend;
+  const acquisitionBackend =
+    summaryString(upstreamStatus.last_acquisition_backend) ??
+    summarySnapshot.acquisitionBackend;
+  const followUpQueryType =
+    summaryString(upstreamStatus.last_follow_up_query_type) ??
+    summarySnapshot.followUpQueryType;
+  const followUpComparison =
+    summaryString(upstreamStatus.last_follow_up_comparison) ??
+    summarySnapshot.followUpComparison;
   const providerStatus = optionalString(
     beliefsDocument.canonicalizationModel,
     "canonicalizationModel",
@@ -2563,6 +2620,10 @@ function toolStatus(
     frontierFamilyCount: frontierFamilyCountValue,
     pendingQueryCount,
     pendingMergeSuggestionCount,
+    objectiveBackend,
+    acquisitionBackend,
+    followUpQueryType,
+    followUpComparison,
     frontierFilePresent: existsSync(paths.frontierPath),
     frontierSummary,
     trust: {
@@ -2584,6 +2645,8 @@ function toolStatus(
       familyCount: frontierFamilyCountValue,
       pendingQueryCount,
       pendingMergeSuggestionCount,
+      objectiveBackend,
+      acquisitionBackend,
       summary: frontierSummary,
     },
     files,

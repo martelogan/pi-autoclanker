@@ -93,6 +93,8 @@ type JsonRecord = {
   model_name?: unknown;
   nextAction?: unknown;
   ok?: unknown;
+  objectiveBackend?: unknown;
+  acquisitionBackend?: unknown;
   origin_kind?: unknown;
   parent_candidate_ids?: unknown;
   pendingMergeSuggestionCount?: unknown;
@@ -189,9 +191,12 @@ function frontierSummaryFromWorkspace() {
         ? []
         : [
             {
+              candidate_ids: candidates.slice(0, 2).map((candidate) => candidate.candidate_id),
+              comparison_scope: "candidate",
+              family_ids: familyIds.slice(0, 2),
               prompt:
                 "Do compiled matching and context pairing belong together, or should they be evaluated independently first?",
-              query_type: "pairwise_compare",
+              query_type: "pairwise_preference",
             },
           ],
     pending_merge_suggestions:
@@ -379,16 +384,26 @@ if (command === "beliefs canonicalize-ideas") {
     payload = {
       candidateCount: candidateItems.length,
       nextAction: "Compare the top pathways before applying more beliefs",
+      objective_backend: "exact_joint_linear",
+      acquisition_backend: "constrained_thompson_sampling",
       queries: [
         {
+          candidate_ids: candidateItems.slice(0, 2).map((candidate) => candidate.candidate_id),
+          comparison_scope: "candidate",
+          family_ids: [
+            candidateItems[0]?.family_id || candidatesPayload.default_family_id || "family_default",
+            candidateItems[1]?.family_id || candidatesPayload.default_family_id || "family_default",
+          ],
           prompt:
             "Do compiled matching and context pairing belong together, or should they be evaluated independently first?",
-          query_type: "pairwise_compare",
+          query_type: "pairwise_preference",
         },
       ],
       ranked_candidates: candidateItems.map((candidate, index) => ({
+        acquisition_backend: "constrained_thompson_sampling",
         candidate_id: candidate.candidate_id,
         family_id: candidate.family_id || candidatesPayload.default_family_id || "family_default",
+        objective_backend: "exact_joint_linear",
         rank: index + 1,
       })),
       frontier_summary: familySummary,
@@ -412,6 +427,10 @@ if (command === "beliefs canonicalize-ideas") {
     frontier_family_count: frontierSummary.family_count,
     pending_query_count: frontierSummary.pending_queries.length,
     pending_merge_suggestion_count: frontierSummary.pending_merge_suggestions.length,
+    last_objective_backend: "exact_joint_linear",
+    last_acquisition_backend: "constrained_thompson_sampling",
+    last_follow_up_query_type: "pairwise_preference",
+    last_follow_up_comparison: "cand_primary vs cand_secondary",
   };
 } else if (command === "session frontier-status") {
   payload = {
@@ -818,6 +837,12 @@ coveredTest(
       const fitResult = asRecord(dispatchTool("autoclanker_fit", { workspace }));
       expect(asRecord(fitResult.fit).fitSummary).toBe("Fit complete");
 
+      const postFitStatus = asRecord(
+        dispatchTool("autoclanker_session_status", { workspace }),
+      );
+      expect(postFitStatus.objectiveBackend).toBe("exact_joint_linear");
+      expect(postFitStatus.acquisitionBackend).toBe("constrained_thompson_sampling");
+
       const suggestResult = asRecord(
         dispatchTool("autoclanker_suggest", { workspace }),
       );
@@ -835,6 +860,10 @@ coveredTest(
       const statusResult = asRecord(
         dispatchTool("autoclanker_session_status", { workspace }),
       );
+      const statusView = statusResult as JsonRecord & {
+        followUpQueryType?: unknown;
+        followUpComparison?: unknown;
+      };
       expect(asRecord(statusResult.upstream).status).toBe("healthy");
       expect(statusResult.evalSurfaceSha256).toBe(
         sha256(resolve(workspace, EVAL_FILENAME)),
@@ -844,6 +873,8 @@ coveredTest(
       );
       expect(statusResult.evalSurfaceMatchesLock).toBe(true);
       expect(statusResult.evalContractDriftStatus).toBe("locked");
+      expect(statusView.followUpQueryType).toBe("pairwise_preference");
+      expect(statusView.followUpComparison).toBe("cand_primary vs cand_secondary");
 
       const beliefsDocument = asRecord(
         JSON.parse(readFileSync(resolve(workspace, BELIEFS_FILENAME), "utf-8")),
@@ -945,7 +976,7 @@ coveredTest(
       expect(
         asRecord((asRecord(suggestResult.suggestion).queries as unknown[])[0])
           .query_type,
-      ).toBe("pairwise_compare");
+      ).toBe("pairwise_preference");
       expect(existsSync(resolve(workspace, FRONTIER_FILENAME))).toBe(true);
       const frontierDocument = asRecord(
         JSON.parse(readFileSync(resolve(workspace, FRONTIER_FILENAME), "utf-8")),
@@ -968,6 +999,10 @@ coveredTest(
       expect(summaryText).toContain("frontier families: `3`");
       expect(summaryText).toContain("top candidate: `cand_parser_default`");
       expect(summaryText).toContain("follow-up query:");
+      expect(summaryText).toContain("objective backend: `exact_joint_linear`");
+      expect(summaryText).toContain(
+        "acquisition backend: `constrained_thompson_sampling`",
+      );
     });
   },
 );

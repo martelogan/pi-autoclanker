@@ -39,6 +39,16 @@ contract through to the checked-in shell or generated default stub at ingest
 time, then surface the same locked contract and drift state that upstream
 `autoclanker` reports.
 
+When upstream exposes additive backend detail, the wrapper should surface it
+plainly:
+
+- objective backend used for the latest fit,
+- acquisition backend used for the latest suggestion,
+- concrete candidate or family comparison context when the next query is
+  localized enough to ask a bounded lane-vs-lane question,
+- with the wrapper preferring additive upstream status/query artifacts over
+  wrapper-local inference whenever those fields are available.
+
 ## Optimization loop mental model
 
 The product should make the following loop obvious from the outset:
@@ -59,6 +69,8 @@ That framing is intentionally inspired by the clarity of
   relations that a plain gene list leaves implicit
 - follow-up queries should make uncertainty and next-information value
   inspectable rather than leaving the next move as a vague hunch
+- backend choice should remain visible in wrapper status and export so the user
+  can tell whether upstream used its exact sampled path or a safer fallback
 
 ## Artifact dominance
 
@@ -169,6 +181,8 @@ should be most useful when a user needs to:
 - compare those pathways through explicit candidate pools and ranked results,
 - keep the frontier summary, pending merges, and trust drift visible in status
   and export,
+- surface backend choice and concrete follow-up comparison context without
+  forcing the user to read posterior internals,
 - run evolve-style exploration epochs without giving up typed beliefs,
   structured relations, or machine-readable uncertainty,
 - keep the checked-in local eval surface fixed while a session is running so
