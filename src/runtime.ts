@@ -21,6 +21,7 @@ export const SUMMARY_FILENAME = "autoclanker.md";
 export const BELIEFS_FILENAME = "autoclanker.beliefs.json";
 export const EVAL_FILENAME = "autoclanker.eval.sh";
 export const FRONTIER_FILENAME = "autoclanker.frontier.json";
+export const IDEAS_FILENAME = "autoclanker.ideas.json";
 export const HISTORY_FILENAME = "autoclanker.history.jsonl";
 export const SESSION_FILENAMES = [
   SUMMARY_FILENAME,
@@ -147,6 +148,8 @@ type BeliefsDocument = {
   canonicalizationSummary?: unknown;
   constraints?: unknown;
   evalSurfaceSha256?: unknown;
+  ideasInputPath?: unknown;
+  ideasInputSource?: unknown;
   mode?: unknown;
   preview?: unknown;
   roughIdeas?: unknown;
@@ -329,8 +332,64 @@ type SessionPaths = {
   beliefsPath: string;
   evalPath: string;
   frontierPath: string;
+  ideasPath: string;
   historyPath: string;
   upstreamSessionDir: string;
+};
+
+type IdeasFileDocument = {
+  goal?: unknown;
+  ideas?: unknown;
+  constraints?: unknown;
+  pathways?: unknown;
+};
+
+type IdeasFileIdea = {
+  id: string;
+  text: string;
+};
+
+type IdeasFileIdeaDocument = {
+  id?: unknown;
+  idea?: unknown;
+  text?: unknown;
+};
+
+type IdeasFilePathway = {
+  id: string;
+  ideaIds: string[];
+  notes: string | null;
+};
+
+type IdeasFilePathwayDocument = {
+  id?: unknown;
+  idea_ids?: unknown;
+  notes?: unknown;
+};
+
+type LoadedIdeasInput = {
+  path: string;
+  source: "auto" | "explicit";
+  goal: string | null;
+  ideas: IdeasFileIdea[];
+  constraints: string[];
+  pathways: IdeasFilePathway[];
+};
+
+type CanonicalIdeaBeliefMapping = {
+  kind?: unknown;
+  gene?: unknown;
+  id?: unknown;
+  rationale?: unknown;
+  context?: unknown;
+};
+
+type BeliefContextMapping = {
+  metadata?: unknown;
+};
+
+type BeliefMetadataMapping = {
+  original_idea?: unknown;
 };
 
 type RuntimePayload = {
@@ -346,6 +405,7 @@ type RuntimePayload = {
   evalCommand?: string;
   familyIds?: string[];
   goal?: string;
+  ideasInputPath?: string;
   mergedCandidateId?: string;
   mergedGenotype?: unknown;
   mode?: IdeasMode;
@@ -662,6 +722,7 @@ function sessionPathsForWorkspace(
     beliefsPath: resolve(root, BELIEFS_FILENAME),
     evalPath: resolve(root, EVAL_FILENAME),
     frontierPath: resolve(root, FRONTIER_FILENAME),
+    ideasPath: resolve(root, IDEAS_FILENAME),
     historyPath: resolve(root, HISTORY_FILENAME),
     upstreamSessionDir: resolve(root, sessionRoot),
   };
@@ -1463,6 +1524,7 @@ function writeSummary(
     lockedEvalSha256 !== null && currentEvalSha256 === lockedEvalSha256,
   );
   const frontierPresent = existsSync(paths.frontierPath);
+  const ideasPresent = existsSync(paths.ideasPath);
   const summarySnapshot = latestSummarySnapshot(history);
   let evalSource = "generated default shell stub";
   if (config.evalCommand === null) {
@@ -1535,6 +1597,7 @@ function writeSummary(
     "",
     "## Run files",
     "- `autoclanker.md`: current run summary",
+    "- `autoclanker.ideas.json`: optional intake file for goal, rough ideas, constraints, and seed pathways",
     "- `autoclanker.frontier.json`: optional reviewable local frontier for multi-path runs",
     "- `autoclanker.history.jsonl`: local chronological log",
     `- \`${config.sessionRoot}/<session>/RESULTS.md\`: upstream run summary`,
@@ -1559,6 +1622,7 @@ function writeSummary(
     `- belief apply state: \`${previewState}\``,
     `- eval surface sha256: \`${currentEvalSha256 ?? "Not recorded"}\``,
     `- eval surface lock valid: \`${evalSurfaceLockValid.toLowerCase()}\``,
+    `- local ideas file: \`${ideasPresent ? "present" : "absent"}\``,
     `- local frontier file: \`${frontierPresent ? "present" : "absent"}\``,
     "",
     "## Constraints",
@@ -1920,6 +1984,266 @@ function numberValue(value: unknown, fieldName: string): number {
 
 function stringArray(value: unknown, fieldName: string): string[] {
   return stringList(value, fieldName);
+}
+
+function locateIdeasInput(
+  workspace: string,
+  payload: RuntimePayload,
+  paths: SessionPaths,
+): { path: string; source: "auto" | "explicit" } | null {
+  const explicit = optionalString(payload.ideasInputPath, "ideasInputPath");
+  if (explicit !== null) {
+    const path = isAbsolute(explicit) ? explicit : resolve(workspace, explicit);
+    if (!existsSync(path)) {
+      throw new Error(`Ideas input does not exist: ${path}`);
+    }
+    return { path, source: "explicit" };
+  }
+  if (existsSync(paths.ideasPath)) {
+    return { path: paths.ideasPath, source: "auto" };
+  }
+  return null;
+}
+
+function parseIdeasFileIdea(rawIdea: unknown, index: number): IdeasFileIdea {
+  const autoId = `idea_${String(index + 1).padStart(3, "0")}`;
+  if (typeof rawIdea === "string") {
+    return {
+      id: autoId,
+      text: requireNonEmptyString(rawIdea, `ideas[${index + 1}]`),
+    };
+  }
+  const mapping = ensureJsonObject<IdeasFileIdeaDocument>(
+    rawIdea,
+    `ideas[${index + 1}] must be a string or JSON object.`,
+  );
+  const id = optionalString(mapping.id, `ideas[${index + 1}].id`) ?? autoId;
+  const text =
+    optionalString(mapping.idea, `ideas[${index + 1}].idea`) ??
+    optionalString(mapping.text, `ideas[${index + 1}].text`);
+  if (text === null) {
+    throw new Error(`ideas[${index + 1}] must include either an idea or text field.`);
+  }
+  return { id, text };
+}
+
+function parseIdeasFilePathway(rawPathway: unknown, index: number): IdeasFilePathway {
+  const mapping = ensureJsonObject<IdeasFilePathwayDocument>(
+    rawPathway,
+    `pathways[${index + 1}] must be a JSON object.`,
+  );
+  return {
+    id: requireNonEmptyString(mapping.id, `pathways[${index + 1}].id`),
+    ideaIds: stringArray(mapping.idea_ids, `pathways[${index + 1}].idea_ids`),
+    notes: optionalString(mapping.notes, `pathways[${index + 1}].notes`),
+  };
+}
+
+function loadIdeasInput(
+  workspace: string,
+  payload: RuntimePayload,
+  paths: SessionPaths,
+): LoadedIdeasInput | null {
+  const located = locateIdeasInput(workspace, payload, paths);
+  if (located === null) {
+    return null;
+  }
+  const document = loadJsonObject<IdeasFileDocument>(located.path, IDEAS_FILENAME);
+  const rawIdeas = Array.isArray(document.ideas) ? document.ideas : [];
+  const ideas = rawIdeas.map((item, index) => parseIdeasFileIdea(item, index));
+  const constraints =
+    document.constraints === undefined
+      ? []
+      : stringArray(document.constraints, "constraints");
+  const rawPathways = Array.isArray(document.pathways) ? document.pathways : [];
+  const pathways = rawPathways.map((item, index) => parseIdeasFilePathway(item, index));
+  return {
+    path: located.path,
+    source: located.source,
+    goal: optionalString(document.goal, "goal"),
+    ideas,
+    constraints,
+    pathways,
+  };
+}
+
+function resolvedInitInput(
+  workspace: string,
+  payload: RuntimePayload,
+  paths: SessionPaths,
+): {
+  goal: string;
+  roughIdeas: string[];
+  constraints: string[];
+  ideasInput: LoadedIdeasInput | null;
+} {
+  const ideasInput = loadIdeasInput(workspace, payload, paths);
+  const goal =
+    optionalString(payload.goal, "goal") ??
+    ideasInput?.goal ??
+    (() => {
+      throw new Error("start requires goal when no session exists.");
+    })();
+  const roughIdeas =
+    payload.roughIdeas !== undefined
+      ? stringList(payload.roughIdeas, "roughIdeas")
+      : (ideasInput?.ideas.map((idea) => idea.text) ?? []);
+  const constraints =
+    payload.constraints !== undefined
+      ? stringList(payload.constraints, "constraints")
+      : (ideasInput?.constraints ?? []);
+  return { goal, roughIdeas, constraints, ideasInput };
+}
+
+function canonicalIdeaBeliefsByIdeaId(
+  ideasInput: LoadedIdeasInput,
+  beliefsDocument: BeliefsDocument,
+): Map<string, FrontierGeneRecord[]> {
+  const ideasById = new Map<string, IdeasFileIdea>();
+  const ideasByText = new Map<string, IdeasFileIdea>();
+  for (const idea of ideasInput.ideas) {
+    ideasById.set(idea.id, idea);
+    ideasByText.set(idea.text, idea);
+  }
+
+  const byIdeaId = new Map<string, FrontierGeneRecord[]>();
+  const rawBeliefs = Array.isArray(beliefsDocument.canonicalBeliefs)
+    ? beliefsDocument.canonicalBeliefs
+    : [];
+  for (const rawBelief of rawBeliefs) {
+    const belief = summaryObject<CanonicalIdeaBeliefMapping>(rawBelief);
+    if (belief === null || summaryString(belief.kind) !== "idea") {
+      continue;
+    }
+    const gene = summaryObject<FrontierGeneRecord>(belief.gene);
+    const geneId = summaryString(gene?.gene_id);
+    const stateId = summaryString(gene?.state_id);
+    if (geneId === null || stateId === null) {
+      continue;
+    }
+    const targets = new Set<string>();
+    const beliefId = summaryString(belief.id);
+    if (beliefId !== null && ideasById.has(beliefId)) {
+      targets.add(beliefId);
+    }
+    const rationale = summaryString(belief.rationale);
+    if (rationale !== null) {
+      const idea = ideasByText.get(rationale);
+      if (idea) {
+        targets.add(idea.id);
+      }
+    }
+    const context = summaryObject<BeliefContextMapping>(belief.context);
+    const metadata = summaryObject<BeliefMetadataMapping>(context?.metadata);
+    const originalIdea = summaryString(metadata?.original_idea);
+    if (originalIdea !== null) {
+      const idea = ideasByText.get(originalIdea);
+      if (idea) {
+        targets.add(idea.id);
+      }
+    }
+    for (const target of targets) {
+      byIdeaId.set(target, [
+        ...(byIdeaId.get(target) ?? []),
+        { gene_id: geneId, state_id: stateId },
+      ]);
+    }
+  }
+  return byIdeaId;
+}
+
+function resolvePathwayIdeaIds(
+  pathway: IdeasFilePathway,
+  ideasInput: LoadedIdeasInput,
+): string[] {
+  const ideasById = new Map(ideasInput.ideas.map((idea) => [idea.id, idea] as const));
+  const ideasByText = new Map(
+    ideasInput.ideas.map((idea) => [idea.text, idea] as const),
+  );
+  return pathway.ideaIds.map((ideaRef) => {
+    const byId = ideasById.get(ideaRef);
+    if (byId) {
+      return byId.id;
+    }
+    const byText = ideasByText.get(ideaRef);
+    if (byText) {
+      return byText.id;
+    }
+    throw new Error(`Pathway ${pathway.id} references an unknown idea: ${ideaRef}.`);
+  });
+}
+
+function seedFrontierFromIdeasInput(
+  ideasInput: LoadedIdeasInput,
+  beliefsDocument: BeliefsDocument,
+): { frontier: CandidatePoolDocument | null; warnings: string[] } {
+  if (ideasInput.pathways.length === 0) {
+    return { frontier: null, warnings: [] };
+  }
+  const geneRefsByIdeaId = canonicalIdeaBeliefsByIdeaId(ideasInput, beliefsDocument);
+  const warnings: string[] = [];
+  const candidates: FrontierCandidateRecord[] = [];
+
+  for (const pathway of ideasInput.pathways) {
+    const ideaIds = resolvePathwayIdeaIds(pathway, ideasInput);
+    const genotypeByGene = new Map<string, FrontierGeneRecord>();
+    let conflict = false;
+    for (const ideaId of ideaIds) {
+      const refs = geneRefsByIdeaId.get(ideaId) ?? [];
+      for (const ref of refs) {
+        const geneId = requireNonEmptyString(ref.gene_id, "gene_id");
+        const stateId = requireNonEmptyString(ref.state_id, "state_id");
+        const existing = genotypeByGene.get(geneId);
+        if (
+          existing &&
+          requireNonEmptyString(existing.state_id, "state_id") !== stateId
+        ) {
+          warnings.push(
+            `Skipped pathway ${pathway.id}: ${geneId} resolved to conflicting states across its selected ideas.`,
+          );
+          conflict = true;
+          break;
+        }
+        genotypeByGene.set(geneId, { gene_id: geneId, state_id: stateId });
+      }
+      if (conflict) {
+        break;
+      }
+    }
+    if (conflict) {
+      continue;
+    }
+    if (genotypeByGene.size === 0) {
+      warnings.push(
+        `Skipped pathway ${pathway.id}: its selected ideas did not resolve to concrete optimization levers yet.`,
+      );
+      continue;
+    }
+    const candidateId = `cand_${slugIdentifier(pathway.id)}`;
+    candidates.push({
+      candidate_id: candidateId,
+      family_id: `family_${slugIdentifier(pathway.id)}`,
+      origin_kind: "seed",
+      notes: pathway.notes ?? `Seeded from ${pathway.id} in ${IDEAS_FILENAME}.`,
+      genotype: [...genotypeByGene.values()].sort((left, right) =>
+        requireNonEmptyString(left.gene_id, "gene_id").localeCompare(
+          requireNonEmptyString(right.gene_id, "gene_id"),
+        ),
+      ),
+    });
+  }
+
+  if (candidates.length === 0) {
+    return { frontier: null, warnings };
+  }
+  return {
+    frontier: {
+      frontier_id: "frontier_ideas_seed",
+      default_family_id: "family_default",
+      candidates,
+    },
+    warnings,
+  };
 }
 
 function frontierPayload(value: unknown, fieldName: string): CandidatePoolDocument {
@@ -2343,10 +2667,12 @@ function toolInitSession(
   runner: Runner,
 ): JsonObject {
   const { config, paths } = runtimeContext(workspace, payload);
-  const goal = requireNonEmptyString(payload.goal, "goal");
+  const { goal, roughIdeas, constraints, ideasInput } = resolvedInitInput(
+    workspace,
+    payload,
+    paths,
+  );
   const { evalCommand, usedDefaultEvalCommand } = resolveEvalCommand(payload, config);
-  const roughIdeas = stringList(payload.roughIdeas ?? [], "roughIdeas");
-  const constraints = stringList(payload.constraints ?? [], "constraints");
   const ideasMode = (optionalString(payload.mode, "mode") ??
     config.defaultIdeasMode) as IdeasMode;
   if (!IDEAS_MODES.includes(ideasMode)) {
@@ -2372,6 +2698,8 @@ function toolInitSession(
     constraints,
     billedLive,
   });
+  beliefsDocument.ideasInputPath = ideasInput?.path;
+  beliefsDocument.ideasInputSource = ideasInput?.source;
 
   mkdirSync(workspace, { recursive: true });
   mkdirSync(paths.upstreamSessionDir, { recursive: true });
@@ -2398,6 +2726,15 @@ function toolInitSession(
     runner,
     requireUpstream: false,
   });
+  let frontierSeedWarnings: string[] = [];
+  if (localFrontier === null && ideasInput !== null && ideasInput.pathways.length > 0) {
+    const seeded = seedFrontierFromIdeasInput(ideasInput, beliefsDocument);
+    frontierSeedWarnings = seeded.warnings;
+    if (seeded.frontier !== null) {
+      localFrontier = seeded.frontier;
+      writeFrontierDocument(paths, seeded.frontier);
+    }
+  }
   writeJsonFile(paths.beliefsPath, beliefsDocument);
   appendHistory(paths.historyPath, {
     event: "session_initialized",
@@ -2408,10 +2745,13 @@ function toolInitSession(
     billedLive,
     usedDefaultEvalCommand,
     evalSurfaceSha256: lockedEvalSurfaceSha256,
+    ideasInputPath: ideasInput?.path,
+    ideasInputSource: ideasInput?.source ?? "direct",
     frontierCandidateCount:
       localFrontier === null ? 0 : frontierCandidateItems(localFrontier).length,
     frontierFamilyCount:
       localFrontier === null ? 0 : frontierFamilyCount(localFrontier),
+    frontierSeedWarnings,
     canonicalization,
     upstream: preview,
   });
@@ -2424,7 +2764,10 @@ function toolInitSession(
     billedLive,
     usedDefaultEvalCommand,
     files: sessionFileMap(paths),
+    ideasInputPath: ideasInput?.path ?? null,
+    ideasInputSource: ideasInput?.source ?? "direct",
     frontier: inferLocalFrontierSummary(localFrontier),
+    frontierSeedWarnings,
     canonicalization,
     upstream: preview,
   };
@@ -2583,6 +2926,7 @@ function toolStatus(
     beliefsDocument.canonicalizationModel,
     "canonicalizationModel",
   );
+  const ideasFilePresent = existsSync(paths.ideasPath);
 
   return {
     ok: true,
@@ -2625,6 +2969,7 @@ function toolStatus(
     followUpQueryType,
     followUpComparison,
     frontierFilePresent: existsSync(paths.frontierPath),
+    ideasFilePresent,
     frontierSummary,
     trust: {
       evalSurfaceSha256: currentEvalSha256 ?? null,
@@ -3097,9 +3442,6 @@ function commandStart(
   if (existsSync(paths.configPath)) {
     return commandResume(workspace, payload, runner);
   }
-  if (!("goal" in payload)) {
-    throw new Error("start requires goal when no session exists.");
-  }
   return {
     ...toolInitSession(workspace, payload, runner),
     command: "start",
@@ -3242,6 +3584,7 @@ function commandExport(
       [BELIEFS_FILENAME]: loadJsonIfPresent(paths.beliefsPath),
       [EVAL_FILENAME]: readTextIfPresent(paths.evalPath),
       [FRONTIER_FILENAME]: loadJsonIfPresent(paths.frontierPath),
+      [IDEAS_FILENAME]: loadJsonIfPresent(paths.ideasPath),
       [HISTORY_FILENAME]: loadHistory(paths.historyPath),
     },
     handoff: {

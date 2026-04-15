@@ -66,6 +66,7 @@ type AutoclankerPayload = JsonObject & {
   familyIds?: string[];
   frontierInputPath?: string;
   goal?: string;
+  ideasInputPath?: string;
   budgetWeight?: number;
   mergedCandidateId?: string;
   mergedGenotype?: unknown;
@@ -164,6 +165,11 @@ const COMMON_PROPERTIES = {
     type: "string",
     description: "Optimization goal for the project-local session.",
   },
+  ideasInputPath: {
+    type: "string",
+    description:
+      "Optional path to a checked-in autoclanker.ideas.json intake file with goal, ideas, constraints, and optional pathways.",
+  },
   budgetWeight: {
     type: "number",
     description: "Optional budget weight for a merged frontier candidate.",
@@ -212,10 +218,9 @@ const TOOL_DEFINITIONS: readonly ToolRegistration[] = [
     name: "autoclanker_init_session",
     label: "Init Session",
     description:
-      "Bootstrap project-local files and upstream session state through autoclanker.",
+      "Bootstrap project-local files and upstream session state through autoclanker from a direct goal or optional autoclanker.ideas.json file.",
     parameters: {
       type: "object",
-      required: ["goal"],
       additionalProperties: false,
       properties: COMMON_PROPERTIES,
     },
@@ -610,6 +615,12 @@ export function parseAutoclankerCommandArgs(raw: string): {
       case "--ideas-mode": {
         const [value, nextIndex] = consumeFlagValue(rest, index, token);
         payload.mode = value;
+        index = nextIndex;
+        break;
+      }
+      case "--ideas-input": {
+        const [value, nextIndex] = consumeFlagValue(rest, index, token);
+        payload.ideasInputPath = value;
         index = nextIndex;
         break;
       }

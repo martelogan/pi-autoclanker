@@ -228,10 +228,25 @@ if (command === "beliefs canonicalize-ideas") {
           id: "idea_001",
           confidence_level: 2,
           evidence_sources: ["intuition"],
-          rationale: "Cache tuning probably helps.",
+          rationale:
+            "Compiled regex matching probably helps repeated incident formats.",
           gene: {
             gene_id: "parser.matcher",
             state_id: "matcher_compiled",
+          },
+          effect_strength: 2,
+          risk: { correctness: 1, maintainability: 1, complexity: 1 },
+        },
+        {
+          kind: "idea",
+          id: "idea_002",
+          confidence_level: 2,
+          evidence_sources: ["intuition"],
+          rationale:
+            "Keeping breadcrumbs beside each alarm likely pairs well with context extraction.",
+          gene: {
+            gene_id: "parser.plan",
+            state_id: "plan_context_pair",
           },
           effect_strength: 2,
           risk: { correctness: 1, maintainability: 1, complexity: 1 },
@@ -240,7 +255,10 @@ if (command === "beliefs canonicalize-ideas") {
       canonicalization_summary: {
         mode: "deterministic",
         model_name: null,
-        records: [{ status: "resolved", belief_kind: "idea" }],
+        records: [
+          { status: "resolved", belief_kind: "idea" },
+          { status: "resolved", belief_kind: "idea" },
+        ],
       },
     };
   }

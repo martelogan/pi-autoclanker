@@ -87,14 +87,22 @@ coveredTest(
       "benchmark.py",
       "candidates.json",
     ]);
-    expect(readdirSync(minimalDir).sort()).toEqual(["README.md", "rough-ideas.json"]);
+    expect(readdirSync(minimalDir).sort()).toEqual([
+      "README.md",
+      "autoclanker.ideas.json",
+      "rough-ideas.json",
+    ]);
     const targetReadme = readFileSync(resolve(targetDir, "README.md"), "utf-8");
     const minimalReadme = readFileSync(resolve(minimalDir, "README.md"), "utf-8");
+    const minimalIdeasFile = JSON.parse(
+      readFileSync(resolve(minimalDir, "autoclanker.ideas.json"), "utf-8"),
+    ) as { constraints?: unknown[]; goal?: string; ideas?: unknown[] };
     const minimalIdeas = JSON.parse(
       readFileSync(resolve(minimalDir, "rough-ideas.json"), "utf-8"),
     ) as unknown[];
 
     for (const fileName of [
+      "autoclanker.ideas.json",
       "autoclanker.md",
       "autoclanker.config.json",
       "autoclanker.beliefs.json",
@@ -127,6 +135,7 @@ coveredTest(
 
     expect(minimalReadme).toContain("smallest useful kickoff shape");
     expect(minimalReadme).toContain("/autoclanker start <goal>");
+    expect(minimalReadme).toContain("autoclanker.ideas.json");
     expect(minimalReadme).toContain("../targets/parser-quickstart/");
     expect(minimalReadme).toContain("benchmark.py");
     expect(minimalReadme).toContain("can create from there");
@@ -136,9 +145,15 @@ coveredTest(
     expect(targetReadme).toContain("benchmark.py");
     expect(targetReadme).toContain("autoclanker.eval.sh");
     expect(minimalIdeas.length).toBe(2);
+    expect(minimalIdeasFile.goal).toBe(
+      "Improve parser throughput without losing context quality.",
+    );
+    expect((minimalIdeasFile.ideas ?? []).length).toBe(2);
+    expect((minimalIdeasFile.constraints ?? []).length).toBe(1);
     expect(readme).toContain("canonicalize");
     expect(readme).toContain("preview beliefs");
     expect(readme).toContain("candidates.json");
+    expect(readme).toContain("autoclanker.ideas.json");
     expect(readme).toContain("not the minimum required input");
     expect(readme).toContain("expanded demo");
     expect(readme).toContain("../targets/parser-quickstart/");
@@ -146,6 +161,9 @@ coveredTest(
     expect(readme).toContain("default");
     expect(readme).toContain("autoclanker.eval.sh");
     expect(readme).toContain("autoclanker.frontier.json");
+    expect(readme).toContain(
+      "store rough ideas directly or in `autoclanker.ideas.json`",
+    );
     expect(readme).toContain("explicit frontier");
     expect(String(config.evalCommand)).toContain("benchmark.py");
     expect(String(config.evalCommand)).toContain("PI_AUTOCLANKER_TARGET_CANDIDATE_ID");
@@ -259,6 +277,9 @@ coveredTest(
     expect(readme).toContain("ranked and compared together");
     expect(readme).toContain("candidate lanes can stay explicit");
     expect(readme).toContain("candidate lanes");
+    expect(readme).toContain("autoclanker.ideas.json");
+    expect(readme).toContain("optimization lever (gene)");
+    expect(readme).toContain("evidence and debugging details");
     expect(readme).toContain("evolve-style");
     expect(readme).toContain("objective backend");
     expect(readme).toContain("acquisition backend");
@@ -271,6 +292,8 @@ coveredTest(
     expect(readme).toContain("belief_graph_posterior.png");
     expect(spec).toContain("explicit candidate pools");
     expect(spec).toContain("autoclanker.frontier.json");
+    expect(spec).toContain("autoclanker.ideas.json");
+    expect(spec).toContain("comparison query");
     expect(spec).toContain("merge-pathways");
     expect(spec).toContain("goal, rough ideas, and optional constraints");
     expect(spec).toContain("population-style");
@@ -282,6 +305,8 @@ coveredTest(
     expect(spec).toContain("candidate_rankings.png");
     expect(design).toContain("explicit candidate pools");
     expect(design).toContain("frontier");
+    expect(design).toContain("autoclanker.ideas.json");
+    expect(design).toContain("optimization lever (gene)");
     expect(design).toContain("explicit population");
     expect(design).toContain("backend detail");
     expect(design).toContain("concrete candidate");
@@ -289,9 +314,16 @@ coveredTest(
     expect(design).toContain("goal + rough ideas + optional");
     expect(design).toContain("autoclanker.history.jsonl");
     expect(design).toContain("belief_graph_posterior.png");
-    expect(createSkill).toContain("candidate-pool JSON");
-    expect(reviewSkill).toContain("ranked candidates");
-    expect(advancedSkill).toContain("graph-directed or prior-based structure");
+    expect(createSkill).toContain("autoclanker.ideas.json");
+    expect(createSkill).toContain("ask no clarification questions by default");
+    expect(reviewSkill).toContain("optimization lever (gene)");
+    expect(reviewSkill).toContain("next query is trying to learn");
+    expect(advancedSkill).toContain(
+      "Start with up to 3 clarification questions per round",
+    );
+    expect(advancedSkill).toContain("Only continue into another round");
+    expect(advancedSkill).toContain("strongest vs second-best");
+    expect(advancedSkill).toContain("Never ask for Bayes parameter values");
   },
 );
 

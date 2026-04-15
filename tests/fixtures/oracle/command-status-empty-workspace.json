@@ -33,6 +33,7 @@
   "lastEvalUsedLease": null,
   "lastEvalNoisySystem": null,
   "frontierFilePresent": false,
+  "ideasFilePresent": false,
   "frontierSummary": {
     "frontier_id": "frontier_default",
     "candidate_count": 0,

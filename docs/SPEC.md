@@ -24,6 +24,17 @@ The beginner input surface should stay simple: goal, rough ideas, and optional
 constraints must be enough to start. Advanced JSON beliefs and graph directives
 should stay opt-in.
 
+An optional `autoclanker.ideas.json` file may hold that same beginner intake
+shape in a checked-in JSON form:
+
+- `goal`
+- `ideas`
+- `constraints`
+- optional `pathways`
+
+That file is only an intake convenience surface. The generated working surfaces
+remain `autoclanker.beliefs.json` and, when needed, `autoclanker.frontier.json`.
+
 The beginner path should not require a hand-authored eval command up front.
 `pi-autoclanker` should generate a checked-in default `autoclanker.eval.sh`
 surface so a user can inspect and edit the session setup quickly, then
@@ -59,6 +70,15 @@ The product should make the following loop obvious from the outset:
 4. evaluate those lanes in parallel when practical through the checked-in eval surface,
 5. ingest results, fit the session, and inspect ranked candidates,
 6. compare frontier families, merge promising pathways, and rethink the next era.
+
+The user-facing vocabulary should stay explicit and plain:
+
+- `optimization lever (gene)`: one explicit upstream knob
+- `setting (state)`: one concrete value of that lever
+- `candidate lane` or `pathway`: one combination being compared
+- `frontier`: the explicit set of lanes under comparison
+- `belief`: a typed claim about one idea, relation, risk, or preference
+- `comparison query`: the next concrete lane-vs-lane or family-vs-family question
 
 That framing is intentionally inspired by the clarity of
 [cEvolve](https://github.com/jnormore/cevolve)'s idea-and-rethink loop, but
@@ -141,6 +161,16 @@ The beginner path must work from rough ideas. The advanced path must help users
 produce compact machine-authored JSON belief batches rather than forcing them to
 write complex Bayes declarations manually.
 
+The advanced path should stay bounded:
+
+- start from current beliefs, preview, and frontier state
+- start with up to three high-yield clarification questions per round
+- only continue into another round when the user opts in or when unresolved
+  structure would materially change the next preview or frontier choice
+- prefer questions about strongest-vs-second-best pathways, synergy/conflict,
+  and unacceptable risks or evidence changes
+- never require Bayes parameter values, graph math, or numeric prior scales
+
 ### 4. Session files
 
 The extension must operate through explicit project-local files:
@@ -156,6 +186,9 @@ These files must be sufficient for local inspection, lightweight metadata handof
 and export initiation. Complete operational handoff also depends on a resolvable
 `autoclanker` CLI plus the upstream `.autoclanker/` artifacts, or an export bundle
 that includes those artifacts.
+
+An optional `autoclanker.ideas.json` may also exist at the project root as a
+user-authored intake file. It is not a required generated session artifact.
 
 ## Integration requirements
 

@@ -1,0 +1,35 @@
+{
+  "goal": "Improve parser throughput without losing context quality.",
+  "ideas": [
+    {
+      "id": "idea_001",
+      "text": "Compiled regex matching probably helps repeated incident formats."
+    },
+    {
+      "id": "idea_002",
+      "text": "Keeping breadcrumbs beside each alarm likely pairs well with context extraction."
+    },
+    {
+      "id": "idea_003",
+      "text": "Wide capture windows may blow memory on long traces."
+    }
+  ],
+  "constraints": ["Keep output quality stable."],
+  "pathways": [
+    {
+      "id": "A",
+      "idea_ids": ["idea_001"],
+      "notes": "Compiled matching alone."
+    },
+    {
+      "id": "B",
+      "idea_ids": ["idea_002"],
+      "notes": "Context extraction focus."
+    },
+    {
+      "id": "A+B",
+      "idea_ids": ["idea_001", "idea_002"],
+      "notes": "Combined compiled matching plus context extraction."
+    }
+  ]
+}

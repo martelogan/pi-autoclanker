@@ -12,6 +12,7 @@
 
 **[Install](#install)** ·
 **[Quick start](#quick-start)** ·
+**[Mental model](#mental-model)** ·
 **[Commands](#commands)** ·
 **[Tools](#tools)** ·
 **[Skills](#skills)** ·
@@ -82,6 +83,49 @@ Once you want explicit multi-path comparison, keep a checked-in
 `autoclanker.frontier.json` beside the session files and use the frontier
 commands instead of burying alternative paths in prompt history.
 
+If you prefer a checked-in intake file over typing everything into the command,
+you can also start from an optional `autoclanker.ideas.json` at the project
+root:
+
+```json
+{
+  "goal": "Improve parser throughput without losing context quality.",
+  "ideas": [
+    "Cache repeated matcher work.",
+    "Try a context-pair parsing plan before widening capture windows."
+  ],
+  "constraints": ["Keep output quality stable."]
+}
+```
+
+That file is only an intake convenience surface. `autoclanker.beliefs.json`
+remains the generated belief surface, and `autoclanker.frontier.json` remains
+the explicit lane/frontier surface when the session needs it.
+
+Keep that intake file intentionally small. If you later want to capture risks,
+pairwise preferences, or confidence hints, let
+`/skill:autoclanker-advanced-beliefs` pull those out after the first preview
+instead of expanding the starter file up front.
+
+If you already know you want explicit early lanes, add stable idea ids so
+`pathways` contributes real structure instead of repeating the idea strings:
+
+```json
+{
+  "ideas": [
+    { "id": "cache", "text": "Cache repeated matcher work." },
+    { "id": "context", "text": "Try a context-pair parsing plan." }
+  ],
+  "pathways": [
+    { "id": "A", "idea_ids": ["cache"] },
+    { "id": "B", "idea_ids": ["context"] }
+  ]
+}
+```
+
+Use `pathways` only when you want to seed explicit lanes before the first
+compare. Otherwise the plain `ideas` list is enough to start.
+
 The simplest mental model is:
 
 ```text
@@ -107,13 +151,42 @@ start with:
 /skill:autoclanker-create
 ```
 
+## Mental model
+
+The beginner mental model should stay small:
+
+![pi-autoclanker loop](docs/assets/pi-autoclanker-mental-model.svg)
+
+- start from a direct goal or an optional `autoclanker.ideas.json`
+- let `autoclanker` preview those ideas as typed beliefs
+- evaluate one or more candidate lanes or pathways
+- ingest, fit, and ask what to compare next
+
+One vocabulary layer is enough to use the tool well:
+
+![pi-autoclanker structure](docs/assets/pi-autoclanker-structure.svg)
+
+- `optimization lever (gene)`: one explicit knob the upstream adapter exposes
+- `setting (state)`: one concrete value of that lever
+- `candidate lane` or `pathway`: one concrete combination being evaluated
+- `frontier`: the explicit set of lanes under comparison
+- `belief`: a claim about one setting, relation, risk, or preference
+
+The engine learns over explicit candidate features and relations, not hidden
+prompt state. Status may show backend names or comparison focus, but those are
+evidence and debugging details, not required user inputs.
+
+See [`docs/MENTAL_MODEL.md`](docs/MENTAL_MODEL.md) for the fuller plain-language
+version, including when advanced structure is worth adding and what beginners
+can safely ignore.
+
 ## What’s included
 
 | Surface | What it gives you |
 | --- | --- |
 | Extension | pi tools plus the `/autoclanker` command family |
 | Skills | beginner creation, advanced belief authoring, and session review |
-| Local files | resumable checked-in session files at the project root |
+| Local files | resumable checked-in session files plus an optional `autoclanker.ideas.json` intake file |
 | Status surface | trust digest, backend choice, and next concrete comparison without digging through raw JSON |
 | Upstream artifacts | `.autoclanker/<session>/` JSON, reports, and charts from `autoclanker` |
 
@@ -177,9 +250,9 @@ source of truth.
 
 | Skill | Purpose |
 | --- | --- |
-| `autoclanker-create` | Start from a rough goal, write the local files, preview beliefs, and initialize the session. |
-| `autoclanker-advanced-beliefs` | Turn rough ideas into compact advanced JSON beliefs when the beginner path is no longer enough. |
-| `autoclanker-review` | Read the current session, summarize beliefs and observations, and suggest the next action. |
+| `autoclanker-create` | Start from a direct goal or optional `autoclanker.ideas.json`, write the local files, preview beliefs, and initialize the session. |
+| `autoclanker-advanced-beliefs` | Turn rough ideas into compact advanced JSON beliefs by starting with up to three high-yield follow-up questions per round when the beginner path is no longer enough. |
+| `autoclanker-review` | Read the current session, summarize beliefs and candidate lanes in plain language, and explain what the next comparison is trying to learn. |
 
 The common flow is:
 
@@ -208,6 +281,10 @@ constraints:
 That is enough to start a session. `autoclanker.beliefs.json` can keep those as
 plain strings at first. Candidate-pool JSON, graph directives, and advanced
 belief authoring stay opt-in until the search actually needs them.
+
+If you prefer a reusable intake file, the same beginner shape fits naturally in
+`autoclanker.ideas.json`. The wrapper will auto-detect that file when present,
+but direct prompt input stays the default path.
 
 ## Optimization Loop
 
@@ -322,7 +399,7 @@ and easier to hand off honestly.
 ## Files & output
 
 Every session keeps five always-present project-local files, plus one optional
-frontier file for explicit multi-path runs:
+frontier file for explicit multi-path runs and one optional ideas intake file:
 
 | File | Purpose |
 | --- | --- |
@@ -332,6 +409,7 @@ frontier file for explicit multi-path runs:
 | `autoclanker.eval.sh` | The checked-in eval surface for this session. |
 | `autoclanker.frontier.json` | Optional reviewable local frontier for multi-path runs. |
 | `autoclanker.history.jsonl` | Local chronological wrapper log. |
+| `autoclanker.ideas.json` | Optional user-authored intake file for a goal, ideas, constraints, and simple pathway seeds. |
 
 Those files live at the project root. They are enough for local inspection and
 lightweight handoff.
@@ -343,6 +421,8 @@ A run has three layers:
   did
 - `autoclanker.frontier.json`: the optional local frontier document for
   explicit path comparison and merges
+- `autoclanker.ideas.json`: the optional user-authored intake surface that can
+  seed beliefs and, when present, a first frontier draft
 - `.autoclanker/<session>/RESULTS.md` plus the session PNGs: the upstream
   summary and visual report bundle
 - `.autoclanker/<session>/...`: the deeper upstream JSON and YAML artifacts when
@@ -403,6 +483,15 @@ The upstream session root now emits the small report bundle directly after
 with `autoclanker session render-report`. The underlying JSON and YAML
 artifacts are still there when you need the deeper Bayesian state.
 
+The graph and report views are meant as evidence views, not as required inputs:
+
+![pi-autoclanker evidence views](docs/assets/pi-autoclanker-evidence-views.svg)
+
+- prior graph: what the session believed before evidence
+- posterior graph: what still looks plausible after evals
+- candidate rankings: which lanes look strongest right now
+- convergence: whether new evals are still changing the picture
+
 ## Example demos
 
 The shipped examples now separate the real runnable target from the wrapper-side
@@ -411,11 +500,12 @@ session tiers:
 - [`examples/targets/parser-quickstart`](examples/targets/parser-quickstart):
   packaged parser app, benchmark harness, eval shell, and candidate pool
 - [`examples/minimal`](examples/minimal): smallest useful kickoff shape,
-  centered on `rough-ideas.json` plus a goal supplied to
-  `/autoclanker start`, intended to be used with the packaged parser target
+  centered on direct prompt input or `autoclanker.ideas.json`, intended to be
+  used with the packaged parser target
 - [`examples/parser-demo-expanded`](examples/parser-demo-expanded): fuller
-  worked session with `candidates.json`, the five local session files, and a
-  checked-in eval surface for that same packaged target
+  worked session with `autoclanker.ideas.json`, `candidates.json`, the five
+  local session files, and a checked-in eval surface for that same packaged
+  target
 
 Use `examples/targets/parser-quickstart` when you want to get your hands on a
 real target immediately, even from a lean `autoclanker + pi-autoclanker`

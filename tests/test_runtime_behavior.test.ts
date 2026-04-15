@@ -73,9 +73,11 @@ type JsonRecord = {
   frontier?: unknown;
   frontierFamilyCount?: unknown;
   frontierFilePresent?: unknown;
+  frontierSeedWarnings?: unknown;
   familyCount?: unknown;
   gene?: unknown;
   gene_id?: unknown;
+  genotype?: unknown;
   goal?: unknown;
   handoff?: unknown;
   ingest?: unknown;
@@ -95,6 +97,8 @@ type JsonRecord = {
   ok?: unknown;
   objectiveBackend?: unknown;
   acquisitionBackend?: unknown;
+  ideasInputPath?: unknown;
+  ideasInputSource?: unknown;
   origin_kind?: unknown;
   parent_candidate_ids?: unknown;
   pendingMergeSuggestionCount?: unknown;
@@ -105,6 +109,7 @@ type JsonRecord = {
   ranked_candidates?: unknown;
   recommendation?: unknown;
   removed?: unknown;
+  roughIdeas?: unknown;
   status?: unknown;
   suggestion?: unknown;
   tool?: unknown;
@@ -120,6 +125,7 @@ type JsonRecord = {
   candidate_id?: unknown;
   candidate_count?: unknown;
   comparedLaneCount?: unknown;
+  constraints?: unknown;
 };
 
 function asRecord(value: unknown): JsonRecord {
@@ -291,10 +297,25 @@ if (command === "beliefs canonicalize-ideas") {
           id: "idea_001",
           confidence_level: 2,
           evidence_sources: ["intuition"],
-          rationale: "Cache tuning probably helps.",
+          rationale:
+            "Compiled regex matching probably helps repeated incident formats.",
           gene: {
             gene_id: "parser.matcher",
             state_id: "matcher_compiled",
+          },
+          effect_strength: 2,
+          risk: { correctness: 1, maintainability: 1, complexity: 1 },
+        },
+        {
+          kind: "idea",
+          id: "idea_002",
+          confidence_level: 2,
+          evidence_sources: ["intuition"],
+          rationale:
+            "Keeping breadcrumbs beside each alarm likely pairs well with context extraction.",
+          gene: {
+            gene_id: "parser.plan",
+            state_id: "plan_context_pair",
           },
           effect_strength: 2,
           risk: { correctness: 1, maintainability: 1, complexity: 1 },
@@ -303,7 +324,10 @@ if (command === "beliefs canonicalize-ideas") {
       canonicalization_summary: {
         mode: "deterministic",
         model_name: null,
-        records: [{ status: "resolved", belief_kind: "idea" }],
+        records: [
+          { status: "resolved", belief_kind: "idea" },
+          { status: "resolved", belief_kind: "idea" },
+        ],
       },
     };
   }
@@ -959,6 +983,178 @@ coveredTest(
 );
 
 coveredTest(
+  ["M1-003", "M2-008"],
+  "start auto-detects autoclanker.ideas.json and seeds beliefs without forcing a frontier",
+  () => {
+    const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-ideas-auto-"));
+    writeFileSync(
+      resolve(workspace, "autoclanker.ideas.json"),
+      `${JSON.stringify(
+        {
+          goal: "Improve parser throughput from an ideas file.",
+          ideas: [
+            "Compiled regex matching probably helps repeated incident formats.",
+            "Keeping breadcrumbs beside each alarm likely pairs well with context extraction.",
+          ],
+          constraints: ["Keep output quality stable."],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      const startResult = asRecord(
+        dispatchCommand("start", {
+          autoclankerBinary: binaryPath,
+          workspace,
+        }),
+      );
+      expect(startResult.command).toBe("start");
+      expect(startResult.ideasInputSource).toBe("auto");
+      expect(String(startResult.ideasInputPath)).toContain("autoclanker.ideas.json");
+      expect(startResult.frontierSeedWarnings).toEqual([]);
+      expect(existsSync(resolve(workspace, FRONTIER_FILENAME))).toBe(false);
+
+      const configDocument = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, CONFIG_FILENAME), "utf-8")),
+      );
+      const beliefsDocument = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, BELIEFS_FILENAME), "utf-8")),
+      );
+      expect(configDocument.goal).toBe("Improve parser throughput from an ideas file.");
+      expect(beliefsDocument.ideasInputSource).toBe("auto");
+      expect((beliefsDocument.roughIdeas as unknown[]).length).toBe(2);
+      expect((beliefsDocument.constraints as unknown[]).length).toBe(1);
+      expect(readFileSync(resolve(workspace, SUMMARY_FILENAME), "utf-8")).toContain(
+        "local ideas file: `present`",
+      );
+    });
+  },
+);
+
+coveredTest(
+  ["M1-003"],
+  "explicit ideasInputPath overrides the workspace autoclanker.ideas.json file",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-ideas-explicit-"),
+    );
+    writeFileSync(
+      resolve(workspace, "autoclanker.ideas.json"),
+      `${JSON.stringify(
+        {
+          goal: "Wrong goal from auto-detected file.",
+          ideas: ["Ignore this workspace-local default."],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    const explicitIdeasPath = resolve(workspace, "alt-ideas.json");
+    writeFileSync(
+      explicitIdeasPath,
+      `${JSON.stringify(
+        {
+          goal: "Explicit ideas file wins.",
+          ideas: ["Compiled regex matching probably helps repeated incident formats."],
+          constraints: ["Keep the explicit file authoritative."],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      const startResult = asRecord(
+        dispatchCommand("start", {
+          autoclankerBinary: binaryPath,
+          ideasInputPath: explicitIdeasPath,
+          workspace,
+        }),
+      );
+      expect(startResult.command).toBe("start");
+      expect(startResult.ideasInputSource).toBe("explicit");
+      expect(startResult.ideasInputPath).toBe(explicitIdeasPath);
+
+      const configDocument = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, CONFIG_FILENAME), "utf-8")),
+      );
+      const beliefsDocument = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, BELIEFS_FILENAME), "utf-8")),
+      );
+      expect(configDocument.goal).toBe("Explicit ideas file wins.");
+      expect((beliefsDocument.roughIdeas as unknown[])[0]).toBe(
+        "Compiled regex matching probably helps repeated incident formats.",
+      );
+      expect((beliefsDocument.constraints as unknown[])[0]).toBe(
+        "Keep the explicit file authoritative.",
+      );
+    });
+  },
+);
+
+coveredTest(
+  ["M1-003", "M2-004"],
+  "ideas-file pathways can seed autoclanker.frontier.json without making it mandatory",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-ideas-frontier-"),
+    );
+    writeFileSync(
+      resolve(workspace, "autoclanker.ideas.json"),
+      `${JSON.stringify(
+        {
+          goal: "Compare explicit parser pathways.",
+          ideas: [
+            {
+              id: "idea_001",
+              text: "Compiled regex matching probably helps repeated incident formats.",
+            },
+            {
+              id: "idea_002",
+              text: "Keeping breadcrumbs beside each alarm likely pairs well with context extraction.",
+            },
+          ],
+          constraints: ["Keep output quality stable."],
+          pathways: [
+            { id: "A", idea_ids: ["idea_001"] },
+            { id: "B", idea_ids: ["idea_002"] },
+            { id: "A+B", idea_ids: ["idea_001", "idea_002"] },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      const initResult = asRecord(
+        dispatchTool("autoclanker_init_session", {
+          autoclankerBinary: binaryPath,
+          workspace,
+        }),
+      );
+      expect(initResult.ideasInputSource).toBe("auto");
+      expect(initResult.frontierSeedWarnings).toEqual([]);
+      expect(asRecord(initResult.frontier).candidate_count).toBe(3);
+      expect(existsSync(resolve(workspace, FRONTIER_FILENAME))).toBe(true);
+
+      const frontierDocument = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, FRONTIER_FILENAME), "utf-8")),
+      );
+      const candidates = frontierDocument.candidates as Array<{
+        candidate_id?: unknown;
+      }>;
+      expect(candidates.map((candidate) => String(candidate.candidate_id))).toEqual(
+        expect.arrayContaining(["cand_a", "cand_b", "cand_a_b"]),
+      );
+    });
+  },
+);
+
+coveredTest(
   ["M1-002", "M2-007", "M2-009"],
   "default suite covers explicit frontier forwarding and frontier status",
   () => {
@@ -1164,6 +1360,52 @@ coveredTest(
       expect(asRecord(mergeResult.mergedCandidate).candidate_id).toBe(
         "cand_merge_cand_parser_default_cand_parser_wide_window",
       );
+    });
+  },
+);
+
+coveredTest(
+  ["M1-002", "M2-009", "M2-010"],
+  "merge-pathways can resolve a family through default_family_id and honor an explicit merged genotype",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-frontier-family-merge-"),
+    );
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      dispatchTool("autoclanker_init_session", sessionPayload(binaryPath, workspace));
+
+      const frontier = candidatePool() as JsonRecord & {
+        candidates: Array<{ family_id?: unknown }>;
+        default_family_id?: unknown;
+      };
+      frontier.default_family_id = "family_default";
+      const firstCandidate = frontier.candidates[0];
+      if (!firstCandidate) {
+        throw new Error("expected a first frontier candidate");
+      }
+      firstCandidate.family_id = undefined;
+      dispatchCommand("compare-frontier", {
+        workspace,
+        candidates: frontier,
+      });
+
+      const mergeResult = asRecord(
+        dispatchCommand("merge-pathways", {
+          workspace,
+          familyIds: ["family_default"],
+          mergedGenotype: [
+            { gene_id: "parser.matcher", state_id: "matcher_jit" },
+            { gene_id: "parser.plan", state_id: "plan_context_pair" },
+          ],
+        }),
+      );
+      expect(asRecord(mergeResult.mergedCandidate).parent_candidate_ids).toEqual([
+        "cand_parser_default",
+      ]);
+      expect(asRecord(mergeResult.mergedCandidate).genotype).toEqual([
+        { gene_id: "parser.matcher", state_id: "matcher_jit" },
+        { gene_id: "parser.plan", state_id: "plan_context_pair" },
+      ]);
     });
   },
 );

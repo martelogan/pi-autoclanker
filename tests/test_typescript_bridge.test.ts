@@ -56,6 +56,24 @@ coveredTest(
 );
 
 coveredTest(
+  ["M1-005"],
+  "slash argument parser accepts --ideas-input as the optional intake-file override",
+  () => {
+    const parsed = parseAutoclankerCommandArgs(
+      "start --workspace /tmp/demo --ideas-input autoclanker.ideas.json --autoclanker-binary autoclanker",
+    );
+    expect(parsed).toEqual({
+      command: "start",
+      payload: {
+        autoclankerBinary: "autoclanker",
+        ideasInputPath: "autoclanker.ideas.json",
+        workspace: "/tmp/demo",
+      },
+    });
+  },
+);
+
+coveredTest(
   ["M1-006"],
   "extension bridge source targets the local TypeScript CLI instead of the Python runtime",
   () => {

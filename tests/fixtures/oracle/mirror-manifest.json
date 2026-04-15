@@ -14,15 +14,15 @@
     },
     {
       "path": "skills/autoclanker-create/SKILL.md",
-      "sha256": "457f5117832cae6596f2a79b97955f278d00f02f739eb05ea4b3eb7cf5ee0404"
+      "sha256": "e3d6073143b545c00d4643f598ee399b823efe811d9f85997e78ce8af4de1214"
     },
     {
       "path": "skills/autoclanker-advanced-beliefs/SKILL.md",
-      "sha256": "172da6fa78cf3adfed39fc54d651bf9cba9dfd172a3ce89c330c4e931493b684"
+      "sha256": "61442635300a4b717e452d447530c9a6be82f31b1920ca8affacb58bc67474ce"
     },
     {
       "path": "skills/autoclanker-review/SKILL.md",
-      "sha256": "0d51bb0a254894483cf5a9da3fd718af3f789077cfb6189e298250f84b617d59"
+      "sha256": "892d8a9819e3fcee7b28d97376f24d0c43cd44d1b92cce1149da9823d76ea88e"
     },
     {
       "path": "examples/targets/parser-quickstart/README.md",
@@ -46,7 +46,7 @@
     },
     {
       "path": "examples/minimal/README.md",
-      "sha256": "19e05c114c90f79f4adcb9396d9999340c60c07196b330044e6bc5b0911005e8"
+      "sha256": "0ffbae01ad645038928780733bbfeed9f8350451702c445f1e1fc94f739bd61f"
     },
     {
       "path": "examples/minimal/rough-ideas.json",
@@ -54,7 +54,7 @@
     },
     {
       "path": "examples/parser-demo-expanded/README.md",
-      "sha256": "298732a30fb8d8f731ea57e4644c68c18cf71e4ea7f86f11d5a7176dca763cf9"
+      "sha256": "6da60399632b6afa5c187504948e3078c5adf4c2897741c86986fd2e9992b1ab"
     },
     {
       "path": "examples/parser-demo-expanded/candidates.json",

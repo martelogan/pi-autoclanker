@@ -3,7 +3,8 @@ export const VERSION = "0.1.0";
 export const surfaceManifest = {
   commands: [
     {
-      description: "Start a new session or resume the existing project-local session.",
+      description:
+        "Start a new session or resume the existing project-local session from a direct goal or optional autoclanker.ideas.json intake file.",
       name: "start",
       slashCommand: "/autoclanker start",
     },
@@ -56,15 +57,21 @@ export const surfaceManifest = {
     "skills/autoclanker-create/SKILL.md",
     "skills/autoclanker-advanced-beliefs/SKILL.md",
     "skills/autoclanker-review/SKILL.md",
+    "docs/MENTAL_MODEL.md",
+    "docs/assets/pi-autoclanker-mental-model.svg",
+    "docs/assets/pi-autoclanker-structure.svg",
+    "docs/assets/pi-autoclanker-evidence-views.svg",
     "examples/targets/parser-quickstart/README.md",
     "examples/targets/parser-quickstart/app.py",
     "examples/targets/parser-quickstart/benchmark.py",
     "examples/targets/parser-quickstart/autoclanker.eval.sh",
     "examples/targets/parser-quickstart/candidates.json",
     "examples/minimal/README.md",
+    "examples/minimal/autoclanker.ideas.json",
     "examples/minimal/rough-ideas.json",
     "examples/parser-demo-expanded/README.md",
     "examples/parser-demo-expanded/candidates.json",
+    "examples/parser-demo-expanded/autoclanker.ideas.json",
     "examples/parser-demo-expanded/autoclanker.beliefs.json",
     "examples/parser-demo-expanded/autoclanker.config.json",
     "examples/parser-demo-expanded/autoclanker.eval.sh",
@@ -87,7 +94,8 @@ export const surfaceManifest = {
   slashCommandPrefix: "/autoclanker",
   tools: [
     {
-      description: "Bootstrap pi-autoclanker session files and upstream session state.",
+      description:
+        "Bootstrap pi-autoclanker session files and upstream session state from direct prompt input or an optional autoclanker.ideas.json file.",
       name: "autoclanker_init_session",
     },
     {

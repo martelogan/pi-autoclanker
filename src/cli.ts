@@ -25,6 +25,7 @@ type CliPayload = JsonObject & {
   defaultIdeasMode?: IdeasMode;
   evalCommand?: string;
   goal?: string;
+  ideasInputPath?: string;
   mode?: IdeasMode;
   outputPath?: string;
   roughIdeas?: string[];
@@ -55,21 +56,15 @@ function parseJsonPayload(raw: string | null, payloadFile: string | null): CliPa
   return ensureJsonObject(decoded, "Payload must decode to a JSON object.");
 }
 
-function parseIdeasFile(path: string | null): string[] {
+function parseIdeasFile(path: string | null): JsonObject | null {
   if (!path) {
-    return [];
+    return null;
   }
   const decoded = JSON.parse(readFileSync(resolve(path), "utf-8")) as unknown;
-  if (!Array.isArray(decoded)) {
-    throw new Error("--ideas-file must contain a JSON array of strings.");
-  }
-  const ideas = decoded.map((item) => {
-    if (typeof item !== "string" || item.trim().length === 0) {
-      throw new Error("--ideas-file must contain only non-empty strings.");
-    }
-    return item;
-  });
-  return ideas;
+  return ensureJsonObject(
+    decoded,
+    "--ideas-file/--ideas-input must contain a JSON object.",
+  );
 }
 
 function appendString(
@@ -260,6 +255,12 @@ function parseCommandInvocation(argv: string[]): {
         index = nextIndex;
         break;
       }
+      case "--ideas-input": {
+        const [value, nextIndex] = readFlagValue(flags, index, token);
+        ideasFile = value;
+        index = nextIndex;
+        break;
+      }
       case "--constraint": {
         const [value, nextIndex] = readFlagValue(flags, index, token);
         appendString(payload, "constraints", value);
@@ -285,10 +286,9 @@ function parseCommandInvocation(argv: string[]): {
         throw new Error(`Unexpected argument for command ${name}: ${token}`);
     }
   }
-  const ideas = parseIdeasFile(ideasFile);
-  if (ideas.length > 0) {
-    const current = Array.isArray(payload.roughIdeas) ? [...payload.roughIdeas] : [];
-    payload.roughIdeas = [...current, ...ideas];
+  const ideasInput = parseIdeasFile(ideasFile);
+  if (ideasInput) {
+    payload.ideasInputPath = ideasFile as string;
   }
   return {
     name,

@@ -39,6 +39,9 @@ tests/fixtures/oracle/
   before they become active
 - the beginner path should stay legible as goal + rough ideas + optional
   constraints before any advanced JSON authoring is introduced
+- the beginner path should accept either direct prompt input or an optional
+  checked-in `autoclanker.ideas.json` intake file without making that file
+  mandatory
 - the beginner path should be able to materialize a default checked-in
   `autoclanker.eval.sh` shell stub when the user does not yet have a real eval
   command
@@ -57,6 +60,10 @@ tests/fixtures/oracle/
 - an optional local `autoclanker.frontier.json` file should keep explicit
   pathway families, lineage, and merge-ready candidates reviewable at the
   project root
+- an optional local `autoclanker.ideas.json` file may hold a small JSON intake
+  surface for `goal`, `ideas`, `constraints`, and simple `pathways`, but the
+  wrapper should still treat `autoclanker.beliefs.json` and
+  `autoclanker.frontier.json` as the real generated working surfaces
 - advanced belief authoring should prefer JSON output
 - live or billed provider lanes must be separate from the required deterministic
   gate
@@ -91,6 +98,14 @@ idea-explore-rethink framing, but the design should make the stronger
 - wrapper summaries can surface objective backend, acquisition backend, and
   concrete comparison focus without turning those into a new user-facing model
 
+The user-facing vocabulary should stay consistent:
+
+- say `optimization lever (gene)` the first time on a page
+- say `candidate lane` or `pathway` before saying `candidate`
+- explain `frontier` as the explicit set of lanes under comparison before
+  talking about family lineage
+- treat backend names as evidence/debugging detail, not as required user inputs
+
 ## Artifact envelope
 
 The run record should separate:
@@ -111,6 +126,14 @@ The default human-facing surface should still stay simple:
   `.autoclanker/<session>/belief_graph_posterior.png` as the compact visual
   bundle
 - `.autoclanker/<session>/...` as the deeper machine-readable session root
+
+Those charts should be explained as evidence views rather than as a new wrapper
+feature surface:
+
+- prior graph: what the session believed before evidence
+- posterior graph: what still looks plausible after evals
+- candidate rankings: which lanes currently look strongest
+- convergence: whether more evals are still changing the picture
 
 At minimum, the upstream artifact envelope should expose enough information to
 reconstruct:

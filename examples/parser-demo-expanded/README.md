@@ -10,7 +10,7 @@ It shows what the beginner path can look like after the extension has already
 materialized a resumable session:
 
 1. collect a rough optimization goal,
-2. store rough ideas,
+2. store rough ideas directly or in `autoclanker.ideas.json`,
 3. materialize the resumable session files in this directory,
 4. canonicalize them through `autoclanker`,
 5. preview beliefs before applying them,
@@ -30,12 +30,14 @@ shell for the life of the session, threads the locked upstream eval contract
 into the shell at ingest time, and expects a new session if the local eval
 surface changes.
 
-The five local files are enough for local inspection and lightweight handoff.
+The generated local session files are enough for local inspection and
+lightweight handoff.
 Complete operational handoff uses the export bundle with upstream artifacts when
 available.
 
 Included files:
 
+- `autoclanker.ideas.json`
 - `autoclanker.md`
 - `autoclanker.config.json`
 - `autoclanker.beliefs.json`

@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="210" viewBox="0 0 760 210" role="img" aria-labelledby="title desc">
+  <title id="title">pi-autoclanker structure</title>
+  <desc id="desc">A simple left-to-right vocabulary map for rough ideas, beliefs, candidate lanes, and the frontier.</desc>
+  <defs>
+    <style>
+      .bg { fill: #fbfaf6; }
+      .title { font: 700 22px ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #143d59; }
+      .label { font: 700 16px ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #143d59; }
+      .copy { font: 500 12px ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #36536b; }
+      .node { rx: 16; ry: 16; stroke-width: 2; }
+      .gold { fill: #f6e5bd; stroke: #c28b29; }
+      .blue { fill: #d8ecf5; stroke: #1f6b8a; }
+      .green { fill: #d8ecd8; stroke: #214e34; }
+      .purple { fill: #ece3f5; stroke: #6b5b95; }
+      .arrow { stroke: #36536b; stroke-width: 3; fill: none; marker-end: url(#arrowhead); }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="8" refX="8" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 z" fill="#36536b"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="760" height="210" rx="24" ry="24"/>
+  <text class="title" x="380" y="34" text-anchor="middle">The core objects at a glance</text>
+
+  <rect class="node gold" x="24" y="70" width="160" height="84"/>
+  <text class="label" x="104" y="94" text-anchor="middle">Rough idea</text>
+  <text class="copy" x="104" y="114" text-anchor="middle">Human-language</text>
+  <text class="copy" x="104" y="130" text-anchor="middle">starting point.</text>
+
+  <rect class="node blue" x="208" y="70" width="160" height="84"/>
+  <text class="label" x="288" y="94" text-anchor="middle">Belief</text>
+  <text class="copy" x="288" y="114" text-anchor="middle">Typed claim</text>
+  <text class="copy" x="288" y="130" text-anchor="middle">or relation.</text>
+
+  <rect class="node green" x="392" y="70" width="160" height="84"/>
+  <text class="label" x="472" y="94" text-anchor="middle">Candidate lane</text>
+  <text class="copy" x="472" y="114" text-anchor="middle">One concrete</text>
+  <text class="copy" x="472" y="130" text-anchor="middle">pathway to test.</text>
+
+  <rect class="node purple" x="576" y="70" width="160" height="84"/>
+  <text class="label" x="656" y="94" text-anchor="middle">Frontier</text>
+  <text class="copy" x="656" y="114" text-anchor="middle">The lanes under</text>
+  <text class="copy" x="656" y="130" text-anchor="middle">comparison now.</text>
+
+  <path class="arrow" d="M184 112 L208 112"/>
+  <path class="arrow" d="M368 112 L392 112"/>
+  <path class="arrow" d="M552 112 L576 112"/>
+</svg>

@@ -7,7 +7,8 @@ It is intentionally not a fully materialized session yet.
 What you need at kickoff:
 
 1. a goal supplied to `/autoclanker start <goal>`
-2. optional rough ideas such as the ones in `rough-ideas.json`
+2. optional rough ideas such as the ones in `rough-ideas.json` or
+   `autoclanker.ideas.json`
 3. a real target and eval surface, such as `../targets/parser-quickstart/`
 
 What `pi-autoclanker` can create from there:
@@ -22,6 +23,11 @@ That means a user does not need to hand-author `candidates.json`, a full belief
 batch, or a checked-in eval command before the first session starts. If no real
 eval command exists yet, the extension can generate the default checked-in
 `autoclanker.eval.sh` stub and keep the session inspectable immediately.
+
+If you want the reusable checked-in intake-file version of the same kickoff
+shape, start from `autoclanker.ideas.json` in this folder. It shows the same
+goal, ideas, and constraints that you could otherwise provide directly in
+`/autoclanker start`.
 
 If you want a packaged real target to practice on before adapting your own app,
 use the parser quickstart target that ships in this repo:

@@ -520,6 +520,132 @@ coveredTest(
   },
 );
 
+coveredTest(
+  ["M1-002", "M2-009", "M2-010"],
+  "merge-pathways fails clearly when no frontier has been created yet",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-merge-no-frontier-"),
+    );
+    const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
+    dispatchTool("autoclanker_init_session", {
+      autoclankerBinary: fakeBinary,
+      workspace,
+      goal: "Do not merge until a frontier exists.",
+      evalCommand: "printf 'merge-no-frontier\\n'",
+      roughIdeas: ["A"],
+    });
+
+    expect(() => dispatchCommand("merge-pathways", { workspace })).toThrowError(
+      /autoclanker\.frontier\.json is missing/u,
+    );
+  },
+);
+
+coveredTest(
+  ["M1-002", "M2-009", "M2-010"],
+  "merge-pathways requires explicit candidateIds or familyIds once a frontier exists",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-merge-missing-ids-"),
+    );
+    const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
+    dispatchTool("autoclanker_init_session", {
+      autoclankerBinary: fakeBinary,
+      workspace,
+      goal: "Reject ambiguous merge requests without selected parents.",
+      evalCommand: "printf 'merge-missing-ids\\n'",
+      roughIdeas: ["A"],
+      candidates: {
+        candidates: [
+          {
+            candidate_id: "cand_left",
+            genotype: [{ gene_id: "parser.matcher", state_id: "matcher_basic" }],
+          },
+        ],
+      },
+    });
+
+    expect(() => dispatchCommand("merge-pathways", { workspace })).toThrowError(
+      /requires candidateIds or familyIds/u,
+    );
+  },
+);
+
+coveredTest(
+  ["M1-002", "M2-009", "M2-010"],
+  "merge-pathways rejects familyIds that resolve to no candidates",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-merge-family-missing-"),
+    );
+    const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
+    dispatchTool("autoclanker_init_session", {
+      autoclankerBinary: fakeBinary,
+      workspace,
+      goal: "Reject family merges when the requested family is absent.",
+      evalCommand: "printf 'merge-family-missing\\n'",
+      roughIdeas: ["A"],
+      candidates: {
+        default_family_id: "family_default",
+        candidates: [
+          {
+            candidate_id: "cand_left",
+            family_id: "family_left",
+            genotype: [{ gene_id: "parser.matcher", state_id: "matcher_basic" }],
+          },
+        ],
+      },
+    });
+
+    expect(() =>
+      dispatchCommand("merge-pathways", {
+        workspace,
+        familyIds: ["family_missing"],
+      }),
+    ).toThrowError(/No candidates found for family family_missing/u);
+  },
+);
+
+coveredTest(
+  ["M1-002", "M2-009", "M2-010"],
+  "merge-pathways rejects familyIds that resolve to multiple candidates",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-merge-family-ambiguous-"),
+    );
+    const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
+    dispatchTool("autoclanker_init_session", {
+      autoclankerBinary: fakeBinary,
+      workspace,
+      goal: "Reject ambiguous family merges until the user picks explicit candidates.",
+      evalCommand: "printf 'merge-family-ambiguous\\n'",
+      roughIdeas: ["A"],
+      candidates: {
+        candidates: [
+          {
+            candidate_id: "cand_left",
+            family_id: "family_pair",
+            genotype: [{ gene_id: "parser.matcher", state_id: "matcher_basic" }],
+          },
+          {
+            candidate_id: "cand_right",
+            family_id: "family_pair",
+            genotype: [{ gene_id: "parser.plan", state_id: "plan_context_pair" }],
+          },
+        ],
+      },
+    });
+
+    expect(() =>
+      dispatchCommand("merge-pathways", {
+        workspace,
+        familyIds: ["family_pair"],
+      }),
+    ).toThrowError(/has multiple candidates; use candidateIds/u);
+  },
+);
+
 coveredTest(["M1-002", "M2-007"], "suggest candidate-pool errors are explicit", () => {
   const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-candidate-"));
   const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
@@ -673,11 +799,13 @@ coveredTest(["M1-002"], "tool mode rejects non-object payloads", () => {
 
 coveredTest(["M1-003"], "command mode rejects invalid ideas-file payloads", () => {
   const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-ideas-"));
-  const ideasPath = resolve(workspace, "ideas.json");
-  writeFileSync(ideasPath, '{"idea":"not-an-array"}\n', "utf-8");
+  const ideasPath = resolve(workspace, "autoclanker.ideas.json");
+  writeFileSync(ideasPath, '["not-an-object"]\n', "utf-8");
   const result = runPortAllowFailure(["command", "start", "--ideas-file", ideasPath]);
   expect(result.status).toBe(1);
-  expect(result.stderr).toContain("--ideas-file must contain a JSON array of strings");
+  expect(result.stderr).toContain(
+    "--ideas-file/--ideas-input must contain a JSON object",
+  );
 });
 
 coveredTest(["M1-002", "M1-003"], "unknown mode returns a clear non-JSON error", () => {

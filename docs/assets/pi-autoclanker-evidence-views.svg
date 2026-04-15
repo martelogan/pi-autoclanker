@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="336" viewBox="0 0 760 336" role="img" aria-labelledby="title desc">
+  <title id="title">autoclanker evidence views</title>
+  <desc id="desc">A compact illustration of the prior graph, posterior graph, rankings, and convergence views.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f7f3ea; }
+      .frame { fill: white; stroke: #d7d1c5; stroke-width: 2; rx: 16; ry: 16; }
+      .title { font: 700 16px ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #143d59; }
+      .copy { font: 500 12px ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #36536b; }
+      .node { fill: #f4e0b7; stroke: #143d59; stroke-width: 2; }
+      .edgePos { stroke: #1f6b8a; stroke-width: 4; fill: none; opacity: 0.85; }
+      .edgeNeg { stroke: #b24020; stroke-width: 4; fill: none; opacity: 0.85; }
+      .edgeHint { stroke: #6b5b95; stroke-width: 4; fill: none; opacity: 0.85; }
+      .barA { fill: #1f6b8a; }
+      .barB { fill: #6b5b95; }
+      .barC { fill: #c28b29; }
+      .line { stroke: #214e34; stroke-width: 4; fill: none; }
+      .axis { stroke: #d7d1c5; stroke-width: 2; fill: none; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="760" height="336" rx="24" ry="24"/>
+
+  <g transform="translate(24 24)">
+    <rect class="frame" x="0" y="0" width="332" height="132"/>
+    <text class="title" x="166" y="24" text-anchor="middle">Prior graph</text>
+    <text class="copy" x="166" y="42" text-anchor="middle">Before evals.</text>
+    <path class="edgeHint" d="M88 100 C128 70, 204 70, 244 100"/>
+    <circle class="node" cx="88" cy="102" r="16"/>
+    <circle class="node" cx="166" cy="80" r="16"/>
+    <circle class="node" cx="244" cy="102" r="16"/>
+  </g>
+
+  <g transform="translate(404 24)">
+    <rect class="frame" x="0" y="0" width="332" height="132"/>
+    <text class="title" x="166" y="24" text-anchor="middle">Posterior graph</text>
+    <text class="copy" x="166" y="42" text-anchor="middle">After evidence.</text>
+    <path class="edgePos" d="M88 104 C126 82, 206 82, 244 104"/>
+    <path class="edgeNeg" d="M92 82 L240 82"/>
+    <circle class="node" cx="88" cy="106" r="16"/>
+    <circle class="node" cx="166" cy="96" r="16"/>
+    <circle class="node" cx="244" cy="106" r="16"/>
+  </g>
+
+  <g transform="translate(24 180)">
+    <rect class="frame" x="0" y="0" width="332" height="132"/>
+    <text class="title" x="166" y="24" text-anchor="middle">Candidate rankings</text>
+    <text class="copy" x="166" y="42" text-anchor="middle">Who leads now.</text>
+    <rect class="barA" x="66" y="60" width="150" height="12" rx="6" ry="6"/>
+    <rect class="barB" x="66" y="82" width="118" height="12" rx="6" ry="6"/>
+    <rect class="barC" x="66" y="104" width="86" height="12" rx="6" ry="6"/>
+    <text class="copy" x="226" y="70">A+B</text>
+    <text class="copy" x="192" y="92">A</text>
+    <text class="copy" x="160" y="114">B</text>
+  </g>
+
+  <g transform="translate(404 180)">
+    <rect class="frame" x="0" y="0" width="332" height="132"/>
+    <text class="title" x="166" y="24" text-anchor="middle">Convergence</text>
+    <text class="copy" x="166" y="42" text-anchor="middle">Still changing?</text>
+    <path class="axis" d="M62 110 H268"/>
+    <path class="axis" d="M62 56 V110"/>
+    <path class="line" d="M62 102 C100 88, 140 78, 170 72 S226 64, 268 58"/>
+  </g>
+</svg>

@@ -5,6 +5,8 @@
   "sessionRoot": "<workspace>/.autoclanker",
   "billedLive": false,
   "usedDefaultEvalCommand": true,
+  "ideasInputPath": null,
+  "ideasInputSource": "direct",
   "files": {
     "autoclanker.md": true,
     "autoclanker.config.json": true,
@@ -23,6 +25,7 @@
     "pending_merge_suggestions": [],
     "budget_allocations": {}
   },
+  "frontierSeedWarnings": [],
   "canonicalization": {
     "mode": "deferred",
     "reason": "autoclanker CLI unavailable"

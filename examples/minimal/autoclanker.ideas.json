@@ -1,0 +1,8 @@
+{
+  "goal": "Improve parser throughput without losing context quality.",
+  "ideas": [
+    "Compiled regex matching probably helps repeated incident formats.",
+    "Keeping breadcrumbs beside each alarm likely helps preserve context quality."
+  ],
+  "constraints": ["Keep output quality stable."]
+}
