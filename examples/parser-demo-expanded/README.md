@@ -1,6 +1,8 @@
 # parser-demo-expanded
 
 This is a fuller worked session bundle for `pi-autoclanker`, not the minimum required input.
+It is also the right place to look when you want explicit early `pathways`,
+instead of the simpler beginner intake shape shown on the README front page.
 
 It is paired with the packaged real target in `../targets/parser-quickstart/`.
 That target ships the actual parser source, candidate pool, and benchmark/eval

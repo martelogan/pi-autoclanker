@@ -67,9 +67,13 @@ tests/fixtures/oracle/
   proposal ledger once upstream has proposal state, without assuming the target
   project is a git repository
 - an optional local `autoclanker.ideas.json` file may hold a small JSON intake
-  surface for `goal`, `ideas`, `constraints`, and simple `pathways`, but the
-  wrapper should still treat `autoclanker.beliefs.json` and
+  surface for `goal`, `ideas`, `constraints`, and optional `pathways`
+  where `ideas` may be short strings, named text entries, or references to
+  checked-in markdown/text plan files, but the wrapper should still treat
+  `autoclanker.beliefs.json` and
   `autoclanker.frontier.json` as the real generated working surfaces
+- `pathways` should stay for explicit early lane seeding rather than becoming
+  the default first-screen intake shape
 - advanced belief authoring should prefer JSON output
 - live or billed provider lanes must be separate from the required deterministic
   gate

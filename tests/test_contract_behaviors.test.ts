@@ -105,6 +105,7 @@ coveredTest(
     expect(readdirSync(minimalDir).sort()).toEqual([
       "README.md",
       "autoclanker.ideas.json",
+      "plans",
       "rough-ideas.json",
     ]);
     const targetReadme = readFileSync(resolve(targetDir, "README.md"), "utf-8");
@@ -155,6 +156,7 @@ coveredTest(
     expect(minimalReadme).toContain("smallest useful kickoff shape");
     expect(minimalReadme).toContain("/autoclanker start <goal>");
     expect(minimalReadme).toContain("autoclanker.ideas.json");
+    expect(minimalReadme).toContain("plans/context-pair-plan.md");
     expect(minimalReadme).toContain("../targets/parser-quickstart/");
     expect(minimalReadme).toContain("benchmark.py");
     expect(minimalReadme).toContain("can create from there");
@@ -318,6 +320,8 @@ coveredTest(
     expect(readme).toContain("candidate lanes can stay explicit");
     expect(readme).toContain("candidate lanes");
     expect(readme).toContain("autoclanker.ideas.json");
+    expect(readme).toContain("point at the file directly");
+    expect(readme).toContain("markdown or text plan");
     expect(readme).toContain("optimization lever (gene)");
     expect(readme).toContain("evidence and debugging details");
     expect(readme).toContain("evolve-style");
@@ -333,6 +337,7 @@ coveredTest(
     expect(spec).toContain("explicit candidate pools");
     expect(spec).toContain("autoclanker.frontier.json");
     expect(spec).toContain("autoclanker.ideas.json");
+    expect(spec).toContain("markdown or text plans");
     expect(spec).toContain("comparison query");
     expect(spec).toContain("merge-pathways");
     expect(spec).toContain("goal, rough ideas, and optional constraints");
@@ -346,6 +351,7 @@ coveredTest(
     expect(design).toContain("explicit candidate pools");
     expect(design).toContain("frontier");
     expect(design).toContain("autoclanker.ideas.json");
+    expect(design).toContain("markdown/text plan files");
     expect(design).toContain("optimization lever (gene)");
     expect(design).toContain("explicit population");
     expect(design).toContain("backend detail");
@@ -355,6 +361,7 @@ coveredTest(
     expect(design).toContain("autoclanker.history.jsonl");
     expect(design).toContain("belief_graph_posterior.png");
     expect(createSkill).toContain("autoclanker.ideas.json");
+    expect(createSkill).toContain("markdown or text plan files");
     expect(createSkill).toContain("ask no clarification questions by default");
     expect(reviewSkill).toContain("optimization lever (gene)");
     expect(reviewSkill).toContain("next query is trying to learn");

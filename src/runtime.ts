@@ -11,7 +11,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { basename, delimiter, isAbsolute, relative, resolve } from "node:path";
+import { basename, delimiter, dirname, isAbsolute, relative, resolve } from "node:path";
 import { TextDecoder } from "node:util";
 
 const VERSION = "0.1.0";
@@ -145,6 +145,7 @@ type BeliefsDocument = {
   applyState?: unknown;
   billedLive?: unknown;
   canonicalBeliefs?: unknown;
+  canonicalIdeaInputs?: unknown;
   canonicalizationModel?: unknown;
   canonicalizationSummary?: unknown;
   constraints?: unknown;
@@ -153,6 +154,7 @@ type BeliefsDocument = {
   ideasInputSource?: unknown;
   mode?: unknown;
   preview?: unknown;
+  roughIdeaSources?: unknown;
   roughIdeas?: unknown;
   surfaceOverlay?: unknown;
   upstreamEraId?: unknown;
@@ -729,11 +731,16 @@ type DerivedWorkspaceOptions = {
 type IdeasFileIdea = {
   id: string;
   text: string;
+  displayText: string;
+  sourceKind: "inline" | "file";
+  sourcePath: string | null;
 };
 
 type IdeasFileIdeaDocument = {
   id?: unknown;
   idea?: unknown;
+  label?: unknown;
+  path?: unknown;
   text?: unknown;
 };
 
@@ -747,6 +754,13 @@ type IdeasFilePathwayDocument = {
   id?: unknown;
   idea_ids?: unknown;
   notes?: unknown;
+};
+
+type RoughIdeaSourceDocument = {
+  id?: unknown;
+  label?: unknown;
+  path?: unknown;
+  sourceKind?: unknown;
 };
 
 type LoadedIdeasInput = {
@@ -800,6 +814,13 @@ type RuntimePayload = {
   budgetWeight?: number;
   workspace?: string;
   [key: string]: unknown;
+};
+
+type RoughIdeaSource = {
+  id: string;
+  label: string;
+  path: string | null;
+  sourceKind: "inline" | "file";
 };
 
 function defaultRunner(argv: string[], cwd: string): InvocationResult {
@@ -1274,7 +1295,9 @@ function requireLockedEvalSurface(
 function seedBeliefsDocument(
   workspace: string,
   options: {
+    canonicalIdeaInputs?: string[];
     mode: IdeasMode;
+    roughIdeaSources?: RoughIdeaSource[];
     roughIdeas: string[];
     constraints: string[];
     billedLive: boolean;
@@ -1283,7 +1306,15 @@ function seedBeliefsDocument(
   const { sessionId, eraId } = upstreamSessionIdentity(workspace, {});
   return {
     mode: options.mode,
+    canonicalIdeaInputs:
+      options.canonicalIdeaInputs === undefined
+        ? undefined
+        : [...options.canonicalIdeaInputs],
     roughIdeas: [...options.roughIdeas],
+    roughIdeaSources:
+      options.roughIdeaSources === undefined
+        ? undefined
+        : options.roughIdeaSources.map((source) => ({ ...source })),
     constraints: [...options.constraints],
     canonicalBeliefs: [],
     preview: null,
@@ -1291,6 +1322,78 @@ function seedBeliefsDocument(
     billedLive: options.billedLive,
     upstreamSessionId: sessionId,
     upstreamEraId: eraId,
+  };
+}
+
+function canonicalIdeaInputsFromBeliefsDocument(
+  beliefsDocument: BeliefsDocument,
+): string[] {
+  if ("canonicalIdeaInputs" in beliefsDocument) {
+    return stringList(beliefsDocument.canonicalIdeaInputs ?? [], "canonicalIdeaInputs");
+  }
+  return stringList(beliefsDocument.roughIdeas ?? [], "roughIdeas");
+}
+
+function roughIdeaSourcesFromBeliefsDocument(
+  beliefsDocument: BeliefsDocument,
+): RoughIdeaSource[] {
+  if (!Array.isArray(beliefsDocument.roughIdeaSources)) {
+    return [];
+  }
+  return beliefsDocument.roughIdeaSources.map((rawSource, index) => {
+    const mapping = ensureJsonObject<RoughIdeaSourceDocument>(
+      rawSource,
+      `roughIdeaSources[${index + 1}] must be a JSON object.`,
+    );
+    const sourceKind =
+      optionalString(mapping.sourceKind, `roughIdeaSources[${index + 1}].sourceKind`) ??
+      "inline";
+    if (sourceKind !== "inline" && sourceKind !== "file") {
+      throw new Error(
+        `roughIdeaSources[${index + 1}].sourceKind must be inline or file.`,
+      );
+    }
+    return {
+      id: requireNonEmptyString(mapping.id, `roughIdeaSources[${index + 1}].id`),
+      label: requireNonEmptyString(
+        mapping.label,
+        `roughIdeaSources[${index + 1}].label`,
+      ),
+      path: optionalString(mapping.path, `roughIdeaSources[${index + 1}].path`),
+      sourceKind,
+    };
+  });
+}
+
+function shouldMaterializeIdeaInputFile(
+  beliefsDocument: BeliefsDocument,
+  canonicalIdeaInputs: string[],
+): boolean {
+  const roughIdeaSources = roughIdeaSourcesFromBeliefsDocument(beliefsDocument);
+  return (
+    roughIdeaSources.some(
+      (source) => source.sourceKind === "file" || source.path !== null,
+    ) ||
+    canonicalIdeaInputs.some((idea) => idea.length > 2000) ||
+    canonicalIdeaInputs.join("\n").length > 8000
+  );
+}
+
+function materializedIdeaInputPayload(
+  beliefsDocument: BeliefsDocument,
+  canonicalIdeaInputs: string[],
+): JsonObject {
+  const roughIdeaSources = roughIdeaSourcesFromBeliefsDocument(beliefsDocument);
+  if (roughIdeaSources.length === canonicalIdeaInputs.length) {
+    return {
+      ideas: roughIdeaSources.map((source, index) => ({
+        id: source.id,
+        idea: canonicalIdeaInputs[index],
+      })),
+    };
+  }
+  return {
+    ideas: [...canonicalIdeaInputs],
   };
 }
 
@@ -1567,8 +1670,10 @@ function canonicalizeIdeasPayload(options: {
   runner: Runner;
   requireUpstream: boolean;
 }): unknown | null {
-  const roughIdeas = stringList(options.beliefsDocument.roughIdeas ?? [], "roughIdeas");
-  if (roughIdeas.length === 0) {
+  const canonicalIdeaInputs = canonicalIdeaInputsFromBeliefsDocument(
+    options.beliefsDocument,
+  );
+  if (canonicalIdeaInputs.length === 0) {
     return null;
   }
   const mode = requireNonEmptyString(options.beliefsDocument.mode, "mode") as IdeasMode;
@@ -1587,22 +1692,43 @@ function canonicalizeIdeasPayload(options: {
     sessionId,
     "--era-id",
     eraId,
-    "--ideas-json",
-    JSON.stringify(roughIdeas),
-    "--canonicalization-mode",
-    canonicalizationModeFor(mode),
   ];
+  const useMaterializedInput = shouldMaterializeIdeaInputFile(
+    options.beliefsDocument,
+    canonicalIdeaInputs,
+  );
+  let temporaryIdeasInput: string | null = null;
+  if (useMaterializedInput) {
+    temporaryIdeasInput = writeTemporaryJsonPayload(options.paths.upstreamSessionDir, {
+      prefix: "pi-autoclanker-canonicalize-ideas-",
+      payload: materializedIdeaInputPayload(
+        options.beliefsDocument,
+        canonicalIdeaInputs,
+      ),
+    });
+    args.push("--input", temporaryIdeasInput);
+  } else {
+    args.push("--ideas-json", JSON.stringify(canonicalIdeaInputs));
+  }
+  args.push("--canonicalization-mode", canonicalizationModeFor(mode));
   if (model !== null) {
     args.push("--canonicalization-model", model);
   }
-  const canonicalization = invokeAutoclanker({
-    config: options.config,
-    workspace: options.workspace,
-    args,
-    runner: options.runner,
-    requireUpstream: options.requireUpstream,
-    extraEnv: billedLiveEnv(billedLive),
-  });
+  let canonicalization: unknown;
+  try {
+    canonicalization = invokeAutoclanker({
+      config: options.config,
+      workspace: options.workspace,
+      args,
+      runner: options.runner,
+      requireUpstream: options.requireUpstream,
+      extraEnv: billedLiveEnv(billedLive),
+    });
+  } finally {
+    if (temporaryIdeasInput !== null) {
+      rmSync(temporaryIdeasInput, { force: true });
+    }
+  }
   if (
     canonicalization &&
     typeof canonicalization === "object" &&
@@ -1648,6 +1774,9 @@ function sessionInitPreview(options: {
   const mode = requireNonEmptyString(options.beliefsDocument.mode, "mode") as IdeasMode;
   const billedLive = mode === "advanced_json";
   const roughIdeas = stringList(options.beliefsDocument.roughIdeas ?? [], "roughIdeas");
+  const canonicalIdeaInputs = canonicalIdeaInputsFromBeliefsDocument(
+    options.beliefsDocument,
+  );
   const { sessionId, eraId } = upstreamSessionIdentity(
     options.workspace,
     options.beliefsDocument,
@@ -1691,14 +1820,40 @@ function sessionInitPreview(options: {
     }
   }
   options.beliefsDocument.upstreamPreviewInputMode =
-    roughIdeas.length > 0 ? "ideas_json" : "empty";
-  if (roughIdeas.length > 0) {
+    canonicalIdeaInputs.length > 0 ? "ideas_json" : "empty";
+  if (canonicalIdeaInputs.length > 0) {
     const model = canonicalizationModel(options.payload, {
       billedLiveRequested: billedLive,
     });
+    if (shouldMaterializeIdeaInputFile(options.beliefsDocument, canonicalIdeaInputs)) {
+      const temporaryIdeasInput = writeTemporaryJsonPayload(
+        options.paths.upstreamSessionDir,
+        {
+          prefix: "pi-autoclanker-session-ideas-",
+          payload: materializedIdeaInputPayload(
+            options.beliefsDocument,
+            canonicalIdeaInputs,
+          ),
+        },
+      );
+      try {
+        args.push("--beliefs-input", temporaryIdeasInput);
+        options.beliefsDocument.upstreamPreviewInputMode = "beliefs_input";
+        return invokeAutoclanker({
+          config: options.config,
+          workspace: options.workspace,
+          args,
+          runner: options.runner,
+          requireUpstream: options.requireUpstream,
+          extraEnv: billedLiveEnv(billedLive),
+        });
+      } finally {
+        rmSync(temporaryIdeasInput, { force: true });
+      }
+    }
     args.push(
       "--ideas-json",
-      JSON.stringify(roughIdeas),
+      JSON.stringify(canonicalIdeaInputs),
       "--canonicalization-mode",
       canonicalizationModeFor(mode),
     );
@@ -3204,6 +3359,39 @@ function summaryNumber(value: unknown): number | null {
   return null;
 }
 
+function collapseIdeaWhitespace(value: string): string {
+  return value.replace(/\s+/gu, " ").trim();
+}
+
+function shortenIdeaLabel(value: string, maxLength = 88): string {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, maxLength - 3).trimEnd()}...`;
+}
+
+function inferredIdeaLabelFromText(value: string, fallbackPath: string): string {
+  const lines = value
+    .split(/\r?\n/gu)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && line !== "```");
+  for (const line of lines) {
+    if (line.startsWith("#")) {
+      const heading = collapseIdeaWhitespace(line.replace(/^#+\s*/u, ""));
+      if (heading.length > 0) {
+        return shortenIdeaLabel(heading);
+      }
+    }
+  }
+  for (const line of lines) {
+    const normalized = collapseIdeaWhitespace(line);
+    if (normalized.length > 0) {
+      return shortenIdeaLabel(normalized);
+    }
+  }
+  return `[plan] ${basename(fallbackPath)}`;
+}
+
 function findLastHistoryEvent(
   history: SummaryHistoryEntry[],
   eventName: string,
@@ -3881,12 +4069,20 @@ function locateIdeasInput(
   return null;
 }
 
-function parseIdeasFileIdea(rawIdea: unknown, index: number): IdeasFileIdea {
+function parseIdeasFileIdea(
+  rawIdea: unknown,
+  index: number,
+  ideasBaseDir = ".",
+): IdeasFileIdea {
   const autoId = `idea_${String(index + 1).padStart(3, "0")}`;
   if (typeof rawIdea === "string") {
+    const text = requireNonEmptyString(rawIdea, `ideas[${index + 1}]`);
     return {
       id: autoId,
-      text: requireNonEmptyString(rawIdea, `ideas[${index + 1}]`),
+      text,
+      displayText: text,
+      sourceKind: "inline",
+      sourcePath: null,
     };
   }
   const mapping = ensureJsonObject<IdeasFileIdeaDocument>(
@@ -3897,10 +4093,41 @@ function parseIdeasFileIdea(rawIdea: unknown, index: number): IdeasFileIdea {
   const text =
     optionalString(mapping.idea, `ideas[${index + 1}].idea`) ??
     optionalString(mapping.text, `ideas[${index + 1}].text`);
-  if (text === null) {
-    throw new Error(`ideas[${index + 1}] must include either an idea or text field.`);
+  const sourcePath = optionalString(mapping.path, `ideas[${index + 1}].path`);
+  if (text !== null && sourcePath !== null) {
+    throw new Error(`ideas[${index + 1}] must use either text/idea or path, not both.`);
   }
-  return { id, text };
+  if (sourcePath !== null) {
+    const resolvedPath = resolve(ideasBaseDir, sourcePath);
+    if (!existsSync(resolvedPath) || !statSync(resolvedPath).isFile()) {
+      throw new Error(
+        `ideas[${index + 1}].path does not resolve to a readable file: ${sourcePath}`,
+      );
+    }
+    const fileText = readFileSync(resolvedPath, "utf-8").trim();
+    if (fileText.length === 0) {
+      throw new Error(`ideas[${index + 1}].path points to an empty file.`);
+    }
+    return {
+      id,
+      text: fileText,
+      displayText:
+        optionalString(mapping.label, `ideas[${index + 1}].label`) ??
+        inferredIdeaLabelFromText(fileText, sourcePath),
+      sourceKind: "file",
+      sourcePath: resolvedPath,
+    };
+  }
+  if (text === null) {
+    throw new Error(`ideas[${index + 1}] must include an idea, text, or path field.`);
+  }
+  return {
+    id,
+    text,
+    displayText: optionalString(mapping.label, `ideas[${index + 1}].label`) ?? text,
+    sourceKind: "inline",
+    sourcePath: null,
+  };
 }
 
 function parseIdeasFilePathway(rawPathway: unknown, index: number): IdeasFilePathway {
@@ -3926,7 +4153,10 @@ function loadIdeasInput(
   }
   const document = loadJsonObject<IdeasFileDocument>(located.path, IDEAS_FILENAME);
   const rawIdeas = Array.isArray(document.ideas) ? document.ideas : [];
-  const ideas = rawIdeas.map((item, index) => parseIdeasFileIdea(item, index));
+  const ideasBaseDir = dirname(located.path);
+  const ideas = rawIdeas.map((item, index) =>
+    parseIdeasFileIdea(item, index, ideasBaseDir),
+  );
   const constraints =
     document.constraints === undefined
       ? []
@@ -3949,6 +4179,8 @@ function resolvedInitInput(
   paths: SessionPaths,
 ): {
   goal: string;
+  canonicalIdeaInputs: string[];
+  roughIdeaSources: RoughIdeaSource[];
   roughIdeas: string[];
   constraints: string[];
   ideasInput: LoadedIdeasInput | null;
@@ -3963,12 +4195,33 @@ function resolvedInitInput(
   const roughIdeas =
     payload.roughIdeas !== undefined
       ? stringList(payload.roughIdeas, "roughIdeas")
+      : (ideasInput?.ideas.map((idea) => idea.displayText) ?? []);
+  const canonicalIdeaInputs =
+    payload.roughIdeas !== undefined
+      ? roughIdeas
       : (ideasInput?.ideas.map((idea) => idea.text) ?? []);
   const constraints =
     payload.constraints !== undefined
       ? stringList(payload.constraints, "constraints")
       : (ideasInput?.constraints ?? []);
-  return { goal, roughIdeas, constraints, ideasInput };
+  const roughIdeaSources =
+    ideasInput?.ideas.map((idea) => ({
+      id: idea.id,
+      label: idea.displayText,
+      path:
+        idea.sourcePath === null
+          ? null
+          : shortWorkspacePath(workspace, idea.sourcePath),
+      sourceKind: idea.sourceKind,
+    })) ?? [];
+  return {
+    goal,
+    canonicalIdeaInputs,
+    roughIdeas,
+    roughIdeaSources,
+    constraints,
+    ideasInput,
+  };
 }
 
 function canonicalIdeaBeliefsByIdeaId(
@@ -4547,11 +4800,14 @@ function toolInitSession(
   runner: Runner,
 ): JsonObject {
   const { config, paths } = runtimeContext(workspace, payload);
-  const { goal, roughIdeas, constraints, ideasInput } = resolvedInitInput(
-    workspace,
-    payload,
-    paths,
-  );
+  const {
+    goal,
+    canonicalIdeaInputs,
+    roughIdeas,
+    roughIdeaSources,
+    constraints,
+    ideasInput,
+  } = resolvedInitInput(workspace, payload, paths);
   const { evalCommand, usedDefaultEvalCommand } = resolveEvalCommand(payload, config);
   const ideasMode = (optionalString(payload.mode, "mode") ??
     config.defaultIdeasMode) as IdeasMode;
@@ -4573,7 +4829,9 @@ function toolInitSession(
     defaultIdeasMode: ideasMode,
   };
   const beliefsDocument = seedBeliefsDocument(workspace, {
+    canonicalIdeaInputs,
     mode: ideasMode,
+    roughIdeaSources,
     roughIdeas,
     constraints,
     billedLive,

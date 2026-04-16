@@ -85,9 +85,12 @@ You only need to understand that the engine is learning over explicit lanes and
 typed structure, not free-form chat memory.
 
 The same rule applies to the local intake file: keep `autoclanker.ideas.json`
-small unless you already know you want explicit seeded lanes. If you later want
-to add risk, confidence, or pairwise-preference hints, the advanced skill is
-the better place to do that than the starter intake file.
+small unless you already know you want explicit seeded lanes. An idea can still
+be bigger than one sentence: if one path already exists as a checked-in
+markdown plan or spec, point the ideas file at that path instead of flattening
+it into prompt prose. If you later want to add risk, confidence, or
+pairwise-preference hints, the advanced skill is the better place to do that
+than the starter intake file.
 
 ## When To Care About Advanced Structure
 

@@ -108,24 +108,26 @@ pairwise preferences, or confidence hints, let
 `/skill:autoclanker-advanced-beliefs` pull those out after the first preview
 instead of expanding the starter file up front.
 
-If you already know you want explicit early lanes, add stable idea ids so
-`pathways` contributes real structure instead of repeating the idea strings:
+An idea does not need to be a single sentence. If one pathway already exists as
+a checked-in markdown or text plan, point at the file directly:
 
 ```json
 {
+  "goal": "Improve parser throughput without losing context quality.",
   "ideas": [
-    { "id": "cache", "text": "Cache repeated matcher work." },
-    { "id": "context", "text": "Try a context-pair parsing plan." }
-  ],
-  "pathways": [
-    { "id": "A", "idea_ids": ["cache"] },
-    { "id": "B", "idea_ids": ["context"] }
+    "Cache repeated matcher work.",
+    { "id": "context_plan", "path": "plans/context-pair-plan.md" }
   ]
 }
 ```
 
-Use `pathways` only when you want to seed explicit lanes before the first
-compare. Otherwise the plain `ideas` list is enough to start.
+`pi-autoclanker` keeps a concise local label for that idea, but passes the full
+plan text through to `autoclanker` for canonicalization.
+
+If you already want explicit early lanes, keep that as a later-stage
+`pathways` shape instead of front-loading it into the first intake example. See
+[`examples/parser-demo-expanded/autoclanker.ideas.json`](examples/parser-demo-expanded/autoclanker.ideas.json)
+for the explicit-lane form.
 
 The simplest mental model is:
 

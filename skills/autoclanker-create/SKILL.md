@@ -23,8 +23,11 @@ wrapper.
 - direct goal and rough ideas in chat or slash-command text is the default
 - if the workspace already has `autoclanker.ideas.json`, use it as the intake
   source instead of re-asking for the same structure
-- keep that ideas file intentionally small; use `pathways` only when the user
-  already wants explicit seeded lanes before the first compare
+- keep that ideas file intentionally small; idea entries may still point at
+  checked-in markdown or text plan files when a single line would hide useful
+  structure
+- use `pathways` only when the user already wants explicit seeded lanes before
+  the first compare
 - if stronger risk, confidence, or pairwise-preference hints matter, prefer the
   later advanced-beliefs step over expanding the starter intake file
 - only ask follow-up questions when the answer would materially improve the

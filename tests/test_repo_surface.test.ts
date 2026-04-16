@@ -59,6 +59,8 @@ coveredTest(
     expect(readme).toContain("autoclanker_frontier_status");
     expect(readme).toContain("autoclanker.frontier.json");
     expect(readme).toContain("autoclanker.ideas.json");
+    expect(readme).toContain("point at the file directly");
+    expect(readme).toContain("markdown or text plan");
     expect(readme).toContain("locked contract");
     expect(readme).toContain("objective backend");
     expect(readme).toContain("acquisition backend");
@@ -89,6 +91,7 @@ coveredTest(
     expect(spec).toContain("Artifact dominance");
     expect(spec).toContain("goal, rough ideas, and optional");
     expect(spec).toContain("autoclanker.ideas.json");
+    expect(spec).toContain("markdown or text plans");
     expect(spec).toContain("optimization lever (gene)");
     expect(spec).toContain("objective backend");
     expect(spec).toContain("acquisition backend");

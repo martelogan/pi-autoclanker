@@ -130,6 +130,13 @@ type JsonRecord = {
   constraints?: unknown;
 };
 
+type IdeasPlanBeliefsRecord = {
+  roughIdeas?: unknown;
+  canonicalIdeaInputs?: unknown;
+  roughIdeaSources?: unknown;
+  upstreamPreviewInputMode?: unknown;
+};
+
 function asRecord(value: unknown): JsonRecord {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Expected a JSON object.");
@@ -1416,6 +1423,101 @@ coveredTest(
       expect((beliefsDocument.constraints as unknown[])[0]).toBe(
         "Keep the explicit file authoritative.",
       );
+    });
+  },
+);
+
+coveredTest(
+  ["M2-002"],
+  "ideas-file intake can include a checked-in markdown plan without forcing explicit pathways",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-ideas-plan-file-"),
+    );
+    mkdirSync(resolve(workspace, "plans"), { recursive: true });
+    writeFileSync(
+      resolve(workspace, "plans/context-pair-plan.md"),
+      `# Context Pair Plan
+
+Preserve neighboring alarm context while reducing repeated parser rescans.
+
+- pair adjacent alarm lines before widening capture windows
+- keep breadcrumb context available for downstream extraction
+`,
+      "utf-8",
+    );
+    writeFileSync(
+      resolve(workspace, "autoclanker.ideas.json"),
+      `${JSON.stringify(
+        {
+          goal: "Improve parser throughput without losing context quality.",
+          ideas: [
+            "Cache repeated matcher work.",
+            { id: "context_plan", path: "plans/context-pair-plan.md" },
+          ],
+          constraints: ["Keep output quality stable."],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    withFakeAutoclanker(workspace, ({ binaryPath, logPath }) => {
+      const startResult = asRecord(
+        dispatchCommand("start", {
+          autoclankerBinary: binaryPath,
+          workspace,
+        }),
+      );
+      expect(startResult.command).toBe("start");
+      expect(startResult.ideasInputSource).toBe("auto");
+
+      const beliefsDocument = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, BELIEFS_FILENAME), "utf-8")),
+      ) as unknown as IdeasPlanBeliefsRecord;
+      expect(beliefsDocument.roughIdeas).toEqual([
+        "Cache repeated matcher work.",
+        "Context Pair Plan",
+      ]);
+      expect(beliefsDocument.canonicalIdeaInputs).toEqual(
+        expect.arrayContaining([
+          "Cache repeated matcher work.",
+          expect.stringContaining("Preserve neighboring alarm context"),
+        ]),
+      );
+      expect(beliefsDocument.roughIdeaSources).toEqual([
+        {
+          id: "idea_001",
+          label: "Cache repeated matcher work.",
+          path: null,
+          sourceKind: "inline",
+        },
+        {
+          id: "context_plan",
+          label: "Context Pair Plan",
+          path: "plans/context-pair-plan.md",
+          sourceKind: "file",
+        },
+      ]);
+      expect(beliefsDocument.upstreamPreviewInputMode).toBe("beliefs_input");
+
+      const commandLog = readCommandLog(logPath);
+      expect(
+        commandLog.find(
+          (entry) =>
+            Array.isArray(entry.argv) &&
+            entry.argv[0] === "beliefs" &&
+            entry.argv[1] === "canonicalize-ideas",
+        )?.argv,
+      ).toEqual(expect.arrayContaining(["--input"]));
+      expect(
+        commandLog.find(
+          (entry) =>
+            Array.isArray(entry.argv) &&
+            entry.argv[0] === "session" &&
+            entry.argv[1] === "init",
+        )?.argv,
+      ).toEqual(expect.arrayContaining(["--beliefs-input"]));
     });
   },
 );

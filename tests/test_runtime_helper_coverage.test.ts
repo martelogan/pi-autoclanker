@@ -442,6 +442,9 @@ test("ideas helpers cover explicit intake loading pathway resolution and seeded 
   expect(__testHooks.parseIdeasFileIdea("Cache repeated matcher work.", 0)).toEqual({
     id: "idea_001",
     text: "Cache repeated matcher work.",
+    displayText: "Cache repeated matcher work.",
+    sourceKind: "inline",
+    sourcePath: null,
   });
   expect(
     __testHooks.parseIdeasFileIdea(
@@ -451,9 +454,32 @@ test("ideas helpers cover explicit intake loading pathway resolution and seeded 
   ).toEqual({
     id: "idea_plan",
     text: "Use context-pair planning.",
+    displayText: "Use context-pair planning.",
+    sourceKind: "inline",
+    sourcePath: null,
   });
-  expect(() => __testHooks.parseIdeasFileIdea({ id: "broken" }, 2)).toThrow(
-    /idea or text field/u,
+  const ideasPlanPath = resolve(workspace, "ideas", "context-pair-plan.md");
+  mkdirSync(resolve(workspace, "ideas"), { recursive: true });
+  writeFileSync(
+    ideasPlanPath,
+    "# Context Pair Plan\n\nKeep breadcrumb context attached while pairing parser output.\n",
+    "utf-8",
+  );
+  expect(
+    __testHooks.parseIdeasFileIdea(
+      { id: "idea_plan_file", path: "ideas/context-pair-plan.md" },
+      2,
+      workspace,
+    ),
+  ).toEqual({
+    id: "idea_plan_file",
+    text: "# Context Pair Plan\n\nKeep breadcrumb context attached while pairing parser output.",
+    displayText: "Context Pair Plan",
+    sourceKind: "file",
+    sourcePath: ideasPlanPath,
+  });
+  expect(() => __testHooks.parseIdeasFileIdea({ id: "broken" }, 3)).toThrow(
+    /idea, text, or path field/u,
   );
   expect(
     __testHooks.parseIdeasFilePathway(
@@ -506,6 +532,7 @@ test("ideas helpers cover explicit intake loading pathway resolution and seeded 
   expect(loadedIdeas?.goal).toBe("Lower parser latency without hurting correctness.");
   expect(loadedIdeas?.constraints).toEqual(["Keep correctness steady."]);
   expect(loadedIdeas?.pathways[0]?.ideaIds).toEqual(["idea_cache"]);
+  expect(loadedIdeas?.ideas[0]?.displayText).toBe("Cache repeated matcher work.");
 
   const ideasInput = loadedIdeas as IdeasInput;
   const beliefsDocument = {

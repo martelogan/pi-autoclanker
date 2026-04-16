@@ -29,6 +29,12 @@ shape, start from `autoclanker.ideas.json` in this folder. It shows the same
 goal, ideas, and constraints that you could otherwise provide directly in
 `/autoclanker start`.
 
+If one idea already exists as a real plan, you can also point the intake file
+at that plan instead of shrinking it to one sentence. See
+`plans/context-pair-plan.md` for the kind of checked-in markdown input that the
+runtime can consume through a `{ "id": "...", "path": "plans/..." }` idea
+entry.
+
 If you want a packaged real target to practice on before adapting your own app,
 use the parser quickstart target that ships in this repo:
 

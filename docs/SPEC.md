@@ -28,7 +28,8 @@ An optional `autoclanker.ideas.json` file may hold that same beginner intake
 shape in a checked-in JSON form:
 
 - `goal`
-- `ideas`
+- `ideas` as plain strings, `{ "id": "...", "text": "..." }`, or
+  `{ "id": "...", "path": "plans/idea.md" }` for larger checked-in markdown or text plans
 - `constraints`
 - optional `pathways`
 
@@ -42,6 +43,8 @@ The beginner path should not require a hand-authored eval command up front.
 `pi-autoclanker` should generate a checked-in default `autoclanker.eval.sh`
 surface so a user can inspect and edit the session setup quickly, then
 replace it later with a real project eval command when ready.
+`pathways` is optional and should stay reserved for cases where the user really
+does want explicit early lane seeding; it is not the default intake shape.
 Once a session is initialized, that checked-in eval surface should be treated as
 fixed for the life of the session: the wrapper should snapshot it, surface the
 snapshot in status, and refuse eval ingest if the local `autoclanker.eval.sh`
