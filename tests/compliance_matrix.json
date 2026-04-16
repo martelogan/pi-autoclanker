@@ -120,6 +120,30 @@
     "status": "active"
   },
   {
+    "requirement_id": "M2-012",
+    "gate": "required",
+    "description": "A local `autoclanker.proposals.json` mirror is created once proposal state exists and is rebuilt from upstream proposal-ledger artifacts when the local mirror is missing.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-013",
+    "gate": "required",
+    "description": "The wrapper summary, status, and export surfaces expose additive Prior / Run / Posterior / Proposal briefs plus dashboard, evidence-view, and resume metadata.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-014",
+    "gate": "required",
+    "description": "The extension provides a compact widget, `Ctrl+X` inline dashboard, `Ctrl+Shift+X` fullscreen overlay, and browser dashboard export from the same shared dashboard model.",
+    "status": "active"
+  },
+  {
+    "requirement_id": "M2-015",
+    "gate": "required",
+    "description": "README, mental-model docs, skills, and the packaged example session describe the four-brief proposal-ledger workflow and the proposal mirror file.",
+    "status": "active"
+  },
+  {
     "requirement_id": "M3-001",
     "gate": "required",
     "description": "The deterministic required gate excludes the opt-in live lanes.",

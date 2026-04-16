@@ -6,6 +6,7 @@
       "candidate_id": "cand_parser_default",
       "family_id": "family_default",
       "origin_kind": "seed",
+      "parent_belief_ids": [],
       "genotype": [
         {
           "gene_id": "parser.matcher",
@@ -25,6 +26,7 @@
       "candidate_id": "cand_parser_compiled_matcher",
       "family_id": "family_matcher",
       "origin_kind": "belief",
+      "parent_belief_ids": ["idea_001"],
       "genotype": [
         {
           "gene_id": "parser.matcher",
@@ -44,6 +46,7 @@
       "candidate_id": "cand_parser_context_pair",
       "family_id": "family_context_pair",
       "origin_kind": "belief",
+      "parent_belief_ids": ["idea_001", "idea_002"],
       "genotype": [
         {
           "gene_id": "parser.matcher",
@@ -63,6 +66,7 @@
       "candidate_id": "cand_parser_wide_window",
       "family_id": "family_memory_risk",
       "origin_kind": "query",
+      "parent_belief_ids": ["idea_003"],
       "genotype": [
         {
           "gene_id": "parser.matcher",

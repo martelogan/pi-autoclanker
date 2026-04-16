@@ -51,6 +51,7 @@ type JsonRecord = {
   evalSurfaceSha256?: unknown;
   exportPath?: unknown;
   files?: unknown;
+  frontierSummary?: unknown;
   goal?: unknown;
   handoff?: unknown;
   ingest?: unknown;
@@ -78,6 +79,8 @@ type JsonRecord = {
   upstreamPreviewDigest?: unknown;
   usedDefaultEvalCommand?: unknown;
   value?: unknown;
+  candidate_count?: unknown;
+  family_count?: unknown;
 };
 
 type EvalContractRecord = {
@@ -1159,6 +1162,33 @@ coveredTest(
         { workspace },
       ),
     ).toThrowError();
+    expect(() =>
+      dispatchTool(
+        "autoclanker_suggest",
+        {
+          candidates: {
+            candidates: [
+              {
+                candidate_id: "cand_bad_origin",
+                origin_kind: "unknown",
+                genotype: [{ gene_id: "gene.alpha", state_id: "state.one" }],
+              },
+            ],
+          },
+        },
+        { workspace },
+      ),
+    ).toThrowError();
+    expect(() =>
+      dispatchTool(
+        "autoclanker_suggest",
+        {
+          candidatesInputPath: "candidates.json",
+          frontierInputPath: "candidates.json",
+        },
+        { workspace },
+      ),
+    ).toThrowError();
 
     const invalidPathPayload = resolve(workspace, "invalid-candidates.json");
     writeFileSync(invalidPathPayload, "[]\n", "utf-8");
@@ -1169,6 +1199,53 @@ coveredTest(
         { workspace },
       ),
     ).toThrowError();
+
+    let runnerStep = 0;
+    const malformedFrontierRunner = (
+      argv: string[],
+      _cwd: string,
+    ): InvocationResult => {
+      const command = argv.slice(0, 2).join(" ");
+      if (command === "session status") {
+        runnerStep += 1;
+        return {
+          returncode: 0,
+          stdout:
+            runnerStep === 1
+              ? JSON.stringify({
+                  session_id: "candidate-input-session",
+                  era_id: "era_001",
+                })
+              : JSON.stringify({
+                  session_id: "candidate-input-session",
+                  era_id: "era_001",
+                  frontier_candidate_count: 2,
+                  frontier_family_count: 1,
+                }),
+          stderr: "",
+        };
+      }
+      if (command === "session frontier-status") {
+        return {
+          returncode: 0,
+          stdout: JSON.stringify({ frontier_summary: [] }),
+          stderr: "",
+        };
+      }
+      if (command === "session suggest") {
+        return { returncode: 0, stdout: "{}", stderr: "" };
+      }
+      return { returncode: 0, stdout: "{}", stderr: "" };
+    };
+    const malformedStatus = asRecord(
+      dispatchTool("autoclanker_session_status", undefined, {
+        workspace,
+        runner: malformedFrontierRunner,
+      }),
+    );
+    const malformedFrontierSummary = asRecord(malformedStatus.frontierSummary);
+    expect(malformedFrontierSummary.candidate_count).toBe(1);
+    expect(malformedFrontierSummary.family_count).toBe(1);
   },
 );
 

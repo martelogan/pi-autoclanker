@@ -1,9 +1,12 @@
-import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { type Server, type ServerResponse, createServer } from "node:http";
+import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import { matchesKey } from "@mariozechner/pi-tui";
 import type { TSchema } from "@sinclair/typebox";
 
 type JsonObject = Record<string, unknown>;
@@ -56,6 +59,7 @@ type AutoclankerPayload = JsonObject & {
   allowBilledLive?: boolean;
   autoclankerBinary?: string;
   autoclankerRepo?: string;
+  bundle?: unknown;
   canonicalizationModel?: string;
   candidateIds?: string[];
   command?: string;
@@ -357,10 +361,281 @@ export const runtimeNotes = {
     "autoclanker.beliefs.json",
     "autoclanker.eval.sh",
     "autoclanker.frontier.json",
+    "autoclanker.proposals.json",
     "autoclanker.history.jsonl",
   ],
   stance: "thin wrapper over the autoclanker CLI",
 };
+
+type DashboardCard = {
+  label?: unknown;
+  tone?: unknown;
+  value?: unknown;
+};
+
+type DashboardBrief = {
+  bullets?: unknown;
+  summary?: unknown;
+};
+
+type DashboardBriefs = {
+  posterior?: unknown;
+  prior?: unknown;
+  proposal?: unknown;
+  run?: unknown;
+};
+
+type DashboardEvidenceView = {
+  label?: unknown;
+  path?: unknown;
+  pathRelativeToWorkspace?: unknown;
+};
+
+type DashboardFrontierRow = {
+  decisionState?: unknown;
+  laneId?: unknown;
+  nextAction?: unknown;
+};
+
+type DashboardLineage = {
+  chain?: unknown;
+};
+
+type DashboardNextAction = {
+  reason?: unknown;
+  summary?: unknown;
+};
+
+type DashboardPayload = {
+  cards?: unknown;
+  evidenceViews?: unknown;
+  briefs?: unknown;
+  frontierDecisionTable?: unknown;
+  lineage?: unknown;
+  nextAction?: unknown;
+  proposalTable?: unknown;
+  reviewModelSource?: unknown;
+  resume?: unknown;
+  session?: unknown;
+  trust?: unknown;
+};
+
+type DashboardProposalRow = {
+  proposalId?: unknown;
+  readinessState?: unknown;
+  sourceLane?: unknown;
+};
+
+type DashboardResume = {
+  lastEvent?: unknown;
+};
+
+type DashboardSession = {
+  eraId?: unknown;
+  sessionId?: unknown;
+};
+
+type DashboardTrust = {
+  driftStatus?: unknown;
+  lockedEvalContractDigest?: unknown;
+};
+
+type StatusPayload = AutoclankerPayload & {
+  dashboard?: unknown;
+  evidenceViews?: unknown;
+  proposalLedger?: unknown;
+  proposalFilePresent?: unknown;
+  resume?: unknown;
+};
+
+type WidgetState = {
+  dashboard: DashboardPayload | null;
+  running: string | null;
+  workspace: string | null;
+};
+
+type BrowserDashboardState = {
+  clients: Set<ServerResponse>;
+  htmlPath: string;
+  port: number;
+  server: Server;
+};
+
+type ExportBundlePayload = {
+  dashboard?: unknown;
+};
+
+function optionalString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function objectValue<T extends JsonObject = JsonObject>(value: unknown): T | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return { ...(value as T) };
+}
+
+function dashboardFromPayload(value: unknown): DashboardPayload | null {
+  return objectValue<DashboardPayload>(value);
+}
+
+function statusFromResult(value: unknown): StatusPayload {
+  return ensureJsonObject<StatusPayload>(value);
+}
+
+function renderCards(cardsValue: unknown): string[] {
+  const cards = Array.isArray(cardsValue) ? cardsValue : [];
+  return cards
+    .slice(0, 5)
+    .map((rawCard) => objectValue<DashboardCard>(rawCard))
+    .filter((card): card is DashboardCard => card !== null)
+    .map((card) => {
+      const label = optionalString(card.label) ?? "card";
+      const value = optionalString(card.value) ?? "n/a";
+      return `${label}: ${value}`;
+    });
+}
+
+function renderBriefSection(title: string, briefValue: unknown): string[] {
+  const brief = objectValue<DashboardBrief>(briefValue);
+  if (brief === null) {
+    return [title, "  n/a"];
+  }
+  const bullets = stringList(brief.bullets).slice(0, 3);
+  return [
+    title,
+    `  ${optionalString(brief.summary) ?? "n/a"}`,
+    ...bullets.map((item) => `  - ${item}`),
+  ];
+}
+
+export function renderCompactWidgetLines(dashboard: DashboardPayload | null): string[] {
+  if (dashboard === null) {
+    return ["autoclanker", "status unavailable"];
+  }
+  const session = objectValue<DashboardSession>(dashboard.session);
+  const trust = objectValue<DashboardTrust>(dashboard.trust);
+  const resume = objectValue<DashboardResume>(dashboard.resume);
+  const nextAction = objectValue<DashboardNextAction>(dashboard.nextAction);
+  const cards = renderCards(dashboard.cards);
+  const lines = [
+    `autoclanker ${optionalString(session?.sessionId) ?? "idle"}`,
+    ...cards.slice(0, 3),
+    `trust: ${optionalString(trust?.driftStatus) ?? "unverified"}`,
+  ];
+  if (optionalString(nextAction?.summary) !== null) {
+    lines.push(`next: ${optionalString(nextAction?.summary)}`);
+  } else if (optionalString(resume?.lastEvent) !== null) {
+    lines.push(`next: ${optionalString(resume?.lastEvent)}`);
+  }
+  return lines;
+}
+
+export function renderExpandedWidgetLines(
+  dashboard: DashboardPayload | null,
+): string[] {
+  if (dashboard === null) {
+    return ["autoclanker", "", "No dashboard data available yet."];
+  }
+  const frontierRows = Array.isArray(dashboard.frontierDecisionTable)
+    ? dashboard.frontierDecisionTable
+    : [];
+  const proposalRows = Array.isArray(dashboard.proposalTable)
+    ? dashboard.proposalTable
+    : [];
+  const briefs = objectValue<DashboardBriefs>(dashboard.briefs) ?? {};
+  const evidenceViews = Array.isArray(dashboard.evidenceViews)
+    ? dashboard.evidenceViews
+    : [];
+  const nextAction = objectValue<DashboardNextAction>(dashboard.nextAction);
+  const lineage = objectValue<DashboardLineage>(dashboard.lineage);
+  const trust = objectValue<DashboardTrust>(dashboard.trust);
+  return [
+    ...renderCompactWidgetLines(dashboard),
+    "",
+    ...renderBriefSection("Prior Brief", briefs.prior),
+    "",
+    ...renderBriefSection("Run Brief", briefs.run),
+    "",
+    ...renderBriefSection("Posterior Brief", briefs.posterior),
+    "",
+    ...renderBriefSection("Proposal Brief", briefs.proposal),
+    "",
+    "Frontier",
+    ...frontierRows.slice(0, 5).map((rawRow) => {
+      const row = objectValue<DashboardFrontierRow>(rawRow) ?? {};
+      return `  ${optionalString(row.laneId) ?? "lane"} | ${optionalString(row.decisionState) ?? "hold"} | ${optionalString(row.nextAction) ?? "review"}`;
+    }),
+    "",
+    "Proposals",
+    ...proposalRows.slice(0, 5).map((rawRow) => {
+      const row = objectValue<DashboardProposalRow>(rawRow) ?? {};
+      return `  ${optionalString(row.proposalId) ?? "proposal"} | ${optionalString(row.readinessState) ?? "not_ready"} | ${optionalString(row.sourceLane) ?? "lane"}`;
+    }),
+    "",
+    "Next Action",
+    `  ${optionalString(nextAction?.summary) ?? "No concrete next action recorded."}`,
+    optionalString(nextAction?.reason) === null
+      ? "  no reason recorded"
+      : `  ${optionalString(nextAction?.reason)}`,
+    "",
+    "Trust",
+    `  drift: ${optionalString(trust?.driftStatus) ?? "unverified"}`,
+    `  contract: ${optionalString(trust?.lockedEvalContractDigest) ?? "not recorded"}`,
+    "",
+    "Lineage",
+    ...stringList(lineage?.chain)
+      .slice(0, 6)
+      .map((item) => `  ${item}`),
+    "",
+    "Evidence",
+    ...evidenceViews.slice(0, 4).map((rawView) => {
+      const view = objectValue<DashboardEvidenceView>(rawView) ?? {};
+      return `  ${optionalString(view.label) ?? "view"} | ${optionalString(view.pathRelativeToWorkspace) ?? optionalString(view.path) ?? "missing"}`;
+    }),
+  ];
+}
+
+const DASHBOARD_TITLE_PLACEHOLDER = "__PI_AUTOCLANKER_TITLE__";
+const DASHBOARD_DATA_PLACEHOLDER = "__PI_AUTOCLANKER_DATA__";
+
+function dashboardTemplatePath(): string {
+  return resolve(moduleDirname(), "./assets/dashboard.html");
+}
+
+export function renderDashboardHtml(dashboard: DashboardPayload | null): string {
+  const template = readFileSync(dashboardTemplatePath(), "utf-8");
+  const title =
+    optionalString(objectValue<DashboardSession>(dashboard?.session)?.sessionId) ??
+    "pi-autoclanker";
+  return template
+    .replaceAll(DASHBOARD_TITLE_PLACEHOLDER, title)
+    .replace(DASHBOARD_DATA_PLACEHOLDER, JSON.stringify(dashboard ?? {}));
+}
+
+function openInBrowser(url: string): void {
+  if (process.platform === "win32") {
+    spawn("cmd", ["/c", "start", "", url], {
+      detached: true,
+      shell: true,
+      stdio: "ignore",
+    }).unref();
+    return;
+  }
+  const opener = process.platform === "darwin" ? "open" : "xdg-open";
+  spawn(opener, [url], {
+    detached: true,
+    stdio: "ignore",
+  }).unref();
+}
 
 function moduleDirname(): string {
   return dirname(fileURLToPath(import.meta.url));
@@ -761,9 +1036,210 @@ function handleAutoclankerSlashInput(
 }
 
 export default function registerPiAutoclanker(pi: ExtensionAPI): void {
+  let currentContext: ExtensionContext | null = null;
+  let expandedWidget = false;
+  let browserDashboard: BrowserDashboardState | null = null;
+  const widgetState: WidgetState = {
+    dashboard: null,
+    running: null,
+    workspace: null,
+  };
+
+  function stopBrowserDashboard(): void {
+    if (browserDashboard === null) {
+      return;
+    }
+    for (const client of browserDashboard.clients) {
+      try {
+        client.end();
+      } catch {}
+    }
+    browserDashboard.clients.clear();
+    try {
+      browserDashboard.server.close();
+    } catch {}
+    browserDashboard = null;
+  }
+
+  function broadcastDashboardUpdate(): void {
+    if (browserDashboard === null) {
+      return;
+    }
+    for (const client of browserDashboard.clients) {
+      try {
+        client.write("event: dashboard-updated\n");
+        client.write(`data: ${Date.now()}\n\n`);
+      } catch {
+        browserDashboard.clients.delete(client);
+      }
+    }
+  }
+
+  function updateWidget(ctx: ExtensionContext): void {
+    const baseLines = expandedWidget
+      ? renderExpandedWidgetLines(widgetState.dashboard)
+      : renderCompactWidgetLines(widgetState.dashboard);
+    const lines =
+      widgetState.running === null
+        ? baseLines
+        : [`running: ${widgetState.running}`, ...baseLines];
+    ctx.ui.setWidget("pi-autoclanker", lines);
+  }
+
+  function refreshDashboardFromWorkspace(workspace: string): StatusPayload | null {
+    try {
+      const status = statusFromResult(
+        handleAutoclankerCommand("status", { workspace }),
+      );
+      widgetState.workspace = workspace;
+      widgetState.dashboard = dashboardFromPayload(status.dashboard);
+      broadcastDashboardUpdate();
+      return status;
+    } catch {
+      return null;
+    }
+  }
+
+  async function syncWidget(ctx: ExtensionContext): Promise<void> {
+    currentContext = ctx;
+    refreshDashboardFromWorkspace(ctx.cwd);
+    updateWidget(ctx);
+  }
+
+  function dashboardResponsePayload(): string {
+    return JSON.stringify(widgetState.dashboard ?? {});
+  }
+
+  async function ensureBrowserDashboard(ctx: ExtensionContext): Promise<void> {
+    if (widgetState.dashboard === null) {
+      await syncWidget(ctx);
+    }
+    if (widgetState.dashboard === null) {
+      ctx.ui.notify("No pi-autoclanker dashboard data is available yet.", "error");
+      return;
+    }
+    if (browserDashboard !== null) {
+      openInBrowser(`http://127.0.0.1:${browserDashboard.port}`);
+      ctx.ui.notify(`Dashboard at http://127.0.0.1:${browserDashboard.port}`, "info");
+      return;
+    }
+    const html = renderDashboardHtml(widgetState.dashboard);
+    const htmlDir = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-dashboard-"));
+    const htmlPath = resolve(htmlDir, "index.html");
+    writeFileSync(htmlPath, html, "utf-8");
+    const clients = new Set<ServerResponse>();
+    const server = createServer((req, res) => {
+      const url = new URL(req.url ?? "/", "http://127.0.0.1");
+      if (url.pathname === "/events") {
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        });
+        res.write("retry: 1000\n\n");
+        clients.add(res);
+        res.on("close", () => clients.delete(res));
+        return;
+      }
+      if (url.pathname === "/dashboard.json") {
+        res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+        res.end(dashboardResponsePayload());
+        return;
+      }
+      if (url.pathname === "/" || url.pathname === "/index.html") {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(readFileSync(htmlPath, "utf-8"));
+        return;
+      }
+      res.writeHead(404);
+      res.end();
+    });
+    await new Promise<void>((resolveListen, reject) => {
+      server.listen(0, "127.0.0.1", () => resolveListen());
+      server.on("error", reject);
+    });
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Failed to bind pi-autoclanker dashboard server.");
+    }
+    browserDashboard = {
+      clients,
+      htmlPath,
+      port: address.port,
+      server,
+    };
+    openInBrowser(`http://127.0.0.1:${address.port}`);
+    ctx.ui.notify(`Dashboard at http://127.0.0.1:${address.port}`, "info");
+  }
+
+  async function openOverlay(ctx: ExtensionContext): Promise<void> {
+    await syncWidget(ctx);
+    await ctx.ui.custom<void>((tui, _theme, _keyboard, done) => {
+      let scroll = 0;
+      return {
+        dispose(): void {},
+        handleInput(data: string): void {
+          const lines = renderExpandedWidgetLines(widgetState.dashboard);
+          const maxScroll = Math.max(0, lines.length - 24);
+          if (matchesKey(data, "escape") || data === "q") {
+            done(undefined);
+            return;
+          }
+          if (matchesKey(data, "down") || data === "j") {
+            scroll = Math.min(maxScroll, scroll + 1);
+          } else if (matchesKey(data, "up") || data === "k") {
+            scroll = Math.max(0, scroll - 1);
+          }
+          tui.requestRender();
+        },
+        invalidate(): void {},
+        overlay: true,
+        overlayOptions: {
+          width: "95%",
+          maxHeight: "90%",
+          anchor: "center" as const,
+        },
+        render(): string[] {
+          const lines = renderExpandedWidgetLines(widgetState.dashboard);
+          const visibleRows = 24;
+          return lines.slice(scroll, scroll + visibleRows);
+        },
+      };
+    });
+  }
+
   pi.on("resources_discover", async () => ({
     skillPaths: [packageSkillPath()],
   }));
+
+  pi.on("session_start", async (_event, ctx) => {
+    await syncWidget(ctx);
+  });
+
+  pi.on("session_tree", async (_event, ctx) => {
+    await syncWidget(ctx);
+  });
+
+  pi.on("session_shutdown", async () => {
+    stopBrowserDashboard();
+    widgetState.dashboard = null;
+    widgetState.running = null;
+  });
+
+  pi.registerShortcut("ctrl+x", {
+    description: "Toggle the pi-autoclanker inline dashboard",
+    handler: async (ctx) => {
+      expandedWidget = !expandedWidget;
+      await syncWidget(ctx);
+    },
+  });
+
+  pi.registerShortcut("ctrl+shift+x", {
+    description: "Open the pi-autoclanker fullscreen dashboard",
+    handler: async (ctx) => {
+      await openOverlay(ctx);
+    },
+  });
 
   for (const tool of TOOL_DEFINITIONS) {
     pi.registerTool({
@@ -776,7 +1252,16 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
         if (typeof payload.workspace !== "string") {
           payload.workspace = defaultWorkspace();
         }
+        widgetState.running = tool.name;
+        if (currentContext) {
+          updateWidget(currentContext);
+        }
         const result = handleAutoclankerToolCall(tool.name, payload);
+        widgetState.running = null;
+        if (currentContext) {
+          refreshDashboardFromWorkspace(payload.workspace);
+          updateWidget(currentContext);
+        }
         return toolResultPayload(result);
       },
     });
@@ -786,9 +1271,13 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
     description:
       "Manage pi-autoclanker sessions with /autoclanker <start|resume|status|off|clear|export>.",
     handler: async (args, ctx) => {
+      widgetState.running = "command";
+      updateWidget(ctx);
       const result = handleAutoclankerSlashInput(`/autoclanker ${args || "status"}`, {
         workspace: defaultWorkspace(),
       });
+      widgetState.running = null;
+      currentContext = ctx;
       const payload = ensureJsonObject<AutoclankerPayload>(result);
       const command =
         typeof payload.command === "string" &&
@@ -798,6 +1287,18 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
               COMMAND_NAMES.includes(payload.name as CommandName)
             ? (payload.name as CommandName)
             : "status";
+      if (command === "export") {
+        const bundle = objectValue<ExportBundlePayload>(payload.bundle);
+        if (bundle) {
+          widgetState.dashboard = dashboardFromPayload(bundle.dashboard);
+        } else {
+          refreshDashboardFromWorkspace(defaultWorkspace());
+        }
+        await ensureBrowserDashboard(ctx);
+      } else {
+        refreshDashboardFromWorkspace(defaultWorkspace());
+      }
+      updateWidget(ctx);
       const level = payload.ok === false ? "error" : "info";
       await Promise.resolve(
         ctx.ui.notify(summarizeCommandResult(command, payload), level),

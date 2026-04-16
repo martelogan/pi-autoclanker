@@ -26,6 +26,7 @@ type BeliefsExample = {
 };
 
 type HistoryEntry = {
+  event?: string;
   evalSurfaceSha256: string;
   usedDefaultEvalCommand: boolean;
 };
@@ -45,6 +46,20 @@ type EvalResult = {
 type AppRenderResult = {
   app_kind: string;
   candidate_id: string;
+};
+
+type ExampleProposalMirror = {
+  active?: { era_id?: string; session_id?: string };
+  sessions?: {
+    parser_demo?: {
+      eras?: {
+        era_parser_demo_v1?: {
+          current_proposal_id?: string;
+          entries?: Array<Record<string, unknown>>;
+        };
+      };
+    };
+  };
 };
 
 function collapseWhitespace(text: string): string {
@@ -108,6 +123,7 @@ coveredTest(
       "autoclanker.beliefs.json",
       "autoclanker.eval.sh",
       "autoclanker.frontier.json",
+      "autoclanker.proposals.json",
       "autoclanker.history.jsonl",
       "candidates.json",
       "rough-ideas.json",
@@ -132,6 +148,9 @@ coveredTest(
       .trim()
       .split("\n");
     const history = historyLines.map((line) => JSON.parse(line) as HistoryEntry);
+    const proposals = JSON.parse(
+      readFileSync(resolve(exampleDir, "autoclanker.proposals.json"), "utf-8"),
+    ) as ExampleProposalMirror;
 
     expect(minimalReadme).toContain("smallest useful kickoff shape");
     expect(minimalReadme).toContain("/autoclanker start <goal>");
@@ -161,9 +180,12 @@ coveredTest(
     expect(readme).toContain("default");
     expect(readme).toContain("autoclanker.eval.sh");
     expect(readme).toContain("autoclanker.frontier.json");
+    expect(readme).toContain("autoclanker.proposals.json");
     expect(readme).toContain(
       "store rough ideas directly or in `autoclanker.ideas.json`",
     );
+    expect(readme).toContain("Prior Brief");
+    expect(readme).toContain("Proposal Brief");
     expect(readme).toContain("explicit frontier");
     expect(String(config.evalCommand)).toContain("benchmark.py");
     expect(String(config.evalCommand)).toContain("PI_AUTOCLANKER_TARGET_CANDIDATE_ID");
@@ -176,10 +198,28 @@ coveredTest(
     expect(summary).toContain("upstream preview digest");
     expect(summary).toContain("eval surface sha256");
     expect(summary).toContain("eval surface lock valid");
+    expect(summary).toContain("## Prior Brief");
+    expect(summary).toContain("## Proposal Brief");
+    expect(summary).toContain("## Lineage");
+    expect(summary).toContain("## Trust");
+    expect(summary).toContain("autoclanker.proposals.json");
     expect(summary).toContain("local frontier file");
     expect(summary).toContain("source: `user-provided`");
+    expect(proposals.active?.session_id).toBe("parser_demo");
+    expect(proposals.active?.era_id).toBe("era_parser_demo_v1");
+    expect(
+      proposals.sessions?.parser_demo?.eras?.era_parser_demo_v1?.current_proposal_id,
+    ).toBe("proposal_cand_parser_context_pair");
+    expect(
+      (proposals.sessions?.parser_demo?.eras?.era_parser_demo_v1?.entries ?? []).length,
+    ).toBeGreaterThan(0);
     expect(history[0]?.usedDefaultEvalCommand).toBe(false);
     expect(history[0]?.evalSurfaceSha256).toBe(beliefs.evalSurfaceSha256);
+    expect(history.some((entry) => entry.event === "review_bundle_refreshed")).toBe(
+      true,
+    );
+    expect(history.some((entry) => entry.event === "lane_status_updated")).toBe(true);
+    expect(history.some((entry) => entry.event === "trust_state_updated")).toBe(true);
   },
 );
 
@@ -324,6 +364,58 @@ coveredTest(
     expect(advancedSkill).toContain("Only continue into another round");
     expect(advancedSkill).toContain("strongest vs second-best");
     expect(advancedSkill).toContain("Never ask for Bayes parameter values");
+  },
+);
+
+coveredTest(
+  ["M2-015"],
+  "docs, skills, and example session describe the four-brief proposal-ledger workflow",
+  () => {
+    const root = repoRoot();
+    const readme = readFileSync(resolve(root, "README.md"), "utf-8");
+    const mentalModel = readFileSync(resolve(root, "docs/MENTAL_MODEL.md"), "utf-8");
+    const design = readFileSync(resolve(root, "docs/DESIGN.md"), "utf-8");
+    const createSkill = readFileSync(
+      resolve(root, "skills/autoclanker-create/SKILL.md"),
+      "utf-8",
+    );
+    const advancedSkill = readFileSync(
+      resolve(root, "skills/autoclanker-advanced-beliefs/SKILL.md"),
+      "utf-8",
+    );
+    const reviewSkill = readFileSync(
+      resolve(root, "skills/autoclanker-review/SKILL.md"),
+      "utf-8",
+    );
+    const exampleReadme = readFileSync(
+      resolve(root, "examples/parser-demo-expanded/README.md"),
+      "utf-8",
+    );
+    const exampleSummary = readFileSync(
+      resolve(root, "examples/parser-demo-expanded/autoclanker.md"),
+      "utf-8",
+    );
+
+    expect(readme).toContain("## Live surfaces");
+    expect(readme).toContain("Ctrl+X");
+    expect(readme).toContain("Ctrl+Shift+X");
+    expect(readme).toContain("browser dashboard");
+    expect(readme).toContain("autoclanker.proposals.json");
+    expect(readme).toContain("Prior Brief");
+    expect(readme).toContain("Proposal Brief");
+    expect(mentalModel).toContain("What You Will Actually See");
+    expect(mentalModel).toContain("autoclanker.proposals.json");
+    expect(design).toContain("shared dashboard model");
+    expect(design).toContain("autoclanker.proposals.json");
+    expect(createSkill).toContain("Prior Brief");
+    expect(advancedSkill).toContain("Proposal Brief");
+    expect(reviewSkill).toContain("Prior Brief");
+    expect(reviewSkill).toContain("Proposal Brief");
+    expect(exampleReadme).toContain("autoclanker.proposals.json");
+    expect(exampleSummary).toContain("## Prior Brief");
+    expect(exampleSummary).toContain("## Run Brief");
+    expect(exampleSummary).toContain("## Posterior Brief");
+    expect(exampleSummary).toContain("## Proposal Brief");
   },
 );
 

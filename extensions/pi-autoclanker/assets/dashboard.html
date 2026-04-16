@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>__PI_AUTOCLANKER_TITLE__</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f3eb;
+        --panel: #fffdf8;
+        --ink: #17313d;
+        --muted: #667784;
+        --line: #d7d1c2;
+        --accent: #0e6d85;
+        --success: #2f7d4f;
+        --warning: #9a6b1f;
+        --danger: #b4452b;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        background: linear-gradient(180deg, #f6f3eb 0%, #efe8d8 100%);
+        color: var(--ink);
+      }
+      main {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 32px 24px 48px;
+      }
+      h1, h2 {
+        margin: 0 0 12px;
+      }
+      .cards,
+      .panels,
+      .tables {
+        display: grid;
+        gap: 16px;
+      }
+      .cards {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      }
+      .panels {
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        margin-top: 20px;
+      }
+      .tables {
+        grid-template-columns: 1fr;
+        margin-top: 20px;
+      }
+      .card,
+      .panel,
+      table {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        box-shadow: 0 12px 28px rgba(23, 49, 61, 0.08);
+      }
+      .card,
+      .panel {
+        padding: 16px 18px;
+      }
+      .card .label {
+        color: var(--muted);
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .card .value {
+        margin-top: 8px;
+        font-size: 24px;
+        font-weight: 700;
+      }
+      .tone-success .value { color: var(--success); }
+      .tone-warning .value { color: var(--warning); }
+      .tone-danger .value { color: var(--danger); }
+      .tone-primary .value { color: var(--accent); }
+      .brief-summary {
+        font-weight: 600;
+      }
+      ul {
+        margin: 10px 0 0;
+        padding-left: 18px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        overflow: hidden;
+      }
+      th, td {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+        font-size: 14px;
+      }
+      th {
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      .meta {
+        margin-bottom: 16px;
+        color: var(--muted);
+      }
+      .evidence {
+        margin-top: 20px;
+      }
+      .evidence li {
+        margin-bottom: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="meta" id="meta"></div>
+      <section class="cards" id="cards"></section>
+      <section class="panels" id="briefs"></section>
+      <section class="panels" id="meta-panels"></section>
+      <section class="tables">
+        <div class="panel">
+          <h2>Frontier Decisions</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Lane</th>
+                <th>Decision</th>
+                <th>Next Action</th>
+                <th>Evidence</th>
+              </tr>
+            </thead>
+            <tbody id="frontier-rows"></tbody>
+          </table>
+        </div>
+        <div class="panel">
+          <h2>Proposals</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Proposal</th>
+                <th>Readiness</th>
+                <th>Lane</th>
+                <th>Risk</th>
+              </tr>
+            </thead>
+            <tbody id="proposal-rows"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="panel evidence">
+        <h2>Evidence Views</h2>
+        <ul id="evidence-list"></ul>
+      </section>
+    </main>
+    <script>
+      const initialDashboard = __PI_AUTOCLANKER_DATA__;
+
+      function byId(id) {
+        return document.getElementById(id);
+      }
+
+      function renderDashboard(dashboard) {
+        const session = dashboard.session || {};
+        byId("meta").textContent =
+          "session: " + (session.sessionId || "n/a") + " • era: " + (session.eraId || "n/a");
+
+        const cards = Array.isArray(dashboard.cards) ? dashboard.cards : [];
+        byId("cards").innerHTML = cards
+          .map(
+            (card) =>
+              `<div class="card tone-${card.tone || "muted"}"><div class="label">${card.label || "card"}</div><div class="value">${card.value || "n/a"}</div></div>`,
+          )
+          .join("");
+
+        const briefs = dashboard.briefs || {};
+        const briefOrder = [
+          ["Prior Brief", briefs.prior],
+          ["Run Brief", briefs.run],
+          ["Posterior Brief", briefs.posterior],
+          ["Proposal Brief", briefs.proposal],
+        ];
+        byId("briefs").innerHTML = briefOrder
+          .map(([title, brief]) => {
+            const bullets = Array.isArray(brief?.bullets) ? brief.bullets : [];
+            return `<div class="panel"><h2>${title}</h2><div class="brief-summary">${brief?.summary || "n/a"}</div><ul>${bullets
+              .map((item) => `<li>${item}</li>`)
+              .join("")}</ul></div>`;
+          })
+          .join("");
+
+        const frontierRows = Array.isArray(dashboard.frontierDecisionTable)
+          ? dashboard.frontierDecisionTable
+          : [];
+        byId("frontier-rows").innerHTML = frontierRows
+          .map(
+            (row) =>
+              `<tr><td>${row.laneId || "lane"}</td><td>${row.decisionState || "hold"}</td><td>${row.nextAction || "review"}</td><td>${row.evidenceSummary || ""}</td></tr>`,
+          )
+          .join("");
+
+        const proposalRows = Array.isArray(dashboard.proposalTable)
+          ? dashboard.proposalTable
+          : [];
+        byId("proposal-rows").innerHTML = proposalRows
+          .map(
+            (row) =>
+              `<tr><td>${row.proposalId || "proposal"}</td><td>${row.readinessState || "not_ready"}</td><td>${row.sourceLane || "lane"}</td><td>${row.unresolvedRisk || "none"}</td></tr>`,
+          )
+          .join("");
+
+        const evidenceViews = Array.isArray(dashboard.evidenceViews)
+          ? dashboard.evidenceViews
+          : [];
+        byId("evidence-list").innerHTML = evidenceViews
+          .map(
+            (view) =>
+              `<li><strong>${view.label || "view"}</strong>: ${view.pathRelativeToWorkspace || view.path || "missing"}${view.exists ? "" : " (missing)"}</li>`,
+          )
+          .join("");
+
+        const lineage = dashboard.lineage || {};
+        const trust = dashboard.trust || {};
+        const nextAction = dashboard.nextAction || {};
+        const chain = Array.isArray(lineage.chain) ? lineage.chain : [];
+        const trustLines = [
+          "drift: " + (trust.driftStatus || "unverified"),
+          "contract: " + (trust.lockedEvalContractDigest || "not recorded"),
+        ];
+        const metaPanels = [
+          {
+            title: "Next Action",
+            summary: nextAction.summary || "No concrete next action recorded.",
+            bullets: nextAction.reason ? [nextAction.reason] : ["No reason recorded."],
+          },
+          {
+            title: "Lineage",
+            summary:
+              chain.length > 0
+                ? "Ideas become lanes, evidence, and proposals through an explicit chain."
+                : "No lineage chain recorded yet.",
+            bullets: chain.length > 0 ? chain : ["No lineage chain recorded yet."],
+          },
+          {
+            title: "Trust",
+            summary: "Trust state reflects the locked eval contract and drift checks.",
+            bullets: trustLines,
+          },
+          {
+            title: "How To Read This",
+            summary:
+              "Belief graphs are evidence views; the frontier table is the actual set of lanes under comparison.",
+            bullets: [
+              "Use the frontier table to see what is promoted, queried, merged, or dropped.",
+              "Use evidence views to understand why the ranking changed.",
+            ],
+          },
+        ];
+        byId("meta-panels").innerHTML = metaPanels
+          .map(
+            (panel) =>
+              `<div class="panel"><h2>${panel.title}</h2><div class="brief-summary">${panel.summary}</div><ul>${panel.bullets
+                .map((item) => `<li>${item}</li>`)
+                .join("")}</ul></div>`,
+          )
+          .join("");
+      }
+
+      async function refreshDashboard() {
+        const response = await fetch("/dashboard.json", { cache: "no-store" });
+        const dashboard = await response.json();
+        renderDashboard(dashboard);
+      }
+
+      renderDashboard(initialDashboard);
+
+      const events = new EventSource("/events");
+      events.addEventListener("dashboard-updated", () => {
+        void refreshDashboard();
+      });
+    </script>
+  </body>
+</html>

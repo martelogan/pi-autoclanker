@@ -19,6 +19,10 @@
   "currentEvalContractDigest": null,
   "evalContractMatchesCurrent": false,
   "evalContractDriftStatus": "unverified",
+  "lastEvalMeasurementMode": null,
+  "lastEvalStabilizationMode": null,
+  "lastEvalUsedLease": null,
+  "lastEvalNoisySystem": null,
   "previewDigest": null,
   "comparedLaneCount": 0,
   "frontierFamilyCount": 0,
@@ -28,10 +32,6 @@
   "acquisitionBackend": null,
   "followUpQueryType": null,
   "followUpComparison": null,
-  "lastEvalMeasurementMode": null,
-  "lastEvalStabilizationMode": null,
-  "lastEvalUsedLease": null,
-  "lastEvalNoisySystem": null,
   "frontierFilePresent": false,
   "ideasFilePresent": false,
   "frontierSummary": {
@@ -44,18 +44,383 @@
     "pending_merge_suggestions": [],
     "budget_allocations": {}
   },
+  "briefs": {
+    "prior": {
+      "title": "Prior Brief",
+      "summary": "Goal not set yet. 0 rough idea(s) became 0 canonical belief(s). No explicit frontier file is seeded yet.",
+      "bullets": [
+        "Rough ideas remain open-ended.",
+        "No explicit hard constraints were recorded.",
+        "Frontier stays implicit until you seed or compare explicit pathways."
+      ]
+    },
+    "run": {
+      "title": "Run Brief",
+      "summary": "No leader lane exists yet. No runner-up lane exists yet. No concrete comparison is pending.",
+      "bullets": [
+        "Trust: unverified; eval surface lock drifted.",
+        "Pending queries: 0; pending merges: 0.",
+        "No concrete follow-up query is active.",
+        "Backend details are not recorded yet."
+      ]
+    },
+    "posterior": {
+      "title": "Posterior Brief",
+      "summary": "Posterior change is not recorded yet.",
+      "bullets": [
+        "No strengthened belief summary recorded yet.",
+        "No weakened belief summary recorded yet.",
+        "No promoted lanes were recorded.",
+        "No dropped family reasons were recorded."
+      ]
+    },
+    "proposal": {
+      "title": "Proposal Brief",
+      "summary": "No durable proposal has been recorded yet.",
+      "bullets": [
+        "Run suggest or recommend-commit to materialize a durable proposal ledger.",
+        "No unresolved proposal risks are recorded.",
+        "No alternate proposals are recorded.",
+        "No resume token is recorded yet."
+      ]
+    }
+  },
+  "proposalLedger": null,
+  "reviewBundle": {
+    "session": {
+      "sessionId": "status_workspace",
+      "eraId": "era_status_workspace_v1"
+    },
+    "prior_brief": {
+      "summary": "Goal not set yet. 0 rough idea(s) became 0 canonical belief(s). No explicit frontier file is seeded yet.",
+      "bullets": [
+        "Rough ideas remain open-ended.",
+        "No explicit hard constraints were recorded.",
+        "Frontier stays implicit until you seed or compare explicit pathways."
+      ]
+    },
+    "run_brief": {
+      "summary": "No leader lane exists yet. No runner-up lane exists yet. No concrete comparison is pending.",
+      "bullets": [
+        "Trust: unverified; eval surface lock drifted.",
+        "Pending queries: 0; pending merges: 0.",
+        "No concrete follow-up query is active.",
+        "Backend details are not recorded yet."
+      ]
+    },
+    "posterior_brief": {
+      "summary": "Posterior change is not recorded yet.",
+      "bullets": [
+        "No strengthened belief summary recorded yet.",
+        "No weakened belief summary recorded yet.",
+        "No promoted lanes were recorded.",
+        "No dropped family reasons were recorded."
+      ]
+    },
+    "proposal_brief": {
+      "summary": "No durable proposal has been recorded yet.",
+      "bullets": [
+        "Run suggest or recommend-commit to materialize a durable proposal ledger.",
+        "No unresolved proposal risks are recorded.",
+        "No alternate proposals are recorded.",
+        "No resume token is recorded yet."
+      ]
+    },
+    "lanes": [],
+    "proposals": [],
+    "lineage": {
+      "chain": [
+        "initial ideas",
+        "canonical beliefs",
+        "explicit lanes",
+        "eval evidence",
+        "lane decision",
+        "proposal recommendation"
+      ],
+      "beliefIds": []
+    },
+    "trust": {
+      "driftStatus": "unverified",
+      "evalSurfaceMatchesLock": false,
+      "lockedEvalSurfaceSha256": null,
+      "currentEvalSurfaceSha256": null,
+      "lockedEvalContractDigest": null,
+      "currentEvalContractDigest": null,
+      "evalContractMatchesCurrent": false,
+      "lastEvalMeasurementMode": null,
+      "lastEvalStabilizationMode": null,
+      "lastEvalUsedLease": null,
+      "lastEvalNoisySystem": null
+    },
+    "evidence": {
+      "views": [
+        {
+          "id": "results_markdown",
+          "label": "Run Summary",
+          "description": "Human-readable upstream summary of the active session.",
+          "path": "<workspace>/.autoclanker/status_workspace/RESULTS.md",
+          "exists": false
+        },
+        {
+          "id": "belief_graph_prior",
+          "label": "Prior Graph",
+          "description": "What the session believed before new eval evidence.",
+          "path": "<workspace>/.autoclanker/status_workspace/belief_graph_prior.png",
+          "exists": false
+        },
+        {
+          "id": "belief_graph_posterior",
+          "label": "Posterior Graph",
+          "description": "What the session still believes after eval evidence.",
+          "path": "<workspace>/.autoclanker/status_workspace/belief_graph_posterior.png",
+          "exists": false
+        },
+        {
+          "id": "candidate_rankings",
+          "label": "Candidate Rankings",
+          "description": "Current lane ordering and acquisition scores.",
+          "path": "<workspace>/.autoclanker/status_workspace/candidate_rankings.png",
+          "exists": false
+        },
+        {
+          "id": "convergence",
+          "label": "Convergence",
+          "description": "Whether recent evals are still changing the picture.",
+          "path": "<workspace>/.autoclanker/status_workspace/convergence.png",
+          "exists": false
+        }
+      ],
+      "notes": [
+        "The belief graphs are evidence views over typed relations and settings; they are not the frontier itself.",
+        "The lane table is the frontier under comparison. Use it to understand what is being promoted, queried, merged, or dropped."
+      ]
+    },
+    "next_action": {
+      "summary": "No concrete next action is queued.",
+      "reason": "No follow-up query is active.",
+      "pendingQueryCount": 0,
+      "pendingMergeCount": 0
+    }
+  },
+  "dashboard": {
+    "session": {
+      "workspace": "<workspace>",
+      "sessionId": "status_workspace",
+      "eraId": "era_status_workspace_v1"
+    },
+    "cards": [
+      {
+        "label": "Leader lane",
+        "value": "none",
+        "tone": "muted"
+      },
+      {
+        "label": "Families",
+        "value": "0",
+        "tone": "muted"
+      },
+      {
+        "label": "Pending queries",
+        "value": "0",
+        "tone": "success"
+      },
+      {
+        "label": "Top proposal",
+        "value": "none",
+        "tone": "warning"
+      },
+      {
+        "label": "Trust",
+        "value": "unverified",
+        "tone": "warning"
+      }
+    ],
+    "frontierDecisionTable": [],
+    "lineage": {
+      "chain": [
+        "initial ideas",
+        "canonical beliefs",
+        "explicit lanes",
+        "eval evidence",
+        "lane decision",
+        "proposal recommendation"
+      ],
+      "beliefIds": []
+    },
+    "nextAction": {
+      "summary": "No concrete next action is queued.",
+      "reason": "No follow-up query is active.",
+      "pendingQueryCount": 0,
+      "pendingMergeCount": 0
+    },
+    "proposalTable": [],
+    "reviewModelSource": "local-derived",
+    "briefs": {
+      "prior": {
+        "summary": "Goal not set yet. 0 rough idea(s) became 0 canonical belief(s). No explicit frontier file is seeded yet.",
+        "bullets": [
+          "Rough ideas remain open-ended.",
+          "No explicit hard constraints were recorded.",
+          "Frontier stays implicit until you seed or compare explicit pathways."
+        ]
+      },
+      "run": {
+        "summary": "No leader lane exists yet. No runner-up lane exists yet. No concrete comparison is pending.",
+        "bullets": [
+          "Trust: unverified; eval surface lock drifted.",
+          "Pending queries: 0; pending merges: 0.",
+          "No concrete follow-up query is active.",
+          "Backend details are not recorded yet."
+        ]
+      },
+      "posterior": {
+        "summary": "Posterior change is not recorded yet.",
+        "bullets": [
+          "No strengthened belief summary recorded yet.",
+          "No weakened belief summary recorded yet.",
+          "No promoted lanes were recorded.",
+          "No dropped family reasons were recorded."
+        ]
+      },
+      "proposal": {
+        "summary": "No durable proposal has been recorded yet.",
+        "bullets": [
+          "Run suggest or recommend-commit to materialize a durable proposal ledger.",
+          "No unresolved proposal risks are recorded.",
+          "No alternate proposals are recorded.",
+          "No resume token is recorded yet."
+        ]
+      }
+    },
+    "evidenceViews": [
+      {
+        "id": "results_markdown",
+        "label": "Run Summary",
+        "description": "Human-readable upstream summary of the active session.",
+        "path": "<workspace>/.autoclanker/status_workspace/RESULTS.md",
+        "exists": false,
+        "pathRelativeToWorkspace": ".autoclanker/status_workspace/RESULTS.md"
+      },
+      {
+        "id": "belief_graph_prior",
+        "label": "Prior Graph",
+        "description": "What the session believed before new eval evidence.",
+        "path": "<workspace>/.autoclanker/status_workspace/belief_graph_prior.png",
+        "exists": false,
+        "pathRelativeToWorkspace": ".autoclanker/status_workspace/belief_graph_prior.png"
+      },
+      {
+        "id": "belief_graph_posterior",
+        "label": "Posterior Graph",
+        "description": "What the session still believes after eval evidence.",
+        "path": "<workspace>/.autoclanker/status_workspace/belief_graph_posterior.png",
+        "exists": false,
+        "pathRelativeToWorkspace": ".autoclanker/status_workspace/belief_graph_posterior.png"
+      },
+      {
+        "id": "candidate_rankings",
+        "label": "Candidate Rankings",
+        "description": "Current lane ordering and acquisition scores.",
+        "path": "<workspace>/.autoclanker/status_workspace/candidate_rankings.png",
+        "exists": false,
+        "pathRelativeToWorkspace": ".autoclanker/status_workspace/candidate_rankings.png"
+      },
+      {
+        "id": "convergence",
+        "label": "Convergence",
+        "description": "Whether recent evals are still changing the picture.",
+        "path": "<workspace>/.autoclanker/status_workspace/convergence.png",
+        "exists": false,
+        "pathRelativeToWorkspace": ".autoclanker/status_workspace/convergence.png"
+      }
+    ],
+    "trust": {
+      "driftStatus": "unverified",
+      "evalSurfaceMatchesLock": false,
+      "lockedEvalSurfaceSha256": null,
+      "currentEvalSurfaceSha256": null,
+      "lockedEvalContractDigest": null,
+      "currentEvalContractDigest": null,
+      "evalContractMatchesCurrent": false,
+      "lastEvalMeasurementMode": null,
+      "lastEvalStabilizationMode": null,
+      "lastEvalUsedLease": null,
+      "lastEvalNoisySystem": null
+    },
+    "resume": {
+      "sessionId": "status_workspace",
+      "eraId": "era_status_workspace_v1",
+      "currentProposalId": null,
+      "lastEvent": null,
+      "lastUpdatedAt": null
+    }
+  },
+  "evidenceViews": [
+    {
+      "id": "results_markdown",
+      "label": "Run Summary",
+      "description": "Human-readable upstream summary of the active session.",
+      "path": "<workspace>/.autoclanker/status_workspace/RESULTS.md",
+      "exists": false
+    },
+    {
+      "id": "belief_graph_prior",
+      "label": "Prior Graph",
+      "description": "What the session believed before new eval evidence.",
+      "path": "<workspace>/.autoclanker/status_workspace/belief_graph_prior.png",
+      "exists": false
+    },
+    {
+      "id": "belief_graph_posterior",
+      "label": "Posterior Graph",
+      "description": "What the session still believes after eval evidence.",
+      "path": "<workspace>/.autoclanker/status_workspace/belief_graph_posterior.png",
+      "exists": false
+    },
+    {
+      "id": "candidate_rankings",
+      "label": "Candidate Rankings",
+      "description": "Current lane ordering and acquisition scores.",
+      "path": "<workspace>/.autoclanker/status_workspace/candidate_rankings.png",
+      "exists": false
+    },
+    {
+      "id": "convergence",
+      "label": "Convergence",
+      "description": "Whether recent evals are still changing the picture.",
+      "path": "<workspace>/.autoclanker/status_workspace/convergence.png",
+      "exists": false
+    }
+  ],
+  "resume": {
+    "sessionId": "status_workspace",
+    "eraId": "era_status_workspace_v1",
+    "lastEvent": null,
+    "lastUpdatedAt": null,
+    "currentProposalId": null,
+    "resumeToken": null,
+    "files": {
+      "summary": "autoclanker.md",
+      "beliefs": "autoclanker.beliefs.json",
+      "frontier": "autoclanker.frontier.json",
+      "proposals": "autoclanker.proposals.json"
+    }
+  },
+  "proposalFilePresent": false,
   "trust": {
-    "evalSurfaceSha256": null,
-    "lockedEvalSurfaceSha256": null,
+    "driftStatus": "unverified",
     "evalSurfaceMatchesLock": false,
+    "lockedEvalSurfaceSha256": null,
+    "currentEvalSurfaceSha256": null,
     "lockedEvalContractDigest": null,
     "currentEvalContractDigest": null,
     "evalContractMatchesCurrent": false,
-    "evalContractDriftStatus": "unverified",
     "lastEvalMeasurementMode": null,
     "lastEvalStabilizationMode": null,
     "lastEvalUsedLease": null,
-    "lastEvalNoisySystem": null
+    "lastEvalNoisySystem": null,
+    "evalSurfaceSha256": null,
+    "evalContractDriftStatus": "unverified"
   },
   "frontier": {
     "filePresent": false,
@@ -82,6 +447,7 @@
     "autoclanker.beliefs.json": false,
     "autoclanker.eval.sh": false,
     "autoclanker.frontier.json": false,
+    "autoclanker.proposals.json": false,
     "autoclanker.history.jsonl": false
   },
   "historyCount": 0,

@@ -25,6 +25,10 @@ const behavioralEvidenceIds = new Set([
   "M2-009",
   "M2-010",
   "M2-011",
+  "M2-012",
+  "M2-013",
+  "M2-014",
+  "M2-015",
   "M3-001",
   "M3-002",
   "M3-003",
@@ -79,6 +83,30 @@ const focusedContractChecks = new Map<string, string[]>([
     [
       "test_runtime_behavior.test.ts::frontier compare and merge pathways stay local-reviewable and upstream-driven",
       "test_runtime_bridge.test.ts::command surface supports start resume status off clear and export",
+    ],
+  ],
+  [
+    "M2-012",
+    [
+      "test_runtime_behavior.test.ts::runtime session flow persists resumable files and shells out to autoclanker",
+    ],
+  ],
+  [
+    "M2-013",
+    [
+      "test_runtime_behavior.test.ts::runtime session flow persists resumable files and shells out to autoclanker",
+    ],
+  ],
+  [
+    "M2-014",
+    [
+      "test_extension_scaffold.test.ts::widget and browser dashboard surfaces render from the shared dashboard model",
+    ],
+  ],
+  [
+    "M2-015",
+    [
+      "test_contract_behaviors.test.ts::docs, skills, and example session describe the four-brief proposal-ledger workflow",
     ],
   ],
 ]);

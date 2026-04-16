@@ -34,6 +34,9 @@ shape in a checked-in JSON form:
 
 That file is only an intake convenience surface. The generated working surfaces
 remain `autoclanker.beliefs.json` and, when needed, `autoclanker.frontier.json`.
+Once proposal state exists, the wrapper should also maintain a project-local
+`autoclanker.proposals.json` mirror for the active session and era so long
+autonomous runs remain resumable after the interactive view disappears.
 
 The beginner path should not require a hand-authored eval command up front.
 `pi-autoclanker` should generate a checked-in default `autoclanker.eval.sh`
@@ -59,6 +62,28 @@ plainly:
   localized enough to ask a bounded lane-vs-lane question,
 - with the wrapper preferring additive upstream status/query artifacts over
   wrapper-local inference whenever those fields are available.
+
+The wrapper should also expose one shared derived state model that powers:
+
+- `autoclanker.md`
+- machine-readable `status` and `export`
+- the compact widget
+- the `Ctrl+X` inline dashboard
+- the `Ctrl+Shift+X` fullscreen overlay
+- the browser dashboard opened from `/autoclanker export`
+
+That shared model should preserve four readable briefs:
+
+- `Prior Brief`
+- `Run Brief`
+- `Posterior Brief`
+- `Proposal Brief`
+
+When upstream `autoclanker` exposes `session review-bundle`, the wrapper should
+prefer that normalized model and mirror it additively through status, export,
+the widget stack, lineage, trust, and next-action surfaces. If that command is
+absent or the upstream session is incomplete, the wrapper may fall back to its
+local derived view so the beginner path does not break.
 
 ## Optimization loop mental model
 
@@ -97,10 +122,13 @@ That framing is intentionally inspired by the clarity of
 The run artifact story should also be clearly stronger than a plain
 evolution-session bundle:
 
-- `autoclanker.md` should act as the simple per-run summary in the same role a
-  lightweight `RESULTS.md` would serve in a less expressive tool
+- `autoclanker.md` should act as the durable per-run brief, organized as
+  `At a glance`, `Prior Brief`, `Run Brief`, `Posterior Brief`,
+  `Proposal Brief`, `Evidence Views`, and `Run Files`
 - local wrapper files should preserve goal, beliefs, eval surface, and wrapper
   history in human-readable form
+- `autoclanker.proposals.json` should mirror current proposal readiness,
+  evidence, blockers, and resume pointers once proposal state exists
 - the default reader should not need more than the local summary, the local
   history log, and the upstream report bundle to understand what happened
 - upstream session artifacts should preserve canonicalization summaries,
@@ -131,6 +159,14 @@ The extension must expose tool surfaces that map onto `autoclanker` operations:
 - merge pathways
 - recommend commit
 
+Those tool and command outputs may grow additively with:
+
+- `briefs`
+- `proposalLedger`
+- `dashboard`
+- `evidenceViews`
+- `resume`
+
 ### 2. Slash-command style entrypoint
 
 The repo must document and implement a `/autoclanker` family with at least:
@@ -143,6 +179,10 @@ The repo must document and implement a `/autoclanker` family with at least:
 - `off`
 - `clear`
 - `export`
+
+`/autoclanker export` must keep its machine-readable contract. In the
+interactive extension host it may also open a browser dashboard backed by that
+same exported dashboard model.
 
 The TypeScript entrypoint should also be shaped like a real pi extension host
 module: a default export that receives `ExtensionAPI`, registers the tool
@@ -180,6 +220,7 @@ The extension must operate through explicit project-local files:
 - `autoclanker.beliefs.json`
 - `autoclanker.eval.sh`
 - `autoclanker.frontier.json`
+- `autoclanker.proposals.json` once proposal state exists
 - `autoclanker.history.jsonl`
 
 These files must be sufficient for local inspection, lightweight metadata handoff,
@@ -216,6 +257,10 @@ should be most useful when a user needs to:
   and export,
 - surface backend choice and concrete follow-up comparison context without
   forcing the user to read posterior internals,
+- preserve a durable proposal ledger and approval-ready proposal summary at the
+  project root after long unattended runs,
+- reopen the same run through compact, inline, fullscreen, or browser views
+  without re-deriving state from scratch,
 - run evolve-style exploration epochs without giving up typed beliefs,
   structured relations, or machine-readable uncertainty,
 - keep the checked-in local eval surface fixed while a session is running so

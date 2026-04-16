@@ -29,6 +29,10 @@ acceptance script completes successfully and records evidence under
 | `M2-009` | `required` | A local `autoclanker.frontier.json` file can persist explicit pathway families and stays readable through frontier-status surfaces. |
 | `M2-010` | `required` | `compare-frontier` and `merge-pathways` only edit the local frontier file and call upstream `autoclanker` surfaces instead of adding a second inference layer. |
 | `M2-011` | `required` | Status and export surfaces expose locked eval-contract trust plus frontier counts, pending queries, and pending merge suggestions. |
+| `M2-012` | `required` | A local `autoclanker.proposals.json` mirror is created once proposal state exists and is rebuilt from upstream proposal-ledger artifacts when the local mirror is missing. |
+| `M2-013` | `required` | The wrapper summary, status, and export surfaces expose additive Prior / Run / Posterior / Proposal briefs plus dashboard, evidence-view, and resume metadata. |
+| `M2-014` | `required` | The extension provides a compact widget, `Ctrl+X` inline dashboard, `Ctrl+Shift+X` fullscreen overlay, and browser dashboard export from the same shared dashboard model. |
+| `M2-015` | `required` | README, mental-model docs, skills, and the packaged example session describe the four-brief proposal-ledger workflow and the proposal mirror file. |
 | `M3-001` | `required` | The deterministic required gate excludes the opt-in live lanes. |
 | `M3-002` | `required` | The required gate includes TypeScript validation alongside lint, typecheck, tests, build, and strict-environment parity. |
 | `M3-003` | `required` | A separate `./bin/dev check-live` surface runs the opt-in live acceptance lanes. |

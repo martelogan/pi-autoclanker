@@ -13,6 +13,7 @@ user needs a compact advanced JSON belief batch.
 1. Inspect the current session state first:
 
 - `autoclanker.beliefs.json`
+- `autoclanker.md`, especially the current `Prior Brief` and `Proposal Brief`
 - the latest preview or canonicalization output
 - `autoclanker.frontier.json` when it exists
 - the current summary / status if the session is already active
@@ -56,6 +57,12 @@ Map answers into the smallest advanced structure that honestly captures them:
 
 6. Keep the result inspectable and previewable. Do not bypass `autoclanker`
 preview or apply steps.
+
+When explaining why more structure would help, tie it back to the current
+briefs:
+
+- `Prior Brief`: what we currently think
+- `Proposal Brief`: what is blocked or still too vague to approve
 
 7. Only drive the billed provider-backed advanced path when `allowBilledLive`
 is explicitly enabled. Otherwise keep the session on the non-billed path rather

@@ -43,6 +43,10 @@ session can start immediately.
 - `autoclanker.beliefs.json`
 - `autoclanker.eval.sh`
 - optionally `autoclanker.frontier.json` when explicit pathways matter
+- leave behind a readable `Prior Brief` in `autoclanker.md` without making the
+  startup flow heavier
+- treat `autoclanker.proposals.json` as a later mirror that appears only after
+  proposal state exists
 
 `autoclanker.ideas.json` is an optional checked-in intake file, not the main
 generated working surface.
@@ -57,3 +61,9 @@ generated working surface.
   comparison
 
 5. Leave the project in a resumable state without forcing Bayes jargon on the user.
+
+That means a user should be able to reopen the workspace and immediately read:
+
+- what the goal and rough ideas were
+- what the first explicit lanes are, if any
+- what the next action is likely to be

@@ -19,7 +19,9 @@ materialized a resumable session:
 8. compare several plausible pathways through an explicit `candidates.json`
    pool once the session is ready for `suggest`,
 9. persist the explicit frontier state locally in `autoclanker.frontier.json`
-   once multi-path comparison starts.
+   once multi-path comparison starts,
+10. mirror proposal readiness locally in `autoclanker.proposals.json` once the
+    run has something durable to recommend.
 
 In a fresh workspace, `pi-autoclanker` can generate a default
 `autoclanker.eval.sh` stub automatically. This expanded demo instead shows a
@@ -43,9 +45,22 @@ Included files:
 - `autoclanker.beliefs.json`
 - `autoclanker.eval.sh`
 - `autoclanker.frontier.json`
+- `autoclanker.proposals.json`
 - `autoclanker.history.jsonl`
 - `rough-ideas.json`
 - `candidates.json`
+
+The summary file is intentionally written in the same four-brief shape the
+interactive surfaces use:
+
+- `Prior Brief`
+- `Run Brief`
+- `Posterior Brief`
+- `Proposal Brief`
+
+It also includes the lightweight `Lineage` and `Trust` sections that make the
+morning-after review surface explicit without requiring users to read raw
+upstream JSON first.
 
 Target files used by this bundle:
 

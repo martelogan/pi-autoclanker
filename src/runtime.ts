@@ -22,6 +22,7 @@ export const BELIEFS_FILENAME = "autoclanker.beliefs.json";
 export const EVAL_FILENAME = "autoclanker.eval.sh";
 export const FRONTIER_FILENAME = "autoclanker.frontier.json";
 export const IDEAS_FILENAME = "autoclanker.ideas.json";
+export const PROPOSALS_FILENAME = "autoclanker.proposals.json";
 export const HISTORY_FILENAME = "autoclanker.history.jsonl";
 export const SESSION_FILENAMES = [
   SUMMARY_FILENAME,
@@ -162,8 +163,10 @@ type BeliefsDocument = {
 };
 
 type SummaryHistoryEntry = {
+  briefFingerprint?: unknown;
   candidateInput?: unknown;
   event?: unknown;
+  proposalFingerprint?: unknown;
   timestamp?: unknown;
   upstream?: unknown;
   [key: string]: unknown;
@@ -173,6 +176,8 @@ type SummarySuggestionPayload = {
   candidateCount?: unknown;
   acquisition_backend?: unknown;
   frontier_summary?: unknown;
+  follow_up_comparison?: unknown;
+  follow_up_query_type?: unknown;
   influence_summary?: unknown;
   nextAction?: unknown;
   objective_backend?: unknown;
@@ -188,6 +193,7 @@ type SummaryCandidateInput = {
 
 type SummaryCandidate = {
   candidate_id?: unknown;
+  acquisition_score?: unknown;
   acquisition_backend?: unknown;
   objective_backend?: unknown;
   [key: string]: unknown;
@@ -271,10 +277,114 @@ type UpstreamStatusRecord = {
   last_follow_up_comparison?: unknown;
 };
 
+type UpstreamReviewBriefRecord = {
+  bullets?: unknown;
+  summary?: unknown;
+  [key: string]: unknown;
+};
+
+type UpstreamReviewLaneRecord = {
+  current_rank?: unknown;
+  decision_status?: unknown;
+  evidence_summary?: unknown;
+  family_id?: unknown;
+  lane_id?: unknown;
+  lane_thesis?: unknown;
+  last_eval_summary?: unknown;
+  next_step?: unknown;
+  proposal_status?: unknown;
+  score_summary?: unknown;
+  source_belief_ids?: unknown;
+  source_idea_ids?: unknown;
+  trust_status?: unknown;
+  [key: string]: unknown;
+};
+
+type UpstreamReviewProposalRecord = {
+  evidence_basis?: unknown;
+  proposal_id?: unknown;
+  readiness?: unknown;
+  recommendation_text?: unknown;
+  resume_hint?: unknown;
+  source_lane_id?: unknown;
+  source_lane_ids?: unknown;
+  unresolved_risks?: unknown;
+  updated_at?: unknown;
+  [key: string]: unknown;
+};
+
+type UpstreamReviewEvidenceViewRecord = {
+  description?: unknown;
+  exists?: unknown;
+  id?: unknown;
+  label?: unknown;
+  path?: unknown;
+  [key: string]: unknown;
+};
+
+type UpstreamReviewScoreSummaryRecord = {
+  acquisition_score?: unknown;
+  predicted_utility?: unknown;
+  [key: string]: unknown;
+};
+
+type UpstreamReviewEvidenceRecord = {
+  notes?: unknown;
+  views?: unknown;
+  [key: string]: unknown;
+};
+
+type UpstreamReviewLineageRecord = {
+  beliefIds?: unknown;
+  belief_ids?: unknown;
+  chain?: unknown;
+  lanes?: unknown;
+  recommended_proposal?: unknown;
+  [key: string]: unknown;
+};
+
+type UpstreamReviewTrustRecord = {
+  currentEvalContractDigest?: unknown;
+  current_eval_contract_digest?: unknown;
+  driftStatus?: unknown;
+  evalContractMatchesCurrent?: unknown;
+  eval_contract_matches_current?: unknown;
+  last_eval_measurement_mode?: unknown;
+  last_eval_noisy_system?: unknown;
+  last_eval_stabilization_mode?: unknown;
+  last_eval_used_lease?: unknown;
+  lockedEvalContractDigest?: unknown;
+  locked_eval_contract_digest?: unknown;
+  status?: unknown;
+  [key: string]: unknown;
+};
+
+type UpstreamReviewBundleRecord = {
+  evidence?: unknown;
+  lanes?: unknown;
+  lineage?: unknown;
+  next_action?: unknown;
+  posterior_brief?: unknown;
+  prior_brief?: unknown;
+  proposal_brief?: unknown;
+  proposals?: unknown;
+  run_brief?: unknown;
+  session?: unknown;
+  trust?: unknown;
+  [key: string]: unknown;
+};
+
 type ToolStatusPayload = {
+  briefs?: unknown;
+  dashboard?: unknown;
+  evidenceViews?: unknown;
   sessionRoot?: unknown;
   frontier?: unknown;
   frontierFilePresent?: unknown;
+  proposalFilePresent?: unknown;
+  proposalLedger?: unknown;
+  reviewBundle?: unknown;
+  resume?: unknown;
   trust?: unknown;
   upstream?: unknown;
   upstreamFrontier?: unknown;
@@ -293,6 +403,7 @@ type UpstreamPayload = {
 
 type CandidatePoolDocument = {
   candidate_id?: unknown;
+  candidate_ids?: unknown;
   candidates?: unknown;
   default_family_id?: unknown;
   family_id?: unknown;
@@ -333,6 +444,7 @@ type SessionPaths = {
   evalPath: string;
   frontierPath: string;
   ideasPath: string;
+  proposalsPath: string;
   historyPath: string;
   upstreamSessionDir: string;
 };
@@ -342,6 +454,276 @@ type IdeasFileDocument = {
   ideas?: unknown;
   constraints?: unknown;
   pathways?: unknown;
+};
+
+type BeliefDeltaEntryRecord = {
+  change_kind?: unknown;
+  posterior_mean?: unknown;
+  posterior_variance?: unknown;
+  prior_mean?: unknown;
+  source_belief_id?: unknown;
+  summary?: unknown;
+  support?: unknown;
+  target_kind?: unknown;
+  target_ref?: unknown;
+};
+
+type BeliefDeltaSummaryRecord = {
+  dropped_family_ids?: unknown;
+  era_id?: unknown;
+  notes?: unknown;
+  promoted_candidate_ids?: unknown;
+  strengthened?: unknown;
+  uncertain?: unknown;
+  weakened?: unknown;
+};
+
+type UpstreamProposalLedgerEntryRecord = {
+  approval_required?: unknown;
+  artifact_refs?: unknown;
+  candidate_id?: unknown;
+  era_id?: unknown;
+  evidence_summary?: unknown;
+  family_id?: unknown;
+  proposal_id?: unknown;
+  readiness_state?: unknown;
+  recommendation_reason?: unknown;
+  resume_token?: unknown;
+  session_id?: unknown;
+  source_candidate_ids?: unknown;
+  supersedes?: unknown;
+  unresolved_risks?: unknown;
+  updated_at?: unknown;
+};
+
+type UpstreamProposalLedgerRecord = {
+  current_proposal_id?: unknown;
+  entries?: unknown;
+  era_id?: unknown;
+  session_id?: unknown;
+  updated_at?: unknown;
+};
+
+type ProposalReadinessState =
+  | "not_ready"
+  | "candidate"
+  | "recommended"
+  | "deferred"
+  | "blocked"
+  | "superseded";
+
+type ProposalMirrorEntry = {
+  approval_needed: boolean;
+  artifact_pointers: Record<string, string>;
+  candidate_id: string;
+  evidence_summary: string;
+  family_id: string | null;
+  proposal_id: string;
+  readiness_state: ProposalReadinessState;
+  recommendation_reason: string | null;
+  resume_artifact: string | null;
+  source_candidate_ids: string[];
+  supersedes: string[];
+  unresolved_risks: string[];
+  updated_at: string | null;
+};
+
+type ProposalMirrorEra = {
+  current_proposal_id: string | null;
+  entries: ProposalMirrorEntry[];
+  updated_at: string | null;
+};
+
+type ProposalMirrorEntryInput = {
+  approval_needed?: unknown;
+  artifact_pointers?: unknown;
+  candidate_id?: unknown;
+  evidence_summary?: unknown;
+  family_id?: unknown;
+  proposal_id?: unknown;
+  readiness_state?: unknown;
+  recommendation_reason?: unknown;
+  resume_artifact?: unknown;
+  source_candidate_ids?: unknown;
+  supersedes?: unknown;
+  unresolved_risks?: unknown;
+  updated_at?: unknown;
+};
+
+type ProposalMirrorEraInput = {
+  current_proposal_id?: unknown;
+  entries?: unknown;
+  updated_at?: unknown;
+};
+
+type ProposalsMirrorDocumentInput = {
+  active?: unknown;
+  sessions?: unknown;
+};
+
+type ProposalMirrorSessionInput = {
+  eras?: unknown;
+};
+
+type ProposalMirrorActiveInput = {
+  era_id?: unknown;
+  session_id?: unknown;
+};
+
+type ProposalsMirrorDocument = {
+  active: {
+    era_id: string;
+    session_id: string;
+  } | null;
+  sessions: Record<
+    string,
+    {
+      eras: Record<string, ProposalMirrorEra>;
+    }
+  >;
+};
+
+type BriefRecord = {
+  bullets: string[];
+  summary: string;
+  title: string;
+};
+
+type EvidenceViewRecord = {
+  description: string;
+  exists: boolean;
+  id: string;
+  label: string;
+  path: string;
+};
+
+type DashboardCardRecord = {
+  label: string;
+  tone: "danger" | "muted" | "primary" | "success" | "warning";
+  value: string;
+};
+
+type DashboardRowRecord = {
+  approvalNeeded?: unknown;
+  decisionState?: unknown;
+  evidenceBasis?: unknown;
+  evidenceSummary?: unknown;
+  familyId?: unknown;
+  laneId?: unknown;
+  nextAction?: unknown;
+  persistedTimestamp?: unknown;
+  proposalId?: unknown;
+  proposalReadiness?: unknown;
+  rank?: unknown;
+  readinessState?: unknown;
+  resumeArtifact?: unknown;
+  score?: unknown;
+  sourceFamily?: unknown;
+  sourceIdeas?: unknown;
+  sourceLane?: unknown;
+  thesis?: unknown;
+  trustState?: unknown;
+  unresolvedRisk?: unknown;
+  [key: string]: unknown;
+};
+
+type HistoryTransitionRecord = {
+  briefFingerprint?: unknown;
+  laneFingerprint?: unknown;
+  pendingMergeCount?: unknown;
+  pendingQueryCount?: unknown;
+  reviewBundleFingerprint?: unknown;
+  trustFingerprint?: unknown;
+  [key: string]: unknown;
+};
+
+type DashboardRecord = {
+  briefs: {
+    posterior: {
+      bullets: string[];
+      summary: string;
+    };
+    prior: {
+      bullets: string[];
+      summary: string;
+    };
+    proposal: {
+      bullets: string[];
+      summary: string;
+    };
+    run: {
+      bullets: string[];
+      summary: string;
+    };
+  };
+  cards: DashboardCardRecord[];
+  evidenceViews: Array<EvidenceViewRecord & { pathRelativeToWorkspace: string }>;
+  frontierDecisionTable: DashboardRowRecord[];
+  lineage: JsonObject | null;
+  nextAction: JsonObject | null;
+  proposalTable: DashboardRowRecord[];
+  reviewModelSource: "local-derived" | "upstream-review-bundle";
+  resume: JsonObject;
+  session: JsonObject;
+  trust: JsonObject;
+};
+
+type DerivedWorkspaceView = {
+  briefs: {
+    posterior: BriefRecord;
+    prior: BriefRecord;
+    proposal: BriefRecord;
+    run: BriefRecord;
+  };
+  dashboard: DashboardRecord;
+  evidenceViews: EvidenceViewRecord[];
+  proposalLedger: ProposalMirrorEra | null;
+  proposalMirror: ProposalsMirrorDocument | null;
+  reviewBundle: JsonObject;
+  resume: JsonObject;
+};
+
+type DerivedViewTransitionPayload = {
+  briefFingerprint: string;
+  laneFingerprint: string;
+  proposalFingerprint: string | null;
+  proposalId: string | null;
+  proposalState: string | null;
+  reviewBundleFingerprint: string;
+  pendingMergeCount: number;
+  pendingQueryCount: number;
+  trustFingerprint: string;
+};
+
+type DerivedWorkspaceOptions = {
+  acquisitionBackend: string | null;
+  comparedLaneCount: number;
+  config: RuntimeConfig;
+  currentEvalContractDigest: string | null;
+  currentEvalSha256: string | null;
+  evalContractDriftStatus: string | null;
+  evalContractMatchesCurrent: boolean | null;
+  evalSurfaceMatchesLock: boolean;
+  followUpComparison: string | null;
+  followUpQueryType: string | null;
+  frontierFamilyCount: number;
+  frontierSummary: FrontierSummaryRecord;
+  history: SummaryHistoryEntry[];
+  identity: { eraId: string; sessionId: string };
+  lastEvalMeasurementMode: string | null;
+  lastEvalNoisySystem: boolean | null;
+  lastEvalStabilizationMode: string | null;
+  lastEvalUsedLease: boolean | null;
+  beliefsDocument: BeliefsDocument;
+  localFrontier: CandidatePoolDocument | null;
+  lockedEvalContractDigest: string | null;
+  lockedEvalSha256: string | null;
+  objectiveBackend: string | null;
+  paths: SessionPaths;
+  pendingMergeSuggestionCount: number;
+  pendingQueryCount: number;
+  upstreamReviewBundle: UpstreamReviewBundleRecord | null;
+  workspace: string;
 };
 
 type IdeasFileIdea = {
@@ -723,6 +1105,7 @@ function sessionPathsForWorkspace(
     evalPath: resolve(root, EVAL_FILENAME),
     frontierPath: resolve(root, FRONTIER_FILENAME),
     ideasPath: resolve(root, IDEAS_FILENAME),
+    proposalsPath: resolve(root, PROPOSALS_FILENAME),
     historyPath: resolve(root, HISTORY_FILENAME),
     upstreamSessionDir: resolve(root, sessionRoot),
   };
@@ -1225,7 +1608,9 @@ function canonicalizeIdeasPayload(options: {
     typeof canonicalization === "object" &&
     !Array.isArray(canonicalization)
   ) {
-    const payload: UpstreamPayload = { ...(canonicalization as UpstreamPayload) };
+    const payload: UpstreamPayload = {
+      ...(canonicalization as UpstreamPayload),
+    };
     if (Array.isArray(payload.beliefs)) {
       options.beliefsDocument.canonicalBeliefs = payload.beliefs;
     }
@@ -1462,7 +1847,9 @@ function ensureEvalPayloadIncludesContract(
   payload: JsonObject,
   contract: JsonObject,
 ): JsonObject {
-  const payloadWithContract = payload as JsonObject & { eval_contract?: unknown };
+  const payloadWithContract = payload as JsonObject & {
+    eval_contract?: unknown;
+  };
   const existing = summaryObject<JsonObject>(payloadWithContract.eval_contract);
   if (existing !== null) {
     return payload;
@@ -1497,148 +1884,1292 @@ function resolveEvalCommand(
   };
 }
 
+function shortWorkspacePath(workspace: string, path: string): string {
+  return isRelativeTo(workspace, path) ? relative(workspace, path) : path;
+}
+
+function candidateDescriptor(candidate: FrontierCandidateRecord | null): string {
+  if (candidate === null) {
+    return "none";
+  }
+  const notes = optionalString(candidate.notes, "notes");
+  if (notes !== null) {
+    return notes;
+  }
+  const parentCandidateIds =
+    candidate.parent_candidate_ids === undefined
+      ? []
+      : stringArray(candidate.parent_candidate_ids, "parent_candidate_ids");
+  if (parentCandidateIds.length > 0) {
+    return `Built from ${parentCandidateIds.join(" + ")}.`;
+  }
+  const parentBeliefIds =
+    candidate.parent_belief_ids === undefined
+      ? []
+      : stringArray(candidate.parent_belief_ids, "parent_belief_ids");
+  if (parentBeliefIds.length > 0) {
+    return `Seeded from ${parentBeliefIds.join(", ")}.`;
+  }
+  const genotype = Array.isArray(candidate.genotype) ? candidate.genotype : [];
+  const leverNames = genotype
+    .map((rawGene) => {
+      const gene = ensureJsonObject<FrontierGeneRecord>(rawGene, "genotype entry");
+      return requireNonEmptyString(gene.gene_id, "gene_id");
+    })
+    .slice(0, 3);
+  return leverNames.length > 0
+    ? `Touches ${leverNames.join(", ")}.`
+    : "Explicit candidate lane.";
+}
+
+function compareJsonText(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function stableJson(value: unknown): string {
+  return JSON.stringify(value);
+}
+
+function summaryStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map((item) => summaryString(item))
+    .filter((item): item is string => item !== null);
+}
+
+function briefFromBundle(
+  title: string,
+  bundleBrief: UpstreamReviewBriefRecord | null,
+  fallbackSummary: string,
+  fallbackBullets: string[],
+): BriefRecord {
+  if (bundleBrief === null) {
+    return {
+      title,
+      summary: fallbackSummary,
+      bullets: fallbackBullets,
+    };
+  }
+  return {
+    title,
+    summary: summaryString(bundleBrief.summary) ?? fallbackSummary,
+    bullets: summaryStringList(bundleBrief.bullets),
+  };
+}
+
+function latestHistoryEventByName(
+  history: SummaryHistoryEntry[],
+  eventName: string,
+): SummaryHistoryEntry | null {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const entry = history[index] ?? null;
+    if (summaryString(entry?.event) === eventName) {
+      return entry;
+    }
+  }
+  return null;
+}
+
+function derivedViewTransitionPayload(
+  view: DerivedWorkspaceView,
+): DerivedViewTransitionPayload {
+  const currentProposalId = view.proposalLedger?.current_proposal_id ?? null;
+  const currentProposal =
+    currentProposalId === null
+      ? null
+      : (view.proposalLedger?.entries.find(
+          (entry) => entry.proposal_id === currentProposalId,
+        ) ?? null);
+  return {
+    briefFingerprint: stableJson({
+      posterior: view.briefs.posterior,
+      prior: view.briefs.prior,
+      proposal: view.briefs.proposal,
+      run: view.briefs.run,
+    }),
+    laneFingerprint: stableJson(view.dashboard.frontierDecisionTable),
+    proposalFingerprint:
+      view.proposalLedger === null ? null : stableJson(view.proposalLedger),
+    proposalId: currentProposalId,
+    proposalState: currentProposal?.readiness_state ?? null,
+    reviewBundleFingerprint: stableJson(view.reviewBundle),
+    pendingMergeCount: Array.isArray(view.dashboard.frontierDecisionTable)
+      ? view.dashboard.frontierDecisionTable.filter(
+          (row) =>
+            optionalString(
+              ensureJsonObject<DashboardRowRecord>(row, "frontier row").decisionState,
+              "decisionState",
+            ) === "merge",
+        ).length
+      : 0,
+    pendingQueryCount: Array.isArray(view.dashboard.frontierDecisionTable)
+      ? view.dashboard.frontierDecisionTable.filter(
+          (row) =>
+            optionalString(
+              ensureJsonObject<DashboardRowRecord>(row, "frontier row").decisionState,
+              "decisionState",
+            ) === "query",
+        ).length
+      : 0,
+    trustFingerprint: stableJson(view.dashboard.trust),
+  };
+}
+
+function appendDerivedViewTransitions(
+  historyPath: string,
+  history: SummaryHistoryEntry[],
+  view: DerivedWorkspaceView,
+): void {
+  const current = derivedViewTransitionPayload(view);
+  const lastBriefRefresh = latestHistoryEventByName(
+    history,
+    "briefs_refreshed",
+  ) as HistoryTransitionRecord | null;
+  const lastBriefFingerprint = summaryString(lastBriefRefresh?.briefFingerprint);
+  if (current.briefFingerprint !== lastBriefFingerprint) {
+    appendHistory(historyPath, {
+      event: "briefs_refreshed",
+      briefFingerprint: current.briefFingerprint,
+      briefs: view.briefs,
+      resume: view.resume,
+    });
+  }
+
+  const lastReviewBundleRefresh = latestHistoryEventByName(
+    history,
+    "review_bundle_refreshed",
+  ) as HistoryTransitionRecord | null;
+  const lastReviewBundleFingerprint = summaryString(
+    lastReviewBundleRefresh?.reviewBundleFingerprint,
+  );
+  if (current.reviewBundleFingerprint !== lastReviewBundleFingerprint) {
+    appendHistory(historyPath, {
+      event: "review_bundle_refreshed",
+      reviewBundle: view.reviewBundle,
+      reviewBundleFingerprint: current.reviewBundleFingerprint,
+      resume: view.resume,
+    });
+  }
+
+  const lastLaneTransition = latestHistoryEventByName(
+    history,
+    "lane_status_updated",
+  ) as HistoryTransitionRecord | null;
+  const lastLaneFingerprint = summaryString(lastLaneTransition?.laneFingerprint);
+  if (current.laneFingerprint !== lastLaneFingerprint) {
+    appendHistory(historyPath, {
+      event: "lane_status_updated",
+      frontierDecisionTable: view.dashboard.frontierDecisionTable,
+      laneFingerprint: current.laneFingerprint,
+      resume: view.resume,
+    });
+  }
+
+  const lastTrustTransition = latestHistoryEventByName(
+    history,
+    "trust_state_updated",
+  ) as HistoryTransitionRecord | null;
+  const lastTrustFingerprint = summaryString(lastTrustTransition?.trustFingerprint);
+  if (current.trustFingerprint !== lastTrustFingerprint) {
+    appendHistory(historyPath, {
+      event: "trust_state_updated",
+      trust: view.dashboard.trust,
+      trustFingerprint: current.trustFingerprint,
+      resume: view.resume,
+    });
+  }
+
+  const lastQueryTransition = latestHistoryEventByName(
+    history,
+    "query_queued",
+  ) as HistoryTransitionRecord | null;
+  const lastQueryResolved = latestHistoryEventByName(
+    history,
+    "query_resolved",
+  ) as HistoryTransitionRecord | null;
+  const previousPendingQueryCount =
+    summaryNumber(lastQueryTransition?.pendingQueryCount) ??
+    summaryNumber(lastQueryResolved?.pendingQueryCount) ??
+    0;
+  if (current.pendingQueryCount > previousPendingQueryCount) {
+    appendHistory(historyPath, {
+      event: "query_queued",
+      nextAction: view.dashboard.nextAction,
+      pendingQueryCount: current.pendingQueryCount,
+      resume: view.resume,
+    });
+  } else if (current.pendingQueryCount < previousPendingQueryCount) {
+    appendHistory(historyPath, {
+      event: "query_resolved",
+      nextAction: view.dashboard.nextAction,
+      pendingQueryCount: current.pendingQueryCount,
+      resume: view.resume,
+    });
+  }
+
+  const lastMergeTransition = latestHistoryEventByName(
+    history,
+    "merge_suggested",
+  ) as HistoryTransitionRecord | null;
+  const previousPendingMergeCount =
+    summaryNumber(lastMergeTransition?.pendingMergeCount) ?? 0;
+  if (current.pendingMergeCount > previousPendingMergeCount) {
+    appendHistory(historyPath, {
+      event: "merge_suggested",
+      frontierDecisionTable: view.dashboard.frontierDecisionTable,
+      pendingMergeCount: current.pendingMergeCount,
+      resume: view.resume,
+    });
+  }
+
+  const lastProposalTransition = latestHistoryEventByName(
+    history,
+    "proposal_state_updated",
+  );
+  const lastProposalFingerprint = summaryString(
+    lastProposalTransition?.proposalFingerprint,
+  );
+  if (
+    current.proposalFingerprint !== lastProposalFingerprint &&
+    (current.proposalFingerprint !== null || lastProposalFingerprint !== null)
+  ) {
+    appendHistory(historyPath, {
+      event: "proposal_state_updated",
+      proposalFingerprint: current.proposalFingerprint,
+      proposalId: current.proposalId,
+      proposalLedger: view.proposalLedger,
+      proposalState: current.proposalState,
+      resume: view.resume,
+    });
+    appendHistory(historyPath, {
+      event: "proposal_status_updated",
+      proposalFingerprint: current.proposalFingerprint,
+      proposalId: current.proposalId,
+      proposalLedger: view.proposalLedger,
+      proposalState: current.proposalState,
+      resume: view.resume,
+    });
+  }
+}
+
+function buildDerivedWorkspaceView(
+  options: DerivedWorkspaceOptions,
+): DerivedWorkspaceView {
+  const roughIdeas = stringList(options.beliefsDocument.roughIdeas ?? [], "roughIdeas");
+  const constraints = stringList(
+    options.beliefsDocument.constraints ?? [],
+    "constraints",
+  );
+  const canonicalBeliefs = Array.isArray(options.beliefsDocument.canonicalBeliefs)
+    ? options.beliefsDocument.canonicalBeliefs
+    : [];
+  const summarySnapshot = latestSummarySnapshot(options.history);
+  const queryArtifact = loadJsonObjectIfPresent<SummarySuggestionPayload>(
+    activeUpstreamArtifactPath(options.paths, options.identity.sessionId, "query.json"),
+  );
+  const rankedCandidates = summaryArray(queryArtifact?.ranked_candidates) ?? [];
+  const rankedCandidateRecords = rankedCandidates.map((item) =>
+    ensureJsonObject<SummaryCandidate>(item, "ranked candidate"),
+  );
+  const leader = rankedCandidateRecords.at(0) ?? null;
+  const runnerUp = rankedCandidateRecords.at(1) ?? null;
+  const beliefDeltaSummary = loadJsonObjectIfPresent<BeliefDeltaSummaryRecord>(
+    activeUpstreamArtifactPath(
+      options.paths,
+      options.identity.sessionId,
+      "belief_delta_summary.json",
+    ),
+  );
+  const upstreamProposalLedger = loadJsonObjectIfPresent<UpstreamProposalLedgerRecord>(
+    activeUpstreamArtifactPath(
+      options.paths,
+      options.identity.sessionId,
+      "proposal_ledger.json",
+    ),
+  );
+  const existingProposalMirror = loadProposalsMirror(options.paths);
+  const proposalMirror =
+    upstreamProposalLedger === null
+      ? existingProposalMirror
+      : proposalMirrorFromUpstreamLedger(
+          options.identity,
+          upstreamProposalLedger,
+          existingProposalMirror,
+        );
+  if (
+    proposalMirror !== null &&
+    !compareJsonText(existingProposalMirror ?? null, proposalMirror)
+  ) {
+    writeProposalsMirror(options.paths, proposalMirror);
+  }
+  const activeProposalLedger = activeProposalMirrorEra(
+    proposalMirror,
+    options.identity,
+  );
+  const currentProposal =
+    activeProposalLedger?.current_proposal_id === null ||
+    activeProposalLedger?.current_proposal_id === undefined
+      ? null
+      : (activeProposalLedger.entries.find(
+          (entry) => entry.proposal_id === activeProposalLedger.current_proposal_id,
+        ) ?? null);
+  const localFrontierCandidates =
+    options.localFrontier === null ? [] : frontierCandidateItems(options.localFrontier);
+  const pendingQueryTargets = new Set(
+    (summaryArray(options.frontierSummary.pending_queries) ?? []).flatMap(
+      (rawQuery) => {
+        const query = ensureJsonObject<SummaryQuery>(rawQuery, "pending query");
+        return stringArray(query.candidate_ids ?? [], "candidate_ids");
+      },
+    ),
+  );
+  const pendingMergeTargets = new Set(
+    (summaryArray(options.frontierSummary.pending_merge_suggestions) ?? []).flatMap(
+      (rawMerge) => {
+        const merge = ensureJsonObject<CandidatePoolDocument>(
+          rawMerge,
+          "merge suggestion",
+        );
+        return stringArray(merge.candidate_ids ?? [], "candidate_ids");
+      },
+    ),
+  );
+  const rankIndexByCandidateId = new Map(
+    rankedCandidateRecords.map((candidate, index) => [
+      requireNonEmptyString(candidate.candidate_id, "candidate_id"),
+      index + 1,
+    ]),
+  );
+  const acquisitionScoreByCandidateId = new Map(
+    rankedCandidateRecords.map((candidate) => [
+      requireNonEmptyString(candidate.candidate_id, "candidate_id"),
+      summaryNumber(candidate.acquisition_score) ?? null,
+    ]),
+  );
+  const currentProposalLinkByCandidateId = new Map(
+    (activeProposalLedger?.entries ?? []).map((entry) => [entry.candidate_id, entry]),
+  );
+  const trustState =
+    options.evalContractDriftStatus ??
+    (options.evalSurfaceMatchesLock ? "locked" : "drifted");
+  const trustTone: DashboardCardRecord["tone"] =
+    trustState === "locked"
+      ? "success"
+      : trustState === "unverified"
+        ? "warning"
+        : "danger";
+  const currentProposalState =
+    currentProposal === null ? "not_ready" : currentProposal.readiness_state;
+  const proposalTone: DashboardCardRecord["tone"] =
+    currentProposalState === "recommended"
+      ? "success"
+      : currentProposalState === "blocked"
+        ? "danger"
+        : currentProposalState === "candidate"
+          ? "primary"
+          : "warning";
+  const bundlePrior = summaryObject<UpstreamReviewBriefRecord>(
+    options.upstreamReviewBundle?.prior_brief,
+  );
+  const bundleRun = summaryObject<UpstreamReviewBriefRecord>(
+    options.upstreamReviewBundle?.run_brief,
+  );
+  const bundlePosterior = summaryObject<UpstreamReviewBriefRecord>(
+    options.upstreamReviewBundle?.posterior_brief,
+  );
+  const bundleProposal = summaryObject<UpstreamReviewBriefRecord>(
+    options.upstreamReviewBundle?.proposal_brief,
+  );
+  const bundleSession = summaryObject<JsonObject>(
+    options.upstreamReviewBundle?.session,
+  );
+  const bundleLineage = summaryObject<UpstreamReviewLineageRecord>(
+    options.upstreamReviewBundle?.lineage,
+  );
+  const bundleTrust = summaryObject<UpstreamReviewTrustRecord>(
+    options.upstreamReviewBundle?.trust,
+  );
+  const bundleEvidence = summaryObject<UpstreamReviewEvidenceRecord>(
+    options.upstreamReviewBundle?.evidence,
+  );
+  const bundleNextAction = summaryObject<JsonObject>(
+    options.upstreamReviewBundle?.next_action,
+  );
+  const localPriorSummary = [
+    options.config.goal !== null ? `Goal: ${options.config.goal}` : "Goal not set yet.",
+    `${roughIdeas.length} rough idea(s) became ${canonicalBeliefs.length} canonical belief(s).`,
+    options.localFrontier === null
+      ? "No explicit frontier file is seeded yet."
+      : `${localFrontierCandidates.length} explicit lane(s) are under comparison.`,
+  ].join(" ");
+  const localPriorBullets = [
+    roughIdeas.length > 0
+      ? `Rough ideas: ${roughIdeas.slice(0, 3).join(" | ")}`
+      : "Rough ideas remain open-ended.",
+    constraints.length > 0
+      ? `Constraints: ${constraints.join(" | ")}`
+      : "No explicit hard constraints were recorded.",
+    options.localFrontier === null
+      ? "Frontier stays implicit until you seed or compare explicit pathways."
+      : `Frontier families: ${options.frontierFamilyCount}; compared lanes: ${options.comparedLaneCount}.`,
+  ];
+  const leaderId =
+    leader === null ? null : requireNonEmptyString(leader.candidate_id, "candidate_id");
+  const runnerUpId =
+    runnerUp === null
+      ? null
+      : requireNonEmptyString(runnerUp.candidate_id, "candidate_id");
+  const localRunSummary = [
+    leaderId === null ? "No leader lane exists yet." : `Leader lane: ${leaderId}.`,
+    runnerUpId === null ? "No runner-up lane exists yet." : `Runner-up: ${runnerUpId}.`,
+    options.followUpComparison === null
+      ? "No concrete comparison is pending."
+      : `Next comparison: ${options.followUpComparison}.`,
+  ].join(" ");
+  const localRunBullets = [
+    `Trust: ${trustState}; eval surface lock ${options.evalSurfaceMatchesLock ? "matches" : "drifted"}.`,
+    `Pending queries: ${options.pendingQueryCount}; pending merges: ${options.pendingMergeSuggestionCount}.`,
+    options.followUpQueryType === null
+      ? "No concrete follow-up query is active."
+      : `Query focus: ${options.followUpQueryType}${options.followUpComparison ? ` on ${options.followUpComparison}` : ""}.`,
+    options.objectiveBackend === null && options.acquisitionBackend === null
+      ? "Backend details are not recorded yet."
+      : `Backends: ${options.objectiveBackend ?? "unknown"} / ${options.acquisitionBackend ?? "unknown"}.`,
+  ];
+  const strengthened =
+    summaryArray(beliefDeltaSummary?.strengthened)?.map((entry) =>
+      ensureJsonObject<BeliefDeltaEntryRecord>(entry, "strengthened entry"),
+    ) ?? [];
+  const weakened =
+    summaryArray(beliefDeltaSummary?.weakened)?.map((entry) =>
+      ensureJsonObject<BeliefDeltaEntryRecord>(entry, "weakened entry"),
+    ) ?? [];
+  const uncertain =
+    summaryArray(beliefDeltaSummary?.uncertain)?.map((entry) =>
+      ensureJsonObject<BeliefDeltaEntryRecord>(entry, "uncertain entry"),
+    ) ?? [];
+  const promotedCandidateIds =
+    beliefDeltaSummary === null
+      ? []
+      : stringArray(
+          beliefDeltaSummary.promoted_candidate_ids ?? [],
+          "promoted_candidate_ids",
+        );
+  const droppedFamilyIds =
+    beliefDeltaSummary === null
+      ? []
+      : stringArray(beliefDeltaSummary.dropped_family_ids ?? [], "dropped_family_ids");
+  const posteriorSummary =
+    strengthened.length + weakened.length + uncertain.length === 0
+      ? "Posterior change is not recorded yet."
+      : [
+          strengthened.length > 0
+            ? `${strengthened.length} belief(s) strengthened.`
+            : "No belief strengthening recorded.",
+          weakened.length > 0
+            ? `${weakened.length} belief(s) weakened.`
+            : "No belief weakening recorded.",
+          uncertain.length > 0
+            ? `${uncertain.length} uncertainty focus item(s) remain.`
+            : "No major uncertainty items remain.",
+        ].join(" ");
+  const localPosteriorBullets = [
+    strengthened.length > 0
+      ? `Strengthened: ${strengthened
+          .slice(0, 2)
+          .map((entry) => requireNonEmptyString(entry.summary, "summary"))
+          .join(" | ")}`
+      : "No strengthened belief summary recorded yet.",
+    weakened.length > 0
+      ? `Weakened: ${weakened
+          .slice(0, 2)
+          .map((entry) => requireNonEmptyString(entry.summary, "summary"))
+          .join(" | ")}`
+      : "No weakened belief summary recorded yet.",
+    promotedCandidateIds.length > 0
+      ? `Promoted lanes: ${promotedCandidateIds.join(", ")}`
+      : "No promoted lanes were recorded.",
+    droppedFamilyIds.length > 0
+      ? `Dropped families: ${droppedFamilyIds.join(", ")}`
+      : "No dropped family reasons were recorded.",
+  ];
+  const alternateProposals = (activeProposalLedger?.entries ?? []).filter(
+    (entry) =>
+      currentProposal === null || entry.proposal_id !== currentProposal.proposal_id,
+  );
+  const proposalSummary =
+    currentProposal === null
+      ? "No durable proposal has been recorded yet."
+      : `Current proposal ${currentProposal.proposal_id} is ${currentProposal.readiness_state} from lane ${currentProposal.candidate_id}.`;
+  const localProposalBullets = [
+    currentProposal === null
+      ? "Run suggest or recommend-commit to materialize a durable proposal ledger."
+      : `Evidence: ${currentProposal.evidence_summary}`,
+    currentProposal !== null && currentProposal.unresolved_risks.length > 0
+      ? `Unresolved risks: ${currentProposal.unresolved_risks.slice(0, 3).join(" | ")}`
+      : "No unresolved proposal risks are recorded.",
+    alternateProposals.length > 0
+      ? `Alternates: ${alternateProposals
+          .slice(0, 3)
+          .map((entry) => `${entry.proposal_id} (${entry.readiness_state})`)
+          .join(" | ")}`
+      : "No alternate proposals are recorded.",
+    currentProposal?.resume_artifact
+      ? `Resume token: ${currentProposal.resume_artifact}`
+      : "No resume token is recorded yet.",
+  ];
+  const priorBrief = briefFromBundle(
+    "Prior Brief",
+    bundlePrior,
+    localPriorSummary,
+    localPriorBullets,
+  );
+  const runBrief = briefFromBundle(
+    "Run Brief",
+    bundleRun,
+    localRunSummary,
+    localRunBullets,
+  );
+  const posteriorBrief = briefFromBundle(
+    "Posterior Brief",
+    bundlePosterior,
+    posteriorSummary,
+    localPosteriorBullets,
+  );
+  const proposalBrief = briefFromBundle(
+    "Proposal Brief",
+    bundleProposal,
+    proposalSummary,
+    localProposalBullets,
+  );
+  const defaultEvidenceViews: EvidenceViewRecord[] = [
+    {
+      id: "results_markdown",
+      label: "Run Summary",
+      description: "Human-readable upstream summary of the active session.",
+      path: activeUpstreamArtifactPath(
+        options.paths,
+        options.identity.sessionId,
+        "RESULTS.md",
+      ),
+      exists: existsSync(
+        activeUpstreamArtifactPath(
+          options.paths,
+          options.identity.sessionId,
+          "RESULTS.md",
+        ),
+      ),
+    },
+    {
+      id: "belief_graph_prior",
+      label: "Prior Graph",
+      description: "What the session believed before new eval evidence.",
+      path: activeUpstreamArtifactPath(
+        options.paths,
+        options.identity.sessionId,
+        "belief_graph_prior.png",
+      ),
+      exists: existsSync(
+        activeUpstreamArtifactPath(
+          options.paths,
+          options.identity.sessionId,
+          "belief_graph_prior.png",
+        ),
+      ),
+    },
+    {
+      id: "belief_graph_posterior",
+      label: "Posterior Graph",
+      description: "What the session still believes after eval evidence.",
+      path: activeUpstreamArtifactPath(
+        options.paths,
+        options.identity.sessionId,
+        "belief_graph_posterior.png",
+      ),
+      exists: existsSync(
+        activeUpstreamArtifactPath(
+          options.paths,
+          options.identity.sessionId,
+          "belief_graph_posterior.png",
+        ),
+      ),
+    },
+    {
+      id: "candidate_rankings",
+      label: "Candidate Rankings",
+      description: "Current lane ordering and acquisition scores.",
+      path: activeUpstreamArtifactPath(
+        options.paths,
+        options.identity.sessionId,
+        "candidate_rankings.png",
+      ),
+      exists: existsSync(
+        activeUpstreamArtifactPath(
+          options.paths,
+          options.identity.sessionId,
+          "candidate_rankings.png",
+        ),
+      ),
+    },
+    {
+      id: "convergence",
+      label: "Convergence",
+      description: "Whether recent evals are still changing the picture.",
+      path: activeUpstreamArtifactPath(
+        options.paths,
+        options.identity.sessionId,
+        "convergence.png",
+      ),
+      exists: existsSync(
+        activeUpstreamArtifactPath(
+          options.paths,
+          options.identity.sessionId,
+          "convergence.png",
+        ),
+      ),
+    },
+  ];
+  const reviewEvidenceViews =
+    bundleEvidence === null
+      ? []
+      : (summaryArray(bundleEvidence.views)?.map((rawView, index) => {
+          const view = ensureJsonObject<UpstreamReviewEvidenceViewRecord>(
+            rawView,
+            "review evidence view",
+          );
+          const path =
+            summaryString(view.path) ??
+            activeUpstreamArtifactPath(
+              options.paths,
+              options.identity.sessionId,
+              `view_${index + 1}`,
+            );
+          return {
+            id: summaryString(view.id) ?? `review_view_${index + 1}`,
+            label: summaryString(view.label) ?? `Review view ${index + 1}`,
+            description: summaryString(view.description) ?? "Review evidence view.",
+            path,
+            exists: typeof view.exists === "boolean" ? view.exists : existsSync(path),
+          };
+        }) ?? []);
+  const evidenceViewById = new Map<string, EvidenceViewRecord>(
+    defaultEvidenceViews.map((view) => [view.id, view]),
+  );
+  for (const reviewView of reviewEvidenceViews) {
+    const existing = evidenceViewById.get(reviewView.id);
+    evidenceViewById.set(reviewView.id, {
+      ...existing,
+      ...reviewView,
+    });
+  }
+  const evidenceViews = [...evidenceViewById.values()];
+  const reviewLaneRows =
+    options.upstreamReviewBundle === null
+      ? []
+      : (summaryArray(options.upstreamReviewBundle.lanes)?.map((rawLane) => {
+          const lane = ensureJsonObject<UpstreamReviewLaneRecord>(
+            rawLane,
+            "review lane",
+          );
+          const scoreSummary = summaryObject<UpstreamReviewScoreSummaryRecord>(
+            lane.score_summary,
+          );
+          const sourceIdeas = [
+            ...summaryStringList(lane.source_idea_ids),
+            ...summaryStringList(lane.source_belief_ids),
+          ];
+          const laneId = summaryString(lane.lane_id);
+          const familyId = summaryString(lane.family_id);
+          const laneThesis = summaryString(lane.lane_thesis);
+          const score =
+            summaryNumber(scoreSummary?.acquisition_score) ??
+            summaryNumber(scoreSummary?.predicted_utility);
+          const decisionState = summaryString(lane.decision_status);
+          const laneTrustState = summaryString(lane.trust_status);
+          const evidenceSummary =
+            summaryString(lane.evidence_summary) ??
+            summaryString(lane.last_eval_summary);
+          const nextAction = summaryString(lane.next_step);
+          const proposalReadiness = summaryString(lane.proposal_status);
+          return {
+            ...(laneId === null ? {} : { laneId }),
+            ...(familyId === null ? {} : { familyId }),
+            ...(sourceIdeas.length === 0
+              ? {}
+              : { sourceIdeas: sourceIdeas.join(", ") }),
+            ...(laneThesis === null ? {} : { thesis: laneThesis }),
+            ...(summaryNumber(lane.current_rank) === null
+              ? {}
+              : { rank: summaryNumber(lane.current_rank) }),
+            ...(score === null ? {} : { score }),
+            ...(decisionState === null ? {} : { decisionState }),
+            ...(laneTrustState === null ? {} : { trustState: laneTrustState }),
+            ...(evidenceSummary === null ? {} : { evidenceSummary }),
+            ...(nextAction === null ? {} : { nextAction }),
+            ...(proposalReadiness === null ? {} : { proposalReadiness }),
+          } satisfies DashboardRowRecord;
+        }) ?? []);
+  const fallbackFrontierRows: DashboardRowRecord[] = (
+    options.localFrontier === null ? [] : frontierCandidateItems(options.localFrontier)
+  ).map((candidate) => {
+    const candidateId =
+      optionalString(candidate.candidate_id, "candidate_id") ?? "unknown";
+    const proposalEntry = currentProposalLinkByCandidateId.get(candidateId) ?? null;
+    let decisionState = "hold";
+    if (proposalEntry?.readiness_state === "recommended") {
+      decisionState = "promote";
+    } else if (proposalEntry?.readiness_state === "blocked") {
+      decisionState = "blocked";
+    } else if (pendingQueryTargets.has(candidateId)) {
+      decisionState = "query";
+    } else if (pendingMergeTargets.has(candidateId)) {
+      decisionState = "merge";
+    } else if ((rankIndexByCandidateId.get(candidateId) ?? 999) > 3) {
+      decisionState = "drop";
+    }
+    return {
+      laneId: candidateId,
+      familyId: optionalString(candidate.family_id, "family_id") ?? "family_default",
+      sourceIdeas:
+        optionalString(candidate.notes, "notes") ??
+        stringArray(candidate.parent_belief_ids ?? [], "parent_belief_ids").join(
+          ", ",
+        ) ??
+        "",
+      thesis: candidateDescriptor(candidate),
+      rank: rankIndexByCandidateId.get(candidateId) ?? null,
+      score: acquisitionScoreByCandidateId.get(candidateId) ?? null,
+      decisionState,
+      trustState: trustState,
+      evidenceSummary:
+        proposalEntry?.evidence_summary ??
+        (candidateId === leaderId
+          ? "Current leader lane by acquisition score."
+          : candidateDescriptor(candidate)),
+      nextAction:
+        decisionState === "query"
+          ? "Answer comparison query"
+          : decisionState === "merge"
+            ? "Review merge suggestion"
+            : proposalEntry?.approval_needed
+              ? "Approve or defer"
+              : candidateId === leaderId
+                ? "Run eval or recommend"
+                : "Keep under review",
+      proposalReadiness: proposalEntry?.readiness_state ?? null,
+    };
+  });
+  const fallbackLaneById = new Map<string, DashboardRowRecord>(
+    fallbackFrontierRows.map((row) => [
+      optionalString(row.laneId, "laneId") ?? `fallback_lane_${randomUUID()}`,
+      row,
+    ]),
+  );
+  const frontierRows: DashboardRowRecord[] = reviewLaneRows.map((row) => {
+    const laneId =
+      optionalString(row.laneId, "laneId") ?? `review_lane_${randomUUID()}`;
+    const fallbackRow = fallbackLaneById.get(laneId);
+    fallbackLaneById.delete(laneId);
+    const mergedRow: DashboardRowRecord = {
+      ...fallbackRow,
+      ...row,
+    };
+    return {
+      ...mergedRow,
+      laneId: optionalString(mergedRow.laneId, "laneId") ?? "unknown",
+      familyId: optionalString(mergedRow.familyId, "familyId") ?? "family_default",
+      sourceIdeas: optionalString(mergedRow.sourceIdeas, "sourceIdeas") ?? "",
+      thesis: optionalString(mergedRow.thesis, "thesis") ?? "Explicit candidate lane.",
+      decisionState: optionalString(mergedRow.decisionState, "decisionState") ?? "hold",
+      trustState: optionalString(mergedRow.trustState, "trustState") ?? trustState,
+      evidenceSummary:
+        optionalString(mergedRow.evidenceSummary, "evidenceSummary") ??
+        "No lane evidence recorded yet.",
+      nextAction:
+        optionalString(mergedRow.nextAction, "nextAction") ?? "Keep under review",
+      proposalReadiness: optionalString(
+        mergedRow.proposalReadiness,
+        "proposalReadiness",
+      ),
+      rank: summaryNumber(mergedRow.rank),
+      score: summaryNumber(mergedRow.score),
+    };
+  });
+  frontierRows.push(...fallbackLaneById.values());
+  const reviewProposalRows =
+    options.upstreamReviewBundle === null
+      ? []
+      : (summaryArray(options.upstreamReviewBundle.proposals)?.map((rawProposal) => {
+          const proposal = ensureJsonObject<UpstreamReviewProposalRecord>(
+            rawProposal,
+            "review proposal",
+          );
+          const unresolvedRisks = summaryStringList(proposal.unresolved_risks);
+          const sourceLaneIds = summaryStringList(proposal.source_lane_ids);
+          const evidenceBasis =
+            summaryString(proposal.evidence_basis) ??
+            summaryString(proposal.recommendation_text);
+          const proposalId = summaryString(proposal.proposal_id);
+          const readinessState = summaryString(proposal.readiness);
+          const resumeArtifact = summaryString(proposal.resume_hint);
+          const sourceLane =
+            summaryString(proposal.source_lane_id) ?? sourceLaneIds[0] ?? null;
+          return {
+            ...(evidenceBasis === null ? {} : { evidenceBasis }),
+            ...(summaryString(proposal.updated_at) === null
+              ? {}
+              : { persistedTimestamp: summaryString(proposal.updated_at) }),
+            ...(proposalId === null ? {} : { proposalId }),
+            ...(readinessState === null ? {} : { readinessState }),
+            ...(resumeArtifact === null ? {} : { resumeArtifact }),
+            ...(sourceLane === null ? {} : { sourceLane }),
+            ...(unresolvedRisks.length === 0
+              ? {}
+              : { unresolvedRisk: unresolvedRisks[0] }),
+          } satisfies DashboardRowRecord;
+        }) ?? []);
+  const fallbackProposalRows: DashboardRowRecord[] = (
+    activeProposalLedger?.entries ?? []
+  ).map((entry) => ({
+    approvalNeeded: entry.approval_needed,
+    evidenceBasis: entry.evidence_summary,
+    persistedTimestamp: entry.updated_at,
+    proposalId: entry.proposal_id,
+    readinessState: entry.readiness_state,
+    resumeArtifact: entry.resume_artifact,
+    sourceLane: entry.candidate_id,
+    sourceFamily: entry.family_id,
+    unresolvedRisk:
+      entry.unresolved_risks.length > 0 ? entry.unresolved_risks[0] : "none recorded",
+  }));
+  const fallbackProposalById = new Map<string, DashboardRowRecord>(
+    fallbackProposalRows.map((row) => [
+      optionalString(row.proposalId, "proposalId") ??
+        `fallback_proposal_${randomUUID()}`,
+      row,
+    ]),
+  );
+  const proposalRows: DashboardRowRecord[] = reviewProposalRows.map((row) => {
+    const proposalId =
+      optionalString(row.proposalId, "proposalId") ?? `review_proposal_${randomUUID()}`;
+    const fallbackRow = fallbackProposalById.get(proposalId);
+    fallbackProposalById.delete(proposalId);
+    const mergedRow: DashboardRowRecord = {
+      ...fallbackRow,
+      ...row,
+    };
+    return {
+      ...mergedRow,
+      evidenceBasis:
+        optionalString(mergedRow.evidenceBasis, "evidenceBasis") ??
+        "No evidence summary recorded.",
+      proposalId: optionalString(mergedRow.proposalId, "proposalId") ?? "proposal",
+      readinessState:
+        optionalString(mergedRow.readinessState, "readinessState") ?? "not_ready",
+      sourceLane: optionalString(mergedRow.sourceLane, "sourceLane") ?? "lane",
+      unresolvedRisk:
+        optionalString(mergedRow.unresolvedRisk, "unresolvedRisk") ?? "none recorded",
+    };
+  });
+  proposalRows.push(...fallbackProposalById.values());
+  const cards: DashboardCardRecord[] = [
+    {
+      label: "Leader lane",
+      value:
+        leaderId ??
+        (frontierRows.length > 0
+          ? (optionalString(frontierRows[0]?.laneId, "laneId") ?? "none")
+          : "none"),
+      tone: leaderId === null && frontierRows.length === 0 ? "muted" : "primary",
+    },
+    {
+      label: "Families",
+      value: String(options.frontierFamilyCount),
+      tone: "muted",
+    },
+    {
+      label: "Pending queries",
+      value: String(options.pendingQueryCount),
+      tone: options.pendingQueryCount > 0 ? "warning" : "success",
+    },
+    {
+      label: "Top proposal",
+      value:
+        currentProposal === null
+          ? "none"
+          : `${currentProposal.proposal_id} (${currentProposal.readiness_state})`,
+      tone: proposalTone,
+    },
+    {
+      label: "Trust",
+      value: trustState,
+      tone: trustTone,
+    },
+  ];
+  const defaultEvidenceNotes = [
+    "The belief graphs are evidence views over typed relations and settings; they are not the frontier itself.",
+    "The lane table is the frontier under comparison. Use it to understand what is being promoted, queried, merged, or dropped.",
+  ];
+  const evidenceNotes = [
+    ...new Set([...defaultEvidenceNotes, ...summaryStringList(bundleEvidence?.notes)]),
+  ];
+  const lineage =
+    bundleLineage ??
+    ({
+      chain: [
+        "initial ideas",
+        "canonical beliefs",
+        "explicit lanes",
+        "eval evidence",
+        "lane decision",
+        "proposal recommendation",
+      ],
+      beliefIds: canonicalBeliefs
+        .map((belief) => summaryString(summaryObject<{ id?: unknown }>(belief)?.id))
+        .filter((value): value is string => value !== null),
+    } satisfies JsonObject);
+  const dashboardTrust = {
+    driftStatus: summaryString(bundleTrust?.status) ?? trustState,
+    evalSurfaceMatchesLock: options.evalSurfaceMatchesLock,
+    lockedEvalSurfaceSha256: options.lockedEvalSha256,
+    currentEvalSurfaceSha256: options.currentEvalSha256,
+    lockedEvalContractDigest:
+      summaryString(bundleTrust?.locked_eval_contract_digest) ??
+      options.lockedEvalContractDigest,
+    currentEvalContractDigest:
+      summaryString(bundleTrust?.current_eval_contract_digest) ??
+      options.currentEvalContractDigest,
+    evalContractMatchesCurrent:
+      typeof bundleTrust?.eval_contract_matches_current === "boolean"
+        ? bundleTrust.eval_contract_matches_current
+        : options.evalContractMatchesCurrent,
+    lastEvalMeasurementMode:
+      summaryString(bundleTrust?.last_eval_measurement_mode) ??
+      options.lastEvalMeasurementMode,
+    lastEvalStabilizationMode:
+      summaryString(bundleTrust?.last_eval_stabilization_mode) ??
+      options.lastEvalStabilizationMode,
+    lastEvalUsedLease:
+      typeof bundleTrust?.last_eval_used_lease === "boolean"
+        ? bundleTrust.last_eval_used_lease
+        : options.lastEvalUsedLease,
+    lastEvalNoisySystem:
+      typeof bundleTrust?.last_eval_noisy_system === "boolean"
+        ? bundleTrust.last_eval_noisy_system
+        : options.lastEvalNoisySystem,
+  };
+  const dashboardNextAction =
+    bundleNextAction ??
+    ({
+      summary:
+        options.followUpComparison === null
+          ? "No concrete next action is queued."
+          : `Compare ${options.followUpComparison}.`,
+      reason:
+        options.followUpQueryType === null
+          ? "No follow-up query is active."
+          : `Current query focus is ${options.followUpQueryType}.`,
+      pendingQueryCount: options.pendingQueryCount,
+      pendingMergeCount: options.pendingMergeSuggestionCount,
+    } satisfies JsonObject);
+  const normalizedReviewBundle = ensureJsonObject<JsonObject>(
+    {
+      session: {
+        ...bundleSession,
+        sessionId: options.identity.sessionId,
+        eraId: options.identity.eraId,
+      },
+      prior_brief: {
+        summary: priorBrief.summary,
+        bullets: priorBrief.bullets,
+      },
+      run_brief: {
+        summary: runBrief.summary,
+        bullets: runBrief.bullets,
+      },
+      posterior_brief: {
+        summary: posteriorBrief.summary,
+        bullets: posteriorBrief.bullets,
+      },
+      proposal_brief: {
+        summary: proposalBrief.summary,
+        bullets: proposalBrief.bullets,
+      },
+      lanes: frontierRows,
+      proposals: proposalRows,
+      lineage,
+      trust: dashboardTrust,
+      evidence: {
+        views: evidenceViews,
+        notes: evidenceNotes,
+      },
+      next_action: dashboardNextAction,
+    },
+    "normalized review bundle",
+  );
+  return {
+    briefs: {
+      prior: priorBrief,
+      run: runBrief,
+      posterior: posteriorBrief,
+      proposal: proposalBrief,
+    },
+    proposalLedger: activeProposalLedger,
+    proposalMirror,
+    reviewBundle: normalizedReviewBundle,
+    evidenceViews,
+    resume: {
+      sessionId: options.identity.sessionId,
+      eraId: options.identity.eraId,
+      lastEvent: summarySnapshot.lastStep,
+      lastUpdatedAt: summarySnapshot.lastUpdatedAt,
+      currentProposalId: activeProposalLedger?.current_proposal_id ?? null,
+      resumeToken: currentProposal?.resume_artifact ?? null,
+      files: {
+        summary: shortWorkspacePath(options.workspace, options.paths.summaryPath),
+        beliefs: shortWorkspacePath(options.workspace, options.paths.beliefsPath),
+        frontier: shortWorkspacePath(options.workspace, options.paths.frontierPath),
+        proposals: shortWorkspacePath(options.workspace, options.paths.proposalsPath),
+      },
+    },
+    dashboard: {
+      session: {
+        workspace: options.workspace,
+        sessionId: options.identity.sessionId,
+        eraId: options.identity.eraId,
+      },
+      cards,
+      frontierDecisionTable: frontierRows,
+      lineage,
+      nextAction: dashboardNextAction,
+      proposalTable: proposalRows,
+      reviewModelSource:
+        options.upstreamReviewBundle === null
+          ? "local-derived"
+          : "upstream-review-bundle",
+      briefs: {
+        prior: {
+          summary: priorBrief.summary,
+          bullets: priorBrief.bullets,
+        },
+        run: {
+          summary: runBrief.summary,
+          bullets: runBrief.bullets,
+        },
+        posterior: {
+          summary: posteriorBrief.summary,
+          bullets: posteriorBrief.bullets,
+        },
+        proposal: {
+          summary: proposalBrief.summary,
+          bullets: proposalBrief.bullets,
+        },
+      },
+      evidenceViews: evidenceViews.map((view) => ({
+        ...view,
+        pathRelativeToWorkspace: shortWorkspacePath(options.workspace, view.path),
+      })),
+      trust: dashboardTrust,
+      resume: {
+        sessionId: options.identity.sessionId,
+        eraId: options.identity.eraId,
+        currentProposalId: activeProposalLedger?.current_proposal_id ?? null,
+        lastEvent: summarySnapshot.lastStep,
+        lastUpdatedAt: summarySnapshot.lastUpdatedAt,
+      },
+    },
+  };
+}
+
 function writeSummary(
   paths: SessionPaths,
   config: RuntimeConfig,
   beliefsDocument: BeliefsDocument,
+  runner?: Runner,
 ): void {
   const history = loadHistory(paths.historyPath);
-  const roughIdeas = stringList(beliefsDocument.roughIdeas ?? [], "roughIdeas");
-  const constraints = stringList(beliefsDocument.constraints ?? [], "constraints");
-  const canonicalBeliefs = Array.isArray(beliefsDocument.canonicalBeliefs)
-    ? beliefsDocument.canonicalBeliefs
-    : [];
+  const localFrontier = loadFrontierIfPresent(paths);
+  const identity = upstreamSessionIdentity(paths.workspace, beliefsDocument, {
+    defaultStatusFallback: Object.keys(beliefsDocument).length === 0,
+  });
+  const queryArtifact = loadJsonObjectIfPresent<SummarySuggestionPayload>(
+    activeUpstreamArtifactPath(paths, identity.sessionId, "query.json"),
+  );
+  const queryPayload = summaryObject<SummarySuggestionPayload>(queryArtifact) ?? {};
+  const frontierStatusArtifact = loadJsonObjectIfPresent<FrontierSummaryRecord>(
+    activeUpstreamArtifactPath(paths, identity.sessionId, "frontier_status.json"),
+  );
+  const frontierSummary =
+    frontierStatusArtifact ?? inferLocalFrontierSummary(localFrontier);
+  const [lockedEvalSha256, currentEvalSha256, evalSurfaceMatchesLock] =
+    ensureLockedEvalSurface(paths, beliefsDocument, {
+      establishIfMissing: false,
+    });
+  const upstreamReviewBundle = loadUpstreamReviewBundle(
+    paths.workspace,
+    config,
+    paths,
+    identity,
+    runner ?? null,
+  );
+  const view = buildDerivedWorkspaceView({
+    workspace: paths.workspace,
+    paths,
+    config,
+    beliefsDocument,
+    history,
+    identity,
+    localFrontier,
+    frontierSummary,
+    comparedLaneCount:
+      summaryNumber(frontierSummary.candidate_count) ??
+      (localFrontier === null ? 0 : frontierCandidateItems(localFrontier).length),
+    frontierFamilyCount:
+      summaryNumber(frontierSummary.family_count) ??
+      (localFrontier === null ? 0 : frontierFamilyCount(localFrontier)),
+    pendingQueryCount: summaryArray(frontierSummary.pending_queries)?.length ?? 0,
+    pendingMergeSuggestionCount:
+      summaryArray(frontierSummary.pending_merge_suggestions)?.length ?? 0,
+    objectiveBackend:
+      summaryString(queryPayload.objective_backend) ??
+      latestSummarySnapshot(history).objectiveBackend,
+    acquisitionBackend:
+      summaryString(queryPayload.acquisition_backend) ??
+      latestSummarySnapshot(history).acquisitionBackend,
+    followUpQueryType:
+      summaryString(queryPayload.follow_up_query_type) ??
+      latestSummarySnapshot(history).followUpQueryType,
+    followUpComparison:
+      summaryString(queryPayload.follow_up_comparison) ??
+      latestSummarySnapshot(history).followUpComparison,
+    lockedEvalSha256,
+    currentEvalSha256,
+    evalSurfaceMatchesLock,
+    evalContractDriftStatus: "unverified",
+    lockedEvalContractDigest: null,
+    currentEvalContractDigest: null,
+    evalContractMatchesCurrent: null,
+    lastEvalMeasurementMode: null,
+    lastEvalStabilizationMode: null,
+    lastEvalUsedLease: null,
+    lastEvalNoisySystem: null,
+    upstreamReviewBundle,
+  });
   const previewState =
     optionalString(beliefsDocument.applyState, "applyState") ?? "draft";
-  const upstreamSessionId =
-    optionalString(beliefsDocument.upstreamSessionId, "upstreamSessionId") ?? "Not set";
-  const upstreamEraId =
-    optionalString(beliefsDocument.upstreamEraId, "upstreamEraId") ?? "Not set";
   const previewDigest =
     optionalString(beliefsDocument.upstreamPreviewDigest, "upstreamPreviewDigest") ??
     "Not recorded";
-  const billedLive = String(Boolean(beliefsDocument.billedLive));
-  const currentEvalSha256 = currentEvalSurfaceSha256(paths);
-  const lockedEvalSha256 = lockedEvalSurfaceSha256(beliefsDocument);
-  const evalSurfaceLockValid = String(
-    lockedEvalSha256 !== null && currentEvalSha256 === lockedEvalSha256,
-  );
-  const frontierPresent = existsSync(paths.frontierPath);
-  const ideasPresent = existsSync(paths.ideasPath);
   const summarySnapshot = latestSummarySnapshot(history);
-  let evalSource = "generated default shell stub";
-  if (config.evalCommand === null) {
-    evalSource = "not set";
-  } else if (!usesDefaultEvalCommand(config.evalCommand)) {
-    evalSource = "user-provided";
-  }
-
+  const roughIdeas = stringList(beliefsDocument.roughIdeas ?? [], "roughIdeas");
+  const constraints = stringList(beliefsDocument.constraints ?? [], "constraints");
+  const evalSource =
+    config.evalCommand === null
+      ? "not set"
+      : usesDefaultEvalCommand(config.evalCommand)
+        ? "generated default shell stub"
+        : "user-provided";
+  const dashboardFrontierRowsValue = view.dashboard.frontierDecisionTable;
+  const dashboardFrontierRows = Array.isArray(dashboardFrontierRowsValue)
+    ? dashboardFrontierRowsValue
+    : [];
+  const comparedLaneCount =
+    summaryNumber(frontierSummary.candidate_count) ?? dashboardFrontierRows.length;
+  const topCandidate =
+    summarySnapshot.topCandidate ??
+    optionalString(
+      summaryObject<DashboardRowRecord>(dashboardFrontierRows[0])?.laneId,
+      "laneId",
+    ) ??
+    "none";
+  const reviewBundleRecord = view.reviewBundle as { evidence?: unknown };
+  const lineageRecord =
+    summaryObject<UpstreamReviewLineageRecord>(view.dashboard.lineage) ?? {};
+  const trustRecord =
+    summaryObject<UpstreamReviewTrustRecord>(view.dashboard.trust) ?? {};
+  const reviewEvidenceRecord =
+    summaryObject<UpstreamReviewEvidenceRecord>(reviewBundleRecord.evidence) ?? {};
   const lines = [
     "# pi-autoclanker session",
     "",
     "## At a glance",
-    `- rough ideas captured: \`${roughIdeas.length}\``,
-    `- canonical beliefs: \`${canonicalBeliefs.length}\``,
-    `- last completed step: \`${summarySnapshot.lastStep ?? "Not recorded"}\``,
-  ];
-  if (summarySnapshot.lastUpdatedAt !== null) {
-    lines.push(`- last updated: \`${summarySnapshot.lastUpdatedAt}\``);
-  }
-  if (summarySnapshot.comparedLaneCount !== null) {
-    lines.push(`- compared lanes: \`${summarySnapshot.comparedLaneCount}\``);
-  }
-  if (summarySnapshot.frontierFamilyCount !== null) {
-    lines.push(`- frontier families: \`${summarySnapshot.frontierFamilyCount}\``);
-  }
-  if (summarySnapshot.pendingQueryCount !== null) {
-    lines.push(`- pending queries: \`${summarySnapshot.pendingQueryCount}\``);
-  }
-  if (summarySnapshot.pendingMergeSuggestionCount !== null) {
-    lines.push(
-      `- pending merge suggestions: \`${summarySnapshot.pendingMergeSuggestionCount}\``,
-    );
-  }
-  if (summarySnapshot.nextAction !== null) {
-    lines.push(`- next action: ${summarySnapshot.nextAction}`);
-  }
-  if (summarySnapshot.topCandidate !== null) {
-    lines.push(`- top candidate: \`${summarySnapshot.topCandidate}\``);
-  }
-  if (summarySnapshot.followUpQuery !== null) {
-    lines.push(`- follow-up query: ${summarySnapshot.followUpQuery}`);
-  }
-  if (summarySnapshot.followUpQueryType !== null) {
-    lines.push(`- query type: \`${summarySnapshot.followUpQueryType}\``);
-  }
-  if (summarySnapshot.followUpComparison !== null) {
-    lines.push(`- comparison focus: \`${summarySnapshot.followUpComparison}\``);
-  }
-  if (summarySnapshot.influenceNote !== null) {
-    lines.push(`- influence note: ${summarySnapshot.influenceNote}`);
-  }
-  if (summarySnapshot.objectiveBackend !== null) {
-    lines.push(`- objective backend: \`${summarySnapshot.objectiveBackend}\``);
-  }
-  if (summarySnapshot.acquisitionBackend !== null) {
-    lines.push(`- acquisition backend: \`${summarySnapshot.acquisitionBackend}\``);
-  }
-  if (summarySnapshot.latestEval !== null) {
-    lines.push(`- latest eval ingest: ${summarySnapshot.latestEval}`);
-  }
-  if (summarySnapshot.latestFit !== null) {
-    lines.push(`- latest fit: ${summarySnapshot.latestFit}`);
-  }
-  if (summarySnapshot.commitRecommendation !== null) {
-    lines.push(
-      `- latest commit recommendation: ${summarySnapshot.commitRecommendation}`,
-    );
-  }
-  lines.push(
-    "",
-    "## Run files",
-    "- `autoclanker.md`: current run summary",
-    "- `autoclanker.ideas.json`: optional intake file for goal, rough ideas, constraints, and seed pathways",
-    "- `autoclanker.frontier.json`: optional reviewable local frontier for multi-path runs",
-    "- `autoclanker.history.jsonl`: local chronological log",
-    `- \`${config.sessionRoot}/<session>/RESULTS.md\`: upstream run summary`,
-    `- \`${config.sessionRoot}/<session>/convergence.png\`, \`${config.sessionRoot}/<session>/candidate_rankings.png\`, \`${config.sessionRoot}/<session>/belief_graph_prior.png\`, and \`${config.sessionRoot}/<session>/belief_graph_posterior.png\`: upstream charts and belief graphs`,
-    `- \`${config.sessionRoot}/<session>/...\`: deeper upstream machine-readable artifacts`,
-    "",
-    "## Goal",
-    config.goal ?? "Not set",
-    "",
-    "## Eval command",
-    `\`${config.evalCommand ?? "Not set"}\``,
-    `- source: \`${evalSource}\``,
-    "",
-    "## Session state",
-    `- enabled: \`${String(config.enabled)}\``,
+    `- session: \`${identity.sessionId}\``,
+    `- era: \`${identity.eraId}\``,
     `- ideas mode: \`${config.defaultIdeasMode}\``,
-    `- upstream session root: \`${config.sessionRoot}\``,
-    `- upstream session id: \`${upstreamSessionId}\``,
-    `- upstream era id: \`${upstreamEraId}\``,
+    `- apply state: \`${previewState}\``,
+    `- last completed step: \`${summarySnapshot.lastStep ?? "Not recorded"}\``,
+    `- eval surface lock: \`${String(evalSurfaceMatchesLock).toLowerCase()}\``,
+    `- proposal ledger: \`${view.proposalLedger === null ? "absent" : "present"}\``,
+    `- local ideas file: \`${existsSync(paths.ideasPath) ? "present" : "absent"}\``,
+    `- local frontier file: \`${existsSync(paths.frontierPath) ? "present" : "absent"}\``,
+    `- compared lanes: \`${comparedLaneCount}\``,
+    `- frontier families: \`${summaryNumber(frontierSummary.family_count) ?? 0}\``,
+    `- top candidate: \`${topCandidate}\``,
+    `- follow-up query: ${summarySnapshot.followUpQuery ?? "none"}`,
+    `- objective backend: \`${summarySnapshot.objectiveBackend ?? "unknown"}\``,
+    `- acquisition backend: \`${summarySnapshot.acquisitionBackend ?? "unknown"}\``,
+    "",
+    "## Run Signals",
+    `- next action: ${summarySnapshot.nextAction ?? "Not recorded"}`,
+    `- latest fit: ${summarySnapshot.latestFit ?? "Not recorded"}`,
+    `- latest eval: ${summarySnapshot.latestEval ?? "Not recorded"}`,
+    `- latest commit recommendation: ${summarySnapshot.commitRecommendation ?? "Not recorded"}`,
+    `- upstream session root: \`${shortWorkspacePath(paths.workspace, paths.upstreamSessionDir)}\``,
+    `- upstream session id: \`${identity.sessionId}\``,
+    `- eval surface sha256: \`${currentEvalSha256 ?? lockedEvalSha256 ?? "Not recorded"}\``,
+    `- eval surface lock valid: ${String(evalSurfaceMatchesLock).toLowerCase()}`,
+    "",
+    `## ${view.briefs.prior.title}`,
+    view.briefs.prior.summary,
+    ...view.briefs.prior.bullets.map((item) => `- ${item}`),
+    "",
+    `## ${view.briefs.run.title}`,
+    view.briefs.run.summary,
+    ...view.briefs.run.bullets.map((item) => `- ${item}`),
+    "",
+    `## ${view.briefs.posterior.title}`,
+    view.briefs.posterior.summary,
+    ...view.briefs.posterior.bullets.map((item) => `- ${item}`),
+    "",
+    `## ${view.briefs.proposal.title}`,
+    view.briefs.proposal.summary,
+    ...view.briefs.proposal.bullets.map((item) => `- ${item}`),
+    "",
+    "## Evidence Views",
+    ...view.evidenceViews.map(
+      (item) =>
+        `- ${item.label}: \`${shortWorkspacePath(paths.workspace, item.path)}\` (${item.exists ? "present" : "missing"})`,
+    ),
+    "",
+    "## Lineage",
+    ...summaryStringList(lineageRecord.chain).map((item) => `- ${item}`),
+    "",
+    "## Trust",
+    `- drift status: \`${optionalString(trustRecord.status ?? trustRecord.driftStatus, "driftStatus") ?? "unverified"}\``,
+    `- locked eval contract digest: \`${optionalString(trustRecord.lockedEvalContractDigest ?? trustRecord.locked_eval_contract_digest, "lockedEvalContractDigest") ?? "Not recorded"}\``,
+    `- current eval contract digest: \`${optionalString(trustRecord.currentEvalContractDigest ?? trustRecord.current_eval_contract_digest, "currentEvalContractDigest") ?? "Not recorded"}\``,
+    `- eval contract matches current: ${String(trustRecord.evalContractMatchesCurrent ?? trustRecord.eval_contract_matches_current ?? false).toLowerCase()}`,
+    ...summaryStringList(reviewEvidenceRecord.notes).map((item) => `- ${item}`),
+    "",
+    "## Run Files",
+    `- \`${SUMMARY_FILENAME}\`: durable human brief`,
+    `- \`${IDEAS_FILENAME}\`: optional intake file`,
+    `- \`${FRONTIER_FILENAME}\`: optional explicit frontier lanes`,
+    `- \`${PROPOSALS_FILENAME}\`: durable active-session proposal mirror`,
+    `- \`${HISTORY_FILENAME}\`: local chronological log`,
     `- upstream preview digest: \`${previewDigest}\``,
-    `- billed live: \`${billedLive.toLowerCase()}\``,
-    `- belief apply state: \`${previewState}\``,
-    `- eval surface sha256: \`${currentEvalSha256 ?? "Not recorded"}\``,
-    `- eval surface lock valid: \`${evalSurfaceLockValid.toLowerCase()}\``,
-    `- local ideas file: \`${ideasPresent ? "present" : "absent"}\``,
-    `- local frontier file: \`${frontierPresent ? "present" : "absent"}\``,
+    `- eval command source: \`${evalSource}\``,
     "",
     "## Constraints",
-  );
-  if (constraints.length > 0) {
-    lines.push(...constraints.map((item) => `- ${item}`));
-  } else {
-    lines.push("- none");
-  }
-  lines.push("", "## Rough ideas");
-  if (roughIdeas.length > 0) {
-    lines.push(...roughIdeas.map((item) => `- ${item}`));
-  } else {
-    lines.push("- none");
-  }
+    ...(constraints.length > 0 ? constraints.map((item) => `- ${item}`) : ["- none"]),
+    "",
+    "## Rough ideas",
+    ...(roughIdeas.length > 0 ? roughIdeas.map((item) => `- ${item}`) : ["- none"]),
+  ];
   writeFileSync(paths.summaryPath, `${lines.join("\n")}\n`, "utf-8");
+  appendDerivedViewTransitions(paths.historyPath, history, view);
 }
 
 function summaryObject<T extends object = JsonObject>(value: unknown): T | null {
@@ -1848,6 +3379,349 @@ function readTextIfPresent(path: string): string | null {
   return existsSync(path) ? readFileSync(path, "utf-8") : null;
 }
 
+function loadJsonObjectIfPresent<T extends JsonObject = JsonObject>(
+  path: string,
+): T | null {
+  return existsSync(path) ? loadJsonObject<T>(path, basename(path)) : null;
+}
+
+function activeUpstreamSessionPath(paths: SessionPaths, sessionId: string): string {
+  return resolve(paths.upstreamSessionDir, sessionId);
+}
+
+function activeUpstreamArtifactPath(
+  paths: SessionPaths,
+  sessionId: string,
+  filename: string,
+): string {
+  return resolve(activeUpstreamSessionPath(paths, sessionId), filename);
+}
+
+function proposalReadinessState(value: unknown): ProposalReadinessState {
+  const state = requireNonEmptyString(value, "proposal readiness state");
+  if (
+    ![
+      "not_ready",
+      "candidate",
+      "recommended",
+      "deferred",
+      "blocked",
+      "superseded",
+    ].includes(state)
+  ) {
+    throw new Error(
+      "proposal readiness state must be one of not_ready, candidate, recommended, deferred, blocked, superseded.",
+    );
+  }
+  return state as ProposalReadinessState;
+}
+
+function recordStringMap(value: unknown, fieldName: string): Record<string, string> {
+  if (value === undefined || value === null) {
+    return {};
+  }
+  const mapping = ensureJsonObject<JsonObject>(
+    value,
+    `${fieldName} must be an object.`,
+  );
+  return Object.fromEntries(
+    Object.entries(mapping).map(([key, item]) => [
+      key,
+      requireNonEmptyString(item, `${fieldName}.${key}`),
+    ]),
+  );
+}
+
+function validateProposalMirrorEntry(
+  value: unknown,
+  fieldName: string,
+): ProposalMirrorEntry {
+  const entry = ensureJsonObject<ProposalMirrorEntryInput>(
+    value,
+    `${fieldName} must be an object.`,
+  );
+  return {
+    approval_needed: coerceBool(
+      entry.approval_needed ?? false,
+      `${fieldName}.approval_needed`,
+    ),
+    artifact_pointers: recordStringMap(
+      entry.artifact_pointers ?? {},
+      `${fieldName}.artifact_pointers`,
+    ),
+    candidate_id: requireNonEmptyString(
+      entry.candidate_id,
+      `${fieldName}.candidate_id`,
+    ),
+    evidence_summary: requireNonEmptyString(
+      entry.evidence_summary,
+      `${fieldName}.evidence_summary`,
+    ),
+    family_id:
+      entry.family_id === null || entry.family_id === undefined
+        ? null
+        : requireNonEmptyString(entry.family_id, `${fieldName}.family_id`),
+    proposal_id: requireNonEmptyString(entry.proposal_id, `${fieldName}.proposal_id`),
+    readiness_state: proposalReadinessState(entry.readiness_state),
+    recommendation_reason:
+      entry.recommendation_reason === null || entry.recommendation_reason === undefined
+        ? null
+        : requireNonEmptyString(
+            entry.recommendation_reason,
+            `${fieldName}.recommendation_reason`,
+          ),
+    resume_artifact:
+      entry.resume_artifact === null || entry.resume_artifact === undefined
+        ? null
+        : requireNonEmptyString(entry.resume_artifact, `${fieldName}.resume_artifact`),
+    source_candidate_ids: stringArray(
+      entry.source_candidate_ids ?? [],
+      `${fieldName}.source_candidate_ids`,
+    ),
+    supersedes: stringArray(entry.supersedes ?? [], `${fieldName}.supersedes`),
+    unresolved_risks: stringArray(
+      entry.unresolved_risks ?? [],
+      `${fieldName}.unresolved_risks`,
+    ),
+    updated_at:
+      entry.updated_at === null || entry.updated_at === undefined
+        ? null
+        : requireNonEmptyString(entry.updated_at, `${fieldName}.updated_at`),
+  };
+}
+
+function validateProposalMirrorEra(
+  value: unknown,
+  fieldName: string,
+): ProposalMirrorEra {
+  const era = ensureJsonObject<ProposalMirrorEraInput>(
+    value,
+    `${fieldName} must be an object.`,
+  );
+  const entries = Array.isArray(era.entries)
+    ? era.entries.map((entry, index) =>
+        validateProposalMirrorEntry(entry, `${fieldName}.entries[${index + 1}]`),
+      )
+    : [];
+  return {
+    current_proposal_id:
+      era.current_proposal_id === null || era.current_proposal_id === undefined
+        ? null
+        : requireNonEmptyString(
+            era.current_proposal_id,
+            `${fieldName}.current_proposal_id`,
+          ),
+    entries,
+    updated_at:
+      era.updated_at === null || era.updated_at === undefined
+        ? null
+        : requireNonEmptyString(era.updated_at, `${fieldName}.updated_at`),
+  };
+}
+
+function validateProposalsMirrorDocument(
+  value: unknown,
+  fieldName = PROPOSALS_FILENAME,
+): ProposalsMirrorDocument {
+  const document = ensureJsonObject<ProposalsMirrorDocumentInput>(
+    value,
+    `${fieldName} must be an object.`,
+  );
+  const activeValue = document.active;
+  const active =
+    activeValue === null || activeValue === undefined
+      ? null
+      : (() => {
+          const mapping = ensureJsonObject<ProposalMirrorActiveInput>(
+            activeValue,
+            `${fieldName}.active must be an object or null.`,
+          );
+          return {
+            era_id: requireNonEmptyString(mapping.era_id, `${fieldName}.active.era_id`),
+            session_id: requireNonEmptyString(
+              mapping.session_id,
+              `${fieldName}.active.session_id`,
+            ),
+          };
+        })();
+  const sessions = ensureJsonObject<JsonObject>(
+    document.sessions ?? {},
+    `${fieldName}.sessions must be an object.`,
+  );
+  return {
+    active,
+    sessions: Object.fromEntries(
+      Object.entries(sessions).map(([sessionId, rawSession]) => {
+        const sessionMapping = ensureJsonObject<ProposalMirrorSessionInput>(
+          rawSession,
+          `${fieldName}.sessions.${sessionId} must be an object.`,
+        );
+        const eras = ensureJsonObject<JsonObject>(
+          sessionMapping.eras ?? {},
+          `${fieldName}.sessions.${sessionId}.eras must be an object.`,
+        );
+        return [
+          sessionId,
+          {
+            eras: Object.fromEntries(
+              Object.entries(eras).map(([eraId, rawEra]) => [
+                eraId,
+                validateProposalMirrorEra(
+                  rawEra,
+                  `${fieldName}.sessions.${sessionId}.eras.${eraId}`,
+                ),
+              ]),
+            ),
+          },
+        ];
+      }),
+    ),
+  };
+}
+
+function loadProposalsMirror(paths: SessionPaths): ProposalsMirrorDocument | null {
+  if (!existsSync(paths.proposalsPath)) {
+    return null;
+  }
+  return validateProposalsMirrorDocument(
+    loadJsonObject(paths.proposalsPath, PROPOSALS_FILENAME),
+  );
+}
+
+function writeProposalsMirror(
+  paths: SessionPaths,
+  mirror: ProposalsMirrorDocument,
+): void {
+  writeJsonFile(
+    paths.proposalsPath,
+    validateProposalsMirrorDocument(mirror) as unknown as JsonObject,
+  );
+}
+
+function proposalMirrorFromUpstreamLedger(
+  identity: { eraId: string; sessionId: string },
+  ledger: UpstreamProposalLedgerRecord,
+  existing: ProposalsMirrorDocument | null,
+): ProposalsMirrorDocument | null {
+  const rawEntries = Array.isArray(ledger.entries) ? ledger.entries : [];
+  if (rawEntries.length === 0) {
+    return existing;
+  }
+  const mirrorEntries = rawEntries.map((rawEntry, index) => {
+    const entry = ensureJsonObject<UpstreamProposalLedgerEntryRecord>(
+      rawEntry,
+      `proposal ledger entry ${index + 1} must be an object.`,
+    );
+    return {
+      approval_needed: coerceBool(
+        entry.approval_required ?? false,
+        `proposal_ledger.entries[${index + 1}].approval_required`,
+      ),
+      artifact_pointers: recordStringMap(
+        entry.artifact_refs ?? {},
+        `proposal_ledger.entries[${index + 1}].artifact_refs`,
+      ),
+      candidate_id: requireNonEmptyString(
+        entry.candidate_id,
+        `proposal_ledger.entries[${index + 1}].candidate_id`,
+      ),
+      evidence_summary: requireNonEmptyString(
+        entry.evidence_summary,
+        `proposal_ledger.entries[${index + 1}].evidence_summary`,
+      ),
+      family_id:
+        entry.family_id === null || entry.family_id === undefined
+          ? null
+          : requireNonEmptyString(
+              entry.family_id,
+              `proposal_ledger.entries[${index + 1}].family_id`,
+            ),
+      proposal_id: requireNonEmptyString(
+        entry.proposal_id,
+        `proposal_ledger.entries[${index + 1}].proposal_id`,
+      ),
+      readiness_state: proposalReadinessState(entry.readiness_state),
+      recommendation_reason:
+        entry.recommendation_reason === null ||
+        entry.recommendation_reason === undefined
+          ? null
+          : requireNonEmptyString(
+              entry.recommendation_reason,
+              `proposal_ledger.entries[${index + 1}].recommendation_reason`,
+            ),
+      resume_artifact:
+        entry.resume_token === null || entry.resume_token === undefined
+          ? null
+          : requireNonEmptyString(
+              entry.resume_token,
+              `proposal_ledger.entries[${index + 1}].resume_token`,
+            ),
+      source_candidate_ids: stringArray(
+        entry.source_candidate_ids ?? [],
+        `proposal_ledger.entries[${index + 1}].source_candidate_ids`,
+      ),
+      supersedes: stringArray(
+        entry.supersedes ?? [],
+        `proposal_ledger.entries[${index + 1}].supersedes`,
+      ),
+      unresolved_risks: stringArray(
+        entry.unresolved_risks ?? [],
+        `proposal_ledger.entries[${index + 1}].unresolved_risks`,
+      ),
+      updated_at:
+        entry.updated_at === null || entry.updated_at === undefined
+          ? null
+          : requireNonEmptyString(
+              entry.updated_at,
+              `proposal_ledger.entries[${index + 1}].updated_at`,
+            ),
+    } satisfies ProposalMirrorEntry;
+  });
+  const next: ProposalsMirrorDocument = {
+    active: {
+      era_id: identity.eraId,
+      session_id: identity.sessionId,
+    },
+    sessions: {
+      ...(existing?.sessions ?? {}),
+      [identity.sessionId]: {
+        eras: {
+          ...(existing?.sessions[identity.sessionId]?.eras ?? {}),
+          [identity.eraId]: {
+            current_proposal_id:
+              ledger.current_proposal_id === null ||
+              ledger.current_proposal_id === undefined
+                ? null
+                : requireNonEmptyString(
+                    ledger.current_proposal_id,
+                    "proposal_ledger.current_proposal_id",
+                  ),
+            entries: mirrorEntries,
+            updated_at:
+              ledger.updated_at === null || ledger.updated_at === undefined
+                ? null
+                : requireNonEmptyString(
+                    ledger.updated_at,
+                    "proposal_ledger.updated_at",
+                  ),
+          },
+        },
+      },
+    },
+  };
+  return validateProposalsMirrorDocument(next);
+}
+
+function activeProposalMirrorEra(
+  mirror: ProposalsMirrorDocument | null,
+  identity: { eraId: string; sessionId: string },
+): ProposalMirrorEra | null {
+  if (mirror === null) {
+    return null;
+  }
+  return mirror.sessions[identity.sessionId]?.eras[identity.eraId] ?? null;
+}
+
 function walkFiles(root: string): string[] {
   if (!existsSync(root)) {
     return [];
@@ -1920,6 +3794,7 @@ function sessionFileMap(paths: SessionPaths): Record<string, boolean> {
     [BELIEFS_FILENAME]: existsSync(paths.beliefsPath),
     [EVAL_FILENAME]: existsSync(paths.evalPath),
     [FRONTIER_FILENAME]: existsSync(paths.frontierPath),
+    [PROPOSALS_FILENAME]: existsSync(paths.proposalsPath),
     [HISTORY_FILENAME]: existsSync(paths.historyPath),
   };
 }
@@ -1931,6 +3806,7 @@ function requireSession(paths: SessionPaths, ...fileNames: string[]): void {
     [BELIEFS_FILENAME]: paths.beliefsPath,
     [EVAL_FILENAME]: paths.evalPath,
     [FRONTIER_FILENAME]: paths.frontierPath,
+    [PROPOSALS_FILENAME]: paths.proposalsPath,
     [HISTORY_FILENAME]: paths.historyPath,
   };
   const missing = fileNames.filter((fileName) => {
@@ -2224,6 +4100,7 @@ function seedFrontierFromIdeasInput(
       candidate_id: candidateId,
       family_id: `family_${slugIdentifier(pathway.id)}`,
       origin_kind: "seed",
+      parent_belief_ids: ideaIds,
       notes: pathway.notes ?? `Seeded from ${pathway.id} in ${IDEAS_FILENAME}.`,
       genotype: [...genotypeByGene.values()].sort((left, right) =>
         requireNonEmptyString(left.gene_id, "gene_id").localeCompare(
@@ -2470,9 +4347,12 @@ function defaultFrontierSummary(): FrontierSummaryRecord {
   };
 }
 
-function frontierSummaryFromPayload(value: unknown): FrontierSummaryRecord {
+function frontierSummaryFromPayload(
+  value: unknown,
+  fallback: FrontierSummaryRecord,
+): FrontierSummaryRecord {
   const summary = summaryObject<FrontierSummaryRecord>(value);
-  return summary ?? defaultFrontierSummary();
+  return summary ?? fallback;
 }
 
 function inferLocalFrontierSummary(frontier: CandidatePoolDocument | null): JsonObject {
@@ -2755,7 +4635,7 @@ function toolInitSession(
     canonicalization,
     upstream: preview,
   });
-  writeSummary(paths, materializedConfig, beliefsDocument);
+  writeSummary(paths, materializedConfig, beliefsDocument, runner);
   return {
     ok: true,
     tool: "autoclanker_init_session",
@@ -2771,6 +4651,59 @@ function toolInitSession(
     canonicalization,
     upstream: preview,
   };
+}
+
+function loadUpstreamReviewBundle(
+  workspace: string,
+  config: RuntimeConfig,
+  paths: SessionPaths,
+  identity: { sessionId: string; eraId: string },
+  runner: Runner | null,
+): UpstreamReviewBundleRecord | null {
+  if (runner === null) {
+    return null;
+  }
+  try {
+    const bundle = invokeAutoclanker({
+      config,
+      workspace,
+      args: [
+        "session",
+        "review-bundle",
+        "--session-id",
+        identity.sessionId,
+        "--session-root",
+        paths.upstreamSessionDir,
+        "--format",
+        "json",
+      ],
+      runner,
+      requireUpstream: false,
+    });
+    const parsed = summaryObject<UpstreamReviewBundleRecord>(bundle);
+    if (
+      parsed === null ||
+      ![
+        "prior_brief",
+        "run_brief",
+        "posterior_brief",
+        "proposal_brief",
+        "lanes",
+        "proposals",
+        "evidence",
+        "trust",
+      ].some((key) => key in parsed)
+    ) {
+      return null;
+    }
+    return parsed;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("Session manifest not found")) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 function toolStatus(
@@ -2867,9 +4800,10 @@ function toolStatus(
   const upstreamStatus = summaryObject<UpstreamStatusRecord>(upstream) ?? {};
   const upstreamFrontierRecord =
     summaryObject<{ frontier_summary?: unknown }>(upstreamFrontier) ?? {};
-  const frontierSummary =
-    summaryObject<FrontierSummaryRecord>(upstreamFrontierRecord.frontier_summary) ??
-    inferLocalFrontierSummary(localFrontier);
+  const frontierSummary = frontierSummaryFromPayload(
+    upstreamFrontierRecord.frontier_summary,
+    inferLocalFrontierSummary(localFrontier),
+  );
   const lockedEvalContractDigest =
     summaryString(upstreamStatus.eval_contract_digest) ?? null;
   const currentEvalContractDigest =
@@ -2927,6 +4861,43 @@ function toolStatus(
     "canonicalizationModel",
   );
   const ideasFilePresent = existsSync(paths.ideasPath);
+  const upstreamReviewBundle = loadUpstreamReviewBundle(
+    workspace,
+    runtimeConfig,
+    paths,
+    identity,
+    runner,
+  );
+  const view = buildDerivedWorkspaceView({
+    workspace,
+    paths,
+    config: runtimeConfig,
+    beliefsDocument,
+    history,
+    identity,
+    localFrontier,
+    frontierSummary,
+    comparedLaneCount: frontierCandidateCount,
+    frontierFamilyCount: frontierFamilyCountValue,
+    pendingQueryCount,
+    pendingMergeSuggestionCount,
+    objectiveBackend,
+    acquisitionBackend,
+    followUpQueryType,
+    followUpComparison,
+    lockedEvalSha256,
+    currentEvalSha256,
+    evalSurfaceMatchesLock,
+    evalContractDriftStatus,
+    lockedEvalContractDigest,
+    currentEvalContractDigest,
+    evalContractMatchesCurrent,
+    lastEvalMeasurementMode,
+    lastEvalStabilizationMode,
+    lastEvalUsedLease,
+    lastEvalNoisySystem,
+    upstreamReviewBundle,
+  });
 
   return {
     ok: true,
@@ -2971,18 +4942,18 @@ function toolStatus(
     frontierFilePresent: existsSync(paths.frontierPath),
     ideasFilePresent,
     frontierSummary,
+    briefs: view.briefs,
+    proposalLedger: view.proposalLedger,
+    reviewBundle: view.reviewBundle,
+    dashboard: view.dashboard,
+    evidenceViews: view.evidenceViews,
+    resume: view.resume,
+    proposalFilePresent: existsSync(paths.proposalsPath),
     trust: {
+      ...view.dashboard.trust,
       evalSurfaceSha256: currentEvalSha256 ?? null,
       lockedEvalSurfaceSha256: lockedEvalSha256 ?? null,
-      evalSurfaceMatchesLock,
-      lockedEvalContractDigest,
-      currentEvalContractDigest,
-      evalContractMatchesCurrent,
       evalContractDriftStatus,
-      lastEvalMeasurementMode,
-      lastEvalStabilizationMode,
-      lastEvalUsedLease,
-      lastEvalNoisySystem,
     },
     frontier: {
       filePresent: existsSync(paths.frontierPath),
@@ -3062,7 +5033,7 @@ function toolPreviewBeliefs(
     canonicalization,
     upstream: preview,
   });
-  writeSummary(paths, loadWorkspaceConfig(workspace), beliefsDocument);
+  writeSummary(paths, loadWorkspaceConfig(workspace), beliefsDocument, runner);
   return {
     ok: true,
     tool: "autoclanker_preview_beliefs",
@@ -3085,7 +5056,7 @@ function toolApplyBeliefs(
     paths.beliefsPath,
     BELIEFS_FILENAME,
   );
-  const { sessionId } = upstreamSessionIdentity(workspace, beliefsDocument);
+  const { sessionId, eraId } = upstreamSessionIdentity(workspace, beliefsDocument);
   const previewDigest = requireNonEmptyString(
     beliefsDocument.upstreamPreviewDigest,
     "upstreamPreviewDigest",
@@ -3114,7 +5085,7 @@ function toolApplyBeliefs(
     billedLive: beliefsDocument.billedLive ?? false,
     upstream,
   });
-  writeSummary(paths, loadWorkspaceConfig(workspace), beliefsDocument);
+  writeSummary(paths, loadWorkspaceConfig(workspace), beliefsDocument, runner);
   return {
     ok: true,
     tool: "autoclanker_apply_beliefs",
@@ -3185,7 +5156,7 @@ function toolIngestEval(
     evalSurfaceSha256,
     upstream,
   });
-  writeSummary(paths, config, beliefsDocument);
+  writeSummary(paths, config, beliefsDocument, runner);
   return {
     ok: true,
     tool: "autoclanker_ingest_eval",
@@ -3231,7 +5202,13 @@ function runPassthroughTool(options: {
     event: options.historyEvent,
     upstream,
   });
-  writeSummary(paths, config, beliefsDocument);
+  if (options.historyEvent === "commit_recommended") {
+    appendHistory(paths.historyPath, {
+      event: "commit_recommendation_updated",
+      upstream,
+    });
+  }
+  writeSummary(paths, config, beliefsDocument, options.runner);
   return {
     ok: true,
     tool: options.toolName,
@@ -3299,7 +5276,7 @@ function runFrontierSuggest(options: {
     frontierFamilyCount: frontier === null ? 0 : frontierFamilyCount(frontier),
     upstream,
   });
-  writeSummary(paths, config, beliefsDocument);
+  writeSummary(paths, config, beliefsDocument, options.runner);
   return {
     ok: true,
     tool: options.toolName,
@@ -3339,8 +5316,15 @@ function toolFrontierStatus(
     tool: "autoclanker_frontier_status",
     workspace,
     sessionRoot: status.sessionRoot,
+    briefs: status.briefs,
+    proposalLedger: status.proposalLedger,
+    reviewBundle: status.reviewBundle,
+    dashboard: status.dashboard,
+    evidenceViews: status.evidenceViews,
+    resume: status.resume,
     frontier: status.frontier,
     frontierFilePresent: status.frontierFilePresent,
+    proposalFilePresent: status.proposalFilePresent,
     trust: status.trust,
     upstream: status.upstream,
     upstreamFrontier: status.upstreamFrontier,
@@ -3380,7 +5364,7 @@ function toolMergePathways(
   const frontier = ensureFrontierForWorkspace(workspace, paths, payload);
   const merged = mergeFrontierPayload(frontier, payload);
   writeFrontierDocument(paths, merged.frontier);
-  const { sessionId } = upstreamSessionIdentity(workspace, beliefsDocument);
+  const { sessionId, eraId } = upstreamSessionIdentity(workspace, beliefsDocument);
   const upstream = invokeAutoclanker({
     config,
     workspace,
@@ -3405,7 +5389,17 @@ function toolMergePathways(
     frontierFamilyCount: frontierFamilyCount(merged.frontier),
     upstream,
   });
-  writeSummary(paths, config, beliefsDocument);
+  appendHistory(paths.historyPath, {
+    event: "merge_applied",
+    mergedCandidateId: merged.mergedCandidate.candidate_id,
+    parentCandidateIds: merged.parentCandidateIds,
+    resume: {
+      eraId,
+      sessionId,
+    },
+    upstream,
+  });
+  writeSummary(paths, config, beliefsDocument, runner);
   return {
     ok: true,
     tool: "autoclanker_merge_pathways",
@@ -3459,7 +5453,7 @@ function commandResume(
   writeJsonFile(paths.configPath, runtimeConfigToDocument(resumedConfig));
   const beliefsDocument = loadJsonIfPresent<BeliefsDocument>(paths.beliefsPath);
   appendHistory(paths.historyPath, { event: "session_resumed" });
-  writeSummary(paths, resumedConfig, beliefsDocument);
+  writeSummary(paths, resumedConfig, beliefsDocument, runner);
   return {
     ...toolStatus(workspace, payload, runner),
     command: "resume",
@@ -3522,7 +5516,7 @@ function commandOff(
   writeJsonFile(paths.configPath, runtimeConfigToDocument(disabledConfig));
   const beliefsDocument = loadJsonIfPresent<BeliefsDocument>(paths.beliefsPath);
   appendHistory(paths.historyPath, { event: "session_disabled" });
-  writeSummary(paths, disabledConfig, beliefsDocument);
+  writeSummary(paths, disabledConfig, beliefsDocument, runner);
   return {
     ok: true,
     command: "off",
@@ -3541,6 +5535,7 @@ function commandClear(workspace: string, payload: RuntimePayload): JsonObject {
     paths.beliefsPath,
     paths.evalPath,
     paths.frontierPath,
+    paths.proposalsPath,
     paths.historyPath,
   ]) {
     if (!existsSync(path)) {
@@ -3575,6 +5570,10 @@ function commandExport(
     resolveAutoclankerCommand(config, workspace) !== null;
   const upstreamBundle = upstreamArtifactsPayload(paths.upstreamSessionDir, workspace);
   const statusSnapshot = toolStatus(workspace, payload, runner);
+  const statusObject = ensureJsonObject<ToolStatusPayload>(
+    statusSnapshot,
+    "status snapshot must be a JSON object.",
+  );
   const bundle: JsonObject = {
     workspace,
     sessionRoot: paths.upstreamSessionDir,
@@ -3585,6 +5584,7 @@ function commandExport(
       [EVAL_FILENAME]: readTextIfPresent(paths.evalPath),
       [FRONTIER_FILENAME]: loadJsonIfPresent(paths.frontierPath),
       [IDEAS_FILENAME]: loadJsonIfPresent(paths.ideasPath),
+      [PROPOSALS_FILENAME]: loadJsonIfPresent(paths.proposalsPath),
       [HISTORY_FILENAME]: loadHistory(paths.historyPath),
     },
     handoff: {
@@ -3600,7 +5600,13 @@ function commandExport(
       ],
       upstreamArtifactsIncluded: Boolean(upstreamBundle.present),
     },
-    status: statusSnapshot,
+    status: statusObject,
+    briefs: statusObject.briefs ?? null,
+    proposalLedger: statusObject.proposalLedger ?? null,
+    reviewBundle: statusObject.reviewBundle ?? null,
+    dashboard: statusObject.dashboard ?? null,
+    evidenceViews: statusObject.evidenceViews ?? [],
+    resume: statusObject.resume ?? null,
     upstreamArtifacts: upstreamBundle,
   };
   const outputPath = optionalString(payload.outputPath, "outputPath");
@@ -3622,6 +5628,40 @@ function commandExport(
     bundle,
   };
 }
+
+export const __testHooks = {
+  activeProposalMirrorEra,
+  appendDerivedViewTransitions,
+  buildDerivedWorkspaceView,
+  candidateDescriptor,
+  canonicalIdeaBeliefsByIdeaId,
+  derivedViewTransitionPayload,
+  ensureEvalPayloadIncludesContract,
+  frontierPayload,
+  frontierSummaryFromPayload,
+  humanizeHistoryEvent,
+  latestHistoryEventByName,
+  latestSummarySnapshot,
+  loadIdeasInput,
+  loadUpstreamReviewBundle,
+  locateIdeasInput,
+  parseIdeasFileIdea,
+  parseIdeasFilePathway,
+  proposalMirrorFromUpstreamLedger,
+  proposalReadinessState,
+  recordStringMap,
+  resolvePathwayIdeaIds,
+  runEvalScript,
+  suggestCandidateInput,
+  seedFrontierFromIdeasInput,
+  summaryArray,
+  summaryNumber,
+  summaryObject,
+  summaryString,
+  validateProposalMirrorEntry,
+  validateProposalMirrorEra,
+  validateProposalsMirrorDocument,
+} as const;
 
 export function dispatchTool(
   name: ToolName | string,

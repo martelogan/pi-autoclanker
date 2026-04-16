@@ -11,19 +11,15 @@ the current state before continuing.
 ## Workflow
 
 1. Read the current session files.
-2. Summarize:
+2. Summarize through the same four-brief vocabulary the wrapper uses:
 
-- active goal
-- current rough or advanced beliefs
-- the current optimization lever (gene) or pathway structure in plain language
-- preview or apply state
-- latest eval observations
-- ranked candidates, influence summaries, or follow-up queries from the latest
-  suggest output when present
-- whether promising pathways should stay separate, be compared directly, or be
-  encoded as a combined hypothesis
-- what the next query is trying to learn
-- next likely action
+- `Prior Brief`: active goal, rough ideas, current beliefs, and why the active
+  lanes exist
+- `Run Brief`: preview or apply state, latest eval observations, current leader
+  vs runner-up, and what the next query is trying to learn
+- `Posterior Brief`: what changed after recent evidence and which lanes or
+  relations strengthened or weakened
+- `Proposal Brief`: what is ready, blocked, deferred, or waiting for approval
 
 3. Prefer plain-language wrapper vocabulary:
 
@@ -32,3 +28,6 @@ the current state before continuing.
 - frontier as the explicit set of lanes under comparison
 
 4. Prefer machine-readable state over free-form guesses.
+
+If `autoclanker.proposals.json` exists, use it as the durable proposal mirror
+rather than reconstructing proposal state from prose.

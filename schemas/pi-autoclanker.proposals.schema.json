@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pi-autoclanker.dev/schemas/pi-autoclanker.proposals.schema.json",
+  "title": "pi-autoclanker proposal mirror",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["active", "sessions"],
+  "properties": {
+    "active": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["session_id", "era_id"],
+          "properties": {
+            "session_id": { "type": "string", "minLength": 1 },
+            "era_id": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "sessions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["eras"],
+        "properties": {
+          "eras": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["current_proposal_id", "entries", "updated_at"],
+              "properties": {
+                "current_proposal_id": {
+                  "type": ["string", "null"]
+                },
+                "updated_at": {
+                  "type": ["string", "null"]
+                },
+                "entries": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "proposal_id",
+                      "candidate_id",
+                      "family_id",
+                      "readiness_state",
+                      "evidence_summary",
+                      "unresolved_risks",
+                      "approval_needed",
+                      "updated_at",
+                      "artifact_pointers",
+                      "resume_artifact",
+                      "source_candidate_ids",
+                      "supersedes",
+                      "recommendation_reason"
+                    ],
+                    "properties": {
+                      "proposal_id": { "type": "string", "minLength": 1 },
+                      "candidate_id": { "type": "string", "minLength": 1 },
+                      "family_id": { "type": ["string", "null"] },
+                      "readiness_state": {
+                        "type": "string",
+                        "enum": [
+                          "not_ready",
+                          "candidate",
+                          "recommended",
+                          "deferred",
+                          "blocked",
+                          "superseded"
+                        ]
+                      },
+                      "evidence_summary": { "type": "string", "minLength": 1 },
+                      "unresolved_risks": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "approval_needed": { "type": "boolean" },
+                      "updated_at": { "type": ["string", "null"] },
+                      "artifact_pointers": {
+                        "type": "object",
+                        "additionalProperties": { "type": "string" }
+                      },
+                      "resume_artifact": { "type": ["string", "null"] },
+                      "source_candidate_ids": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "supersedes": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "recommendation_reason": { "type": ["string", "null"] }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

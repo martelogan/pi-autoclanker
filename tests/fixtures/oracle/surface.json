@@ -49,6 +49,8 @@
   "packagedSurfaceFiles": [
     "extensions/pi-autoclanker/index.ts",
     "schemas/pi-autoclanker.config.schema.json",
+    "schemas/pi-autoclanker.proposals.schema.json",
+    "extensions/pi-autoclanker/assets/dashboard.html",
     "skills/autoclanker-create/SKILL.md",
     "skills/autoclanker-advanced-beliefs/SKILL.md",
     "skills/autoclanker-review/SKILL.md",
@@ -71,6 +73,7 @@
     "examples/parser-demo-expanded/autoclanker.config.json",
     "examples/parser-demo-expanded/autoclanker.eval.sh",
     "examples/parser-demo-expanded/autoclanker.frontier.json",
+    "examples/parser-demo-expanded/autoclanker.proposals.json",
     "examples/parser-demo-expanded/autoclanker.history.jsonl",
     "examples/parser-demo-expanded/autoclanker.md",
     "examples/parser-demo-expanded/rough-ideas.json",
@@ -84,6 +87,7 @@
     "autoclanker.beliefs.json",
     "autoclanker.eval.sh",
     "autoclanker.frontier.json",
+    "autoclanker.proposals.json",
     "autoclanker.history.jsonl"
   ],
   "slashCommandPrefix": "/autoclanker",

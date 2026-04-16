@@ -1,0 +1,75 @@
+{
+  "active": {
+    "session_id": "parser_demo",
+    "era_id": "era_parser_demo_v1"
+  },
+  "sessions": {
+    "parser_demo": {
+      "eras": {
+        "era_parser_demo_v1": {
+          "current_proposal_id": "proposal_cand_parser_context_pair",
+          "updated_at": "2026-04-10T12:07:00+00:00",
+          "entries": [
+            {
+              "proposal_id": "proposal_cand_parser_context_pair",
+              "candidate_id": "cand_parser_context_pair",
+              "family_id": "family_context_pair",
+              "readiness_state": "recommended",
+              "evidence_summary": "Context-pair planning currently leads the frontier while preserving breadcrumb quality under the locked eval surface.",
+              "unresolved_risks": [
+                "Need one more long-trace memory check before approval."
+              ],
+              "approval_needed": true,
+              "updated_at": "2026-04-10T12:07:00+00:00",
+              "artifact_pointers": {
+                "frontier": "autoclanker.frontier.json",
+                "summary": "autoclanker.md",
+                "upstream_results": ".autoclanker/parser_demo/RESULTS.md"
+              },
+              "resume_artifact": "autoclanker.frontier.json",
+              "source_candidate_ids": ["cand_parser_context_pair"],
+              "supersedes": ["proposal_cand_parser_compiled_matcher"],
+              "recommendation_reason": "Context-pair planning dominates the current frontier without changing the locked eval surface."
+            },
+            {
+              "proposal_id": "proposal_cand_parser_compiled_matcher",
+              "candidate_id": "cand_parser_compiled_matcher",
+              "family_id": "family_matcher",
+              "readiness_state": "candidate",
+              "evidence_summary": "Compiled matching remains a simpler alternate worth preserving while the pairwise comparison stays open.",
+              "unresolved_risks": [],
+              "approval_needed": false,
+              "updated_at": "2026-04-10T12:06:00+00:00",
+              "artifact_pointers": {
+                "frontier": "autoclanker.frontier.json"
+              },
+              "resume_artifact": "autoclanker.frontier.json",
+              "source_candidate_ids": ["cand_parser_compiled_matcher"],
+              "supersedes": [],
+              "recommendation_reason": null
+            },
+            {
+              "proposal_id": "proposal_cand_parser_wide_window",
+              "candidate_id": "cand_parser_wide_window",
+              "family_id": "family_memory_risk",
+              "readiness_state": "blocked",
+              "evidence_summary": "Wide capture windows still look risky on long traces and are not ready for approval.",
+              "unresolved_risks": [
+                "Peak memory likely exceeds the acceptable overnight budget."
+              ],
+              "approval_needed": false,
+              "updated_at": "2026-04-10T12:05:00+00:00",
+              "artifact_pointers": {
+                "frontier": "autoclanker.frontier.json"
+              },
+              "resume_artifact": null,
+              "source_candidate_ids": ["cand_parser_wide_window"],
+              "supersedes": [],
+              "recommendation_reason": null
+            }
+          ]
+        }
+      }
+    }
+  }
+}

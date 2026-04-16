@@ -5,16 +5,17 @@
   "sessionRoot": "<workspace>/.autoclanker",
   "billedLive": false,
   "usedDefaultEvalCommand": false,
-  "ideasInputPath": null,
-  "ideasInputSource": "direct",
   "files": {
     "autoclanker.md": true,
     "autoclanker.config.json": true,
     "autoclanker.beliefs.json": true,
     "autoclanker.eval.sh": true,
     "autoclanker.frontier.json": false,
+    "autoclanker.proposals.json": false,
     "autoclanker.history.jsonl": true
   },
+  "ideasInputPath": null,
+  "ideasInputSource": "direct",
   "frontier": {
     "frontier_id": "frontier_default",
     "candidate_count": 0,

@@ -14,15 +14,15 @@
     },
     {
       "path": "skills/autoclanker-create/SKILL.md",
-      "sha256": "e3d6073143b545c00d4643f598ee399b823efe811d9f85997e78ce8af4de1214"
+      "sha256": "fd1410890a5ff60f2f2095501de3cc1b8cdea685fe163dbdded908d6902091eb"
     },
     {
       "path": "skills/autoclanker-advanced-beliefs/SKILL.md",
-      "sha256": "61442635300a4b717e452d447530c9a6be82f31b1920ca8affacb58bc67474ce"
+      "sha256": "3e03843a4ece233a5caa17d7a6a162d89f06c4c86f00c8b362fc583f019c4b49"
     },
     {
       "path": "skills/autoclanker-review/SKILL.md",
-      "sha256": "892d8a9819e3fcee7b28d97376f24d0c43cd44d1b92cce1149da9823d76ea88e"
+      "sha256": "0bf5df1dbe632fb1cf847a5f56dc971294a78c9b88bd9b45ea2c3240c694e54e"
     },
     {
       "path": "examples/targets/parser-quickstart/README.md",
@@ -54,7 +54,7 @@
     },
     {
       "path": "examples/parser-demo-expanded/README.md",
-      "sha256": "6da60399632b6afa5c187504948e3078c5adf4c2897741c86986fd2e9992b1ab"
+      "sha256": "9baf8996066264dab92cc35698dda94e3ae40a676ba7dd3ff6f988b4ea471dc9"
     },
     {
       "path": "examples/parser-demo-expanded/candidates.json",
@@ -74,11 +74,11 @@
     },
     {
       "path": "examples/parser-demo-expanded/autoclanker.history.jsonl",
-      "sha256": "01af36d065bbf8ef8fefa7d2305f5593a24771b6f0c3a9fad2322643985670f2"
+      "sha256": "5f61c507b31df230b8ebe30f2b331c88cd3dce92bbc11772b1c462de9c33b50f"
     },
     {
       "path": "examples/parser-demo-expanded/autoclanker.md",
-      "sha256": "df1c71df4bf5bd924442430625e71d9355defe6009b016e81ee4e8dbce71e014"
+      "sha256": "c9c5705168d7095e06da212270d77d7894413f767262b8a2c377f3a34a8756ca"
     },
     {
       "path": "examples/parser-demo-expanded/rough-ideas.json",

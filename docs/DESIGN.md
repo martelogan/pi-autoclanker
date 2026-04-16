@@ -54,12 +54,18 @@ tests/fixtures/oracle/
 - status and export should also surface additive upstream backend detail and any
   concrete candidate or family comparison query without inventing a second
   inference layer in the wrapper
+- one normalized derived workspace model should drive the markdown summary,
+  machine-readable status and export output, the widget stack, and the browser
+  dashboard so those surfaces do not drift
 - multiple plausible pathways should be representable as explicit candidate
   pools so `autoclanker session suggest` can compare them directly instead of
   hiding that comparison in prompt state
 - an optional local `autoclanker.frontier.json` file should keep explicit
   pathway families, lineage, and merge-ready candidates reviewable at the
   project root
+- an optional local `autoclanker.proposals.json` file should mirror the active
+  proposal ledger once upstream has proposal state, without assuming the target
+  project is a git repository
 - an optional local `autoclanker.ideas.json` file may hold a small JSON intake
   surface for `goal`, `ideas`, `constraints`, and simple `pathways`, but the
   wrapper should still treat `autoclanker.beliefs.json` and
@@ -116,6 +122,7 @@ The run record should separate:
 The default human-facing surface should still stay simple:
 
 - `autoclanker.md` as the current run summary
+- `autoclanker.proposals.json` as the active-session proposal ledger mirror
 - `autoclanker.history.jsonl` as the chronological wrapper log
 - `autoclanker.frontier.json` as the optional local frontier surface for
   explicit pathway comparison and merge review
@@ -126,6 +133,31 @@ The default human-facing surface should still stay simple:
   `.autoclanker/<session>/belief_graph_posterior.png` as the compact visual
   bundle
 - `.autoclanker/<session>/...` as the deeper machine-readable session root
+
+The wrapper-local summary and the live widget stack should both use the same
+four-brief vocabulary:
+
+- `Prior Brief`: what we thought before evidence
+- `Run Brief`: what is active or queued now
+- `Posterior Brief`: what changed after fit and suggest
+- `Proposal Brief`: what is ready, blocked, deferred, or awaiting approval
+
+Those same briefs should be visible through:
+
+- the compact always-visible widget
+- `Ctrl+X` inline expansion
+- `Ctrl+Shift+X` fullscreen overlay
+- the browser dashboard launched from `/autoclanker export`
+
+When the upstream session can derive `session review-bundle`, the wrapper
+should consume that review model directly instead of re-inventing the same
+story locally. The wrapper may still enrich it with local files such as
+`autoclanker.ideas.json`, `autoclanker.frontier.json`, and the proposal mirror,
+but lineage, trust, evidence-view notes, and next-action phrasing should stay
+consistent with upstream whenever possible. That upstream review state should
+enrich local frontier and artifact knowledge, not erase it, and browser export
+should render from the shared model without leaving behind a default
+`dashboard_payload.json`.
 
 Those charts should be explained as evidence views rather than as a new wrapper
 feature surface:
@@ -157,8 +189,8 @@ It is acceptable for the repo to mix TypeScript runtime code with reference
 fixtures copied from the reference implementation. Those fixtures exist to
 freeze the expected public contract and guard parity for deterministic flows.
 
-Current v1 proof focuses on tool or command registration, project-local files,
-and CLI orchestration. It does not claim a widget layer. Its value
-proposition is structured optimization workflow: explicit belief batches,
-explicit candidate pools and frontier files, and inspectable upstream
-suggestions rather than a single loose planning thread.
+Current v1 proof focuses on tool and command registration, explicit
+project-local files, CLI orchestration, and a shared dashboard model. Its
+value proposition is structured optimization workflow: explicit belief batches,
+explicit candidate pools and frontier files, durable proposal state, and
+inspectable upstream suggestions rather than a single loose planning thread.

@@ -13,6 +13,7 @@
 **[Install](#install)** ·
 **[Quick start](#quick-start)** ·
 **[Mental model](#mental-model)** ·
+**[Live surfaces](#live-surfaces)** ·
 **[Commands](#commands)** ·
 **[Tools](#tools)** ·
 **[Skills](#skills)** ·
@@ -198,6 +199,34 @@ The fastest way to understand the repo now is:
 - [`examples/parser-demo-expanded`](examples/parser-demo-expanded) for a fuller
   worked session after the extension has already materialized local files
 
+## Live surfaces
+
+The wrapper now keeps one shared live model and exposes it through four views:
+
+- a compact always-visible widget for the active session and next action
+- `Ctrl+X` for an expanded inline dashboard
+- `Ctrl+Shift+X` for a fullscreen overlay
+- `/autoclanker export` for the machine-readable bundle and, inside the
+  interactive extension, a browser dashboard that auto-refreshes while the
+  extension is driving work
+
+Those views stay grounded in the same four plain-language briefs:
+
+- `Prior Brief`: what the run started with and why those lanes exist
+- `Run Brief`: what is being tested now, who leads, and what comparison comes next
+- `Posterior Brief`: what the evidence changed after fit and suggest
+- `Proposal Brief`: what is ready, blocked, deferred, or waiting for approval
+
+The browser dashboard and widget stack do not add a second engine. They are
+just richer views over the same local files and upstream `autoclanker`
+artifacts. When upstream `autoclanker` exposes `session review-bundle`,
+`pi-autoclanker` prefers that normalized review model and mirrors it through
+status, export, the widget stack, lineage, trust, and next-action panels while
+keeping a local-derived fallback for older sessions. Partial upstream review
+data is merged with local frontier and artifact state rather than replacing it,
+and the wrapper does not leave behind extra `dashboard_payload.json`-style
+files by default.
+
 ## Commands
 
 `pi-autoclanker` exposes one slash-command family:
@@ -206,13 +235,13 @@ The fastest way to understand the repo now is:
 | --- | --- |
 | `/autoclanker start <goal>` | Start a new session or resume the current one from a goal. |
 | `/autoclanker resume` | Mark the current session active again without changing beliefs. |
-| `/autoclanker status` | Summarize the current local session files and upstream `autoclanker` status. |
+| `/autoclanker status` | Summarize the current local session files plus upstream review, trust, lineage, and next-action state. |
 | `/autoclanker frontier-status` | Show local frontier state plus upstream frontier summary. |
 | `/autoclanker compare-frontier` | Persist or reuse `autoclanker.frontier.json` and compare explicit pathways upstream. |
 | `/autoclanker merge-pathways` | Merge selected pathways into the local frontier file and re-rank them upstream. |
 | `/autoclanker off` | Disable the current session without deleting resumable files. |
 | `/autoclanker clear` | Delete local `pi-autoclanker` files and the upstream session root. |
-| `/autoclanker export` | Export the current session bundle as machine-readable JSON. |
+| `/autoclanker export` | Export the current session bundle as machine-readable JSON, including the normalized review bundle; inside the interactive extension it also opens the browser dashboard. |
 
 Useful examples:
 
@@ -252,7 +281,7 @@ source of truth.
 | --- | --- |
 | `autoclanker-create` | Start from a direct goal or optional `autoclanker.ideas.json`, write the local files, preview beliefs, and initialize the session. |
 | `autoclanker-advanced-beliefs` | Turn rough ideas into compact advanced JSON beliefs by starting with up to three high-yield follow-up questions per round when the beginner path is no longer enough. |
-| `autoclanker-review` | Read the current session, summarize beliefs and candidate lanes in plain language, and explain what the next comparison is trying to learn. |
+| `autoclanker-review` | Read the current session and summarize it through the Prior / Run / Posterior / Proposal briefs in plain language. |
 
 The common flow is:
 
@@ -398,8 +427,9 @@ and easier to hand off honestly.
 
 ## Files & output
 
-Every session keeps five always-present project-local files, plus one optional
-frontier file for explicit multi-path runs and one optional ideas intake file:
+Every session keeps five always-present core files, an optional explicit
+frontier file, an optional project-local proposal mirror, and an optional ideas
+intake file:
 
 | File | Purpose |
 | --- | --- |
@@ -408,6 +438,7 @@ frontier file for explicit multi-path runs and one optional ideas intake file:
 | `autoclanker.beliefs.json` | Rough or advanced beliefs for the session. |
 | `autoclanker.eval.sh` | The checked-in eval surface for this session. |
 | `autoclanker.frontier.json` | Optional reviewable local frontier for multi-path runs. |
+| `autoclanker.proposals.json` | Optional project-local mirror of the active session proposal ledger once proposal state exists. |
 | `autoclanker.history.jsonl` | Local chronological wrapper log. |
 | `autoclanker.ideas.json` | Optional user-authored intake file for a goal, ideas, constraints, and simple pathway seeds. |
 
@@ -417,6 +448,8 @@ lightweight handoff.
 A run has three layers:
 
 - `autoclanker.md`: the wrapper-local summary at the project root
+- `autoclanker.proposals.json`: the durable active-session proposal mirror when
+  proposal state exists
 - `autoclanker.history.jsonl`: the local chronological log of what the wrapper
   did
 - `autoclanker.frontier.json`: the optional local frontier document for
@@ -466,6 +499,9 @@ directly:
 - frontier family count
 - pending queries
 - pending merge suggestions
+- the normalized Prior / Run / Posterior / Proposal briefs
+- a machine-readable dashboard model, proposal ledger mirror, evidence views,
+  and resume metadata
 
 If you compare that with a lighter `cevolve`-style run directory:
 
@@ -503,9 +539,9 @@ session tiers:
   centered on direct prompt input or `autoclanker.ideas.json`, intended to be
   used with the packaged parser target
 - [`examples/parser-demo-expanded`](examples/parser-demo-expanded): fuller
-  worked session with `autoclanker.ideas.json`, `candidates.json`, the five
-  local session files, and a checked-in eval surface for that same packaged
-  target
+  worked session with `autoclanker.ideas.json`, `candidates.json`,
+  `autoclanker.proposals.json`, the four-brief summary, and a checked-in eval
+  surface for that same packaged target
 
 Use `examples/targets/parser-quickstart` when you want to get your hands on a
 real target immediately, even from a lean `autoclanker + pi-autoclanker`

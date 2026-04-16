@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -20,6 +21,7 @@ import {
   EVAL_FILENAME,
   FRONTIER_FILENAME,
   HISTORY_FILENAME,
+  PROPOSALS_FILENAME,
   SESSION_FILENAMES,
   SUMMARY_FILENAME,
   dispatchCommand,
@@ -142,7 +144,7 @@ function writeFakeAutoclanker(tmpPath: string): {
   const binaryPath = resolve(tmpPath, "fake-autoclanker");
   const logPath = resolve(tmpPath, "fake-autoclanker.log");
   const script = String.raw`#!/usr/bin/env node
-const { appendFileSync, existsSync, readFileSync } = require("node:fs");
+const { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
 const { resolve } = require("node:path");
 
 const logPath = process.env.FAKE_AUTOCLANKER_LOG;
@@ -220,6 +222,108 @@ function frontierSummaryFromWorkspace() {
       familyIds.map((familyId) => [familyId, Number((1 / Math.max(familyIds.length, 1)).toFixed(3))]),
     ),
   };
+}
+
+function sessionIdentityFromArgs() {
+  if (!args.includes("--session-id") || !args.includes("--session-root")) {
+    return null;
+  }
+  return {
+    sessionId: args[args.indexOf("--session-id") + 1],
+    sessionRoot: args[args.indexOf("--session-root") + 1],
+  };
+}
+
+function writeSessionArtifact(filename, artifactPayload) {
+  const identity = sessionIdentityFromArgs();
+  if (!identity) {
+    return;
+  }
+  const sessionDir = resolve(identity.sessionRoot, identity.sessionId);
+  mkdirSync(sessionDir, { recursive: true });
+  writeFileSync(
+    resolve(sessionDir, filename),
+    JSON.stringify(artifactPayload, null, 2) + "\n",
+    "utf-8",
+  );
+}
+
+function writeSuggestionArtifacts(candidateIds) {
+  const identity = sessionIdentityFromArgs();
+  const [leader = "cand_primary", runnerUp = "cand_secondary"] = candidateIds;
+  const sessionId = identity ? identity.sessionId : "demo_session";
+  writeSessionArtifact("belief_delta_summary.json", {
+    session_id: sessionId,
+    era_id: "era_demo_v1",
+    strengthened: [
+      {
+        summary: "Compiled matching gained support after the latest eval.",
+        target_kind: "main_effect",
+        target_ref: leader,
+      },
+    ],
+    weakened: [
+      {
+        summary: "The weaker alternate still needs direct comparison evidence.",
+        target_kind: "main_effect",
+        target_ref: runnerUp,
+      },
+    ],
+    uncertain: [
+      {
+        summary:
+          "Need a direct comparison between " + leader + " and " + runnerUp + ".",
+        target_kind: "pair_effect",
+        target_ref: leader + "::" + runnerUp,
+      },
+    ],
+    promoted_candidate_ids: [leader],
+    dropped_family_ids: ["family_risk"],
+  });
+  writeSessionArtifact("proposal_ledger.json", {
+    session_id: sessionId,
+    era_id: "era_demo_v1",
+    current_proposal_id: "proposal_" + leader,
+    updated_at: "2026-04-15T20:30:00Z",
+    entries: [
+      {
+        proposal_id: "proposal_" + leader,
+        candidate_id: leader,
+        family_id: "family_primary",
+        readiness_state: "recommended",
+        evidence_summary:
+          "Current leader lane under the locked eval contract.",
+        unresolved_risks: ["Need one more approval-oriented comparison."],
+        approval_required: true,
+        updated_at: "2026-04-15T20:30:00Z",
+        artifact_refs: {
+          summary: "autoclanker.md",
+          frontier: "autoclanker.frontier.json",
+        },
+        resume_token: "autoclanker.frontier.json",
+        source_candidate_ids: [leader],
+        supersedes: ["proposal_" + runnerUp],
+        recommendation_reason: "Best current lane after fit and suggest.",
+      },
+      {
+        proposal_id: "proposal_" + runnerUp,
+        candidate_id: runnerUp,
+        family_id: "family_secondary",
+        readiness_state: "candidate",
+        evidence_summary: "Alternate lane worth keeping while comparison stays open.",
+        unresolved_risks: [],
+        approval_required: false,
+        updated_at: "2026-04-15T20:29:00Z",
+        artifact_refs: {
+          frontier: "autoclanker.frontier.json",
+        },
+        resume_token: "autoclanker.frontier.json",
+        source_candidate_ids: [runnerUp],
+        supersedes: [],
+        recommendation_reason: null,
+      },
+    ],
+  });
 }
 
 if (command === "beliefs canonicalize-ideas") {
@@ -397,6 +501,20 @@ if (command === "beliefs canonicalize-ideas") {
   }
   payload = { evalSummary: "Eval ingested" };
 } else if (command === "session fit") {
+  writeSessionArtifact("belief_delta_summary.json", {
+    era_id: "era_demo_v1",
+    strengthened: [
+      {
+        summary: "Compiled matching gained support after the latest eval.",
+        target_kind: "main_effect",
+        target_ref: "cand_primary",
+      },
+    ],
+    weakened: [],
+    uncertain: [],
+    promoted_candidate_ids: [],
+    dropped_family_ids: [],
+  });
   payload = { fitSummary: "Fit complete" };
 } else if (command === "session suggest") {
   if (args.includes("--candidates-input")) {
@@ -404,6 +522,9 @@ if (command === "beliefs canonicalize-ideas") {
       readFileSync(args[args.indexOf("--candidates-input") + 1], "utf-8"),
     );
     const candidateItems = candidatesPayload.candidates;
+    writeSuggestionArtifacts(
+      candidateItems.map((candidate) => candidate.candidate_id).slice(0, 2),
+    );
     const familySummary = frontierSummaryFromWorkspace();
     payload = {
       candidateCount: candidateItems.length,
@@ -433,9 +554,11 @@ if (command === "beliefs canonicalize-ideas") {
       frontier_summary: familySummary,
     };
   } else {
+    writeSuggestionArtifacts(["cand_primary", "cand_secondary"]);
     payload = { nextAction: "Run another candidate" };
   }
 } else if (command === "session recommend-commit") {
+  writeSuggestionArtifacts(["cand_primary", "cand_secondary"]);
   payload = { commitSummary: "Commit the previewed belief set" };
 } else if (command === "session status") {
   const frontierSummary = frontierSummaryFromWorkspace();
@@ -459,6 +582,112 @@ if (command === "beliefs canonicalize-ideas") {
 } else if (command === "session frontier-status") {
   payload = {
     frontier_summary: frontierSummaryFromWorkspace(),
+  };
+} else if (command === "session review-bundle") {
+  const frontierSummary = frontierSummaryFromWorkspace();
+  payload = {
+    session: {
+      session_id: "demo_session",
+      era_id: "era_demo_v1",
+      observation_count: 1,
+    },
+    prior_brief: {
+      summary: "Goal and seeded lanes are recorded before evidence.",
+      bullets: [
+        "Compiled matching and context pairing were seeded from rough ideas.",
+        "The eval contract is locked before comparison begins.",
+      ],
+    },
+    run_brief: {
+      summary: "cand_primary leads while cand_secondary remains the closest alternate.",
+      bullets: [
+        "Next action is a pairwise comparison.",
+        "Trust remains locked under the eval contract.",
+      ],
+    },
+    posterior_brief: {
+      summary: "Compiled matching gained support after the latest eval.",
+      bullets: [
+        "One main effect strengthened.",
+        "One direct comparison remains unresolved.",
+      ],
+    },
+    proposal_brief: {
+      summary: "proposal_cand_primary is the current recommended proposal.",
+      bullets: [
+        "One approval-oriented comparison remains open.",
+        "Keep the runner-up as an alternate.",
+      ],
+    },
+    lanes: [
+      {
+        lane_id: "cand_primary",
+        family_id: "family_primary",
+        decision_status: "promote",
+        proposal_status: "recommended",
+        next_step: "Approve or defer",
+        evidence_summary: "Current leader lane under the locked eval contract.",
+      },
+      {
+        lane_id: "cand_secondary",
+        family_id: "family_secondary",
+        decision_status: "query",
+        proposal_status: "candidate",
+        next_step: "Answer comparison query",
+        evidence_summary: "Alternate lane worth keeping while comparison stays open.",
+      },
+    ],
+    proposals: [
+      {
+        proposal_id: "proposal_cand_primary",
+        readiness: "recommended",
+        source_lane_id: "cand_primary",
+        evidence_basis: "Current leader lane under the locked eval contract.",
+        unresolved_risks: ["Need one more approval-oriented comparison."],
+        resume_hint: "autoclanker.frontier.json",
+        updated_at: "2026-04-15T20:30:00Z",
+      },
+    ],
+    lineage: {
+      chain: [
+        "initial ideas",
+        "canonical beliefs",
+        "explicit lanes",
+        "eval evidence",
+        "proposal recommendation",
+      ],
+    },
+    trust: {
+      status: "locked",
+      locked_eval_contract_digest: fakeEvalContract.contract_digest,
+      current_eval_contract_digest: fakeEvalContract.contract_digest,
+      eval_contract_matches_current: true,
+      last_eval_measurement_mode: "exclusive",
+      last_eval_stabilization_mode: "soft",
+      last_eval_used_lease: true,
+      last_eval_noisy_system: false,
+    },
+    evidence: {
+      views: [
+        {
+          id: "results_markdown",
+          label: "Run Summary",
+          description: "Human-readable upstream summary.",
+          path: ".autoclanker/demo_session/RESULTS.md",
+          exists: true,
+        },
+      ],
+      notes: [
+        "Belief graphs are evidence views, not the frontier itself.",
+        "Use the lane table to understand what is promoted, queried, merged, or dropped.",
+      ],
+    },
+    next_action: {
+      summary: "Compare cand_primary vs cand_secondary.",
+      reason: "That pairwise comparison would reduce uncertainty most.",
+      pending_query_count: frontierSummary.pending_queries.length,
+      pending_merge_count: frontierSummary.pending_merge_suggestions.length,
+    },
   };
 } else {
   payload = { argv: args };
@@ -810,7 +1039,7 @@ console.log(JSON.stringify(payload));
 }
 
 coveredTest(
-  ["M1-002", "M2-003", "M2-008"],
+  ["M1-002", "M2-003", "M2-008", "M2-012", "M2-013"],
   "runtime session flow persists resumable files and shells out to autoclanker",
   () => {
     const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-default-"));
@@ -887,6 +1116,11 @@ coveredTest(
       const statusView = statusResult as JsonRecord & {
         followUpQueryType?: unknown;
         followUpComparison?: unknown;
+        proposalFilePresent?: unknown;
+        proposalLedger?: unknown;
+        reviewBundle?: unknown;
+        upstreamSessionId?: unknown;
+        upstreamEraId?: unknown;
       };
       expect(asRecord(statusResult.upstream).status).toBe("healthy");
       expect(statusResult.evalSurfaceSha256).toBe(
@@ -899,6 +1133,18 @@ coveredTest(
       expect(statusResult.evalContractDriftStatus).toBe("locked");
       expect(statusView.followUpQueryType).toBe("pairwise_preference");
       expect(statusView.followUpComparison).toBe("cand_primary vs cand_secondary");
+      expect(statusView.proposalFilePresent).toBe(true);
+      const proposalLedger = asRecord(statusView.proposalLedger) as JsonRecord & {
+        current_proposal_id?: unknown;
+      };
+      expect(proposalLedger.current_proposal_id).toBe("proposal_cand_primary");
+      expect(
+        (
+          asRecord(statusView.reviewBundle) as JsonRecord & {
+            proposal_brief?: unknown;
+          }
+        ).proposal_brief,
+      ).toBeTruthy();
 
       const beliefsDocument = asRecord(
         JSON.parse(readFileSync(resolve(workspace, BELIEFS_FILENAME), "utf-8")),
@@ -922,14 +1168,85 @@ coveredTest(
       );
       expect(summaryText).toContain("eval surface lock valid");
       expect(summaryText).toContain("local frontier file: `absent`");
+      expect(summaryText).toContain("## Proposal Brief");
+      expect(summaryText).toContain("proposal_cand_primary");
       expect(summaryText).toContain("RESULTS.md");
       expect(summaryText).toContain("belief_graph_posterior.png");
+      expect(summaryText).toContain("## Lineage");
+      expect(summaryText).toContain("## Trust");
+
+      const proposalMirror = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, PROPOSALS_FILENAME), "utf-8")),
+      ) as JsonRecord & {
+        active?: unknown;
+      };
+      const active = asRecord(proposalMirror.active) as JsonRecord & {
+        era_id?: unknown;
+        session_id?: unknown;
+      };
+      expect(active.session_id).toBe(String(statusView.upstreamSessionId));
+      expect(active.era_id).toBe(String(statusView.upstreamEraId));
+
+      rmSync(resolve(workspace, PROPOSALS_FILENAME), { force: true });
+      expect(existsSync(resolve(workspace, PROPOSALS_FILENAME))).toBe(false);
+      const exportResult = asRecord(
+        dispatchCommand("export", { autoclankerBinary: binaryPath }, { workspace }),
+      ) as JsonRecord & {
+        bundle?: unknown;
+      };
+      expect(existsSync(resolve(workspace, PROPOSALS_FILENAME))).toBe(true);
+      const exportBundle = asRecord(exportResult.bundle) as JsonRecord & {
+        dashboard?: unknown;
+        proposalLedger?: unknown;
+        reviewBundle?: unknown;
+        resume?: unknown;
+      };
+      expect(
+        (asRecord(exportBundle.resume) as JsonRecord & { files?: unknown }).files,
+      ).toBeTruthy();
+      expect(
+        (
+          asRecord(exportBundle.dashboard) as JsonRecord & {
+            proposalTable?: unknown;
+          }
+        ).proposalTable,
+      ).toBeTruthy();
+      expect(
+        (
+          asRecord(exportBundle.proposalLedger) as JsonRecord & {
+            current_proposal_id?: unknown;
+          }
+        ).current_proposal_id,
+      ).toBe("proposal_cand_primary");
+      expect(
+        (
+          asRecord(exportBundle.reviewBundle) as JsonRecord & {
+            run_brief?: unknown;
+          }
+        ).run_brief,
+      ).toBeTruthy();
+      expect(existsSync(resolve(workspace, "dashboard_payload.json"))).toBe(false);
 
       const history = readFileSync(resolve(workspace, HISTORY_FILENAME), "utf-8")
         .trim()
         .split("\n")
         .map((line) => asRecord(JSON.parse(line)));
       expect(history.length).toBeGreaterThanOrEqual(6);
+      expect(history.some((entry) => entry.event === "briefs_refreshed")).toBe(true);
+      expect(history.some((entry) => entry.event === "proposal_state_updated")).toBe(
+        true,
+      );
+      expect(history.some((entry) => entry.event === "review_bundle_refreshed")).toBe(
+        true,
+      );
+      expect(history.some((entry) => entry.event === "lane_status_updated")).toBe(true);
+      expect(history.some((entry) => entry.event === "trust_state_updated")).toBe(true);
+      expect(history.some((entry) => entry.event === "proposal_status_updated")).toBe(
+        true,
+      );
+      expect(
+        history.some((entry) => entry.event === "commit_recommendation_updated"),
+      ).toBe(true);
 
       const commandLog = readCommandLog(logPath);
       expect(
@@ -937,6 +1254,14 @@ coveredTest(
           (command) =>
             Array.isArray(command.argv) &&
             (command.argv as string[]).slice(0, 2).join(" ") === "session suggest",
+        ),
+      ).toBe(true);
+      expect(
+        commandLog.some(
+          (command) =>
+            Array.isArray(command.argv) &&
+            (command.argv as string[]).slice(0, 2).join(" ") ===
+              "session review-bundle",
         ),
       ).toBe(true);
     });
@@ -1278,6 +1603,11 @@ coveredTest(
       expect(
         asRecord(asRecord(exportBundle.status).trust).evalContractDriftStatus,
       ).toBe("locked");
+      const history = readFileSync(resolve(workspace, HISTORY_FILENAME), "utf-8")
+        .trim()
+        .split("\n")
+        .map((line) => asRecord(JSON.parse(line)));
+      expect(history.some((entry) => entry.event === "merge_applied")).toBe(true);
     });
   },
 );

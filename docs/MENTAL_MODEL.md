@@ -28,6 +28,27 @@ next comparison, merge, or drop
 
 ![Mental model flow](/Users/logan_martel/Projects/pi-autoclanker/docs/assets/pi-autoclanker-mental-model.svg)
 
+## What You Will Actually See
+
+The wrapper keeps the same run legible through four briefs:
+
+- `Prior Brief`: what the run started with and why those lanes exist
+- `Run Brief`: what is active now, what leads, and what comparison is next
+- `Posterior Brief`: what the evidence changed after fit and suggest
+- `Proposal Brief`: what is ready, blocked, deferred, or waiting for approval
+
+Those briefs show up in:
+
+- `autoclanker.md` at the project root
+- `/autoclanker status` and `/autoclanker export`
+- the compact widget plus the `Ctrl+X` inline dashboard
+- the `Ctrl+Shift+X` fullscreen overlay
+- the browser dashboard opened from `/autoclanker export`
+
+If proposal state exists, the wrapper also keeps a project-local
+`autoclanker.proposals.json` mirror so you can recover what was ready for
+approval without reopening the whole interactive view.
+
 ## Vocabulary
 
 | Term | Plain-language meaning |
