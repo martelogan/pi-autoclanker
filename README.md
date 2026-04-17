@@ -25,7 +25,7 @@
 
 </div>
 
-*Start from a rough optimization goal, keep the eval surface fixed, & let `autoclanker` drive the actual fit loop.*
+*Start from a rough optimization goal, explore short ideas or full plan files in parallel, keep the eval surface fixed, and let `autoclanker` drive the actual fit loop.*
 
 `pi-autoclanker` is the thin pi layer for
 [autoclanker](https://github.com/martelogan/autoclanker). It is meant to feel
@@ -40,7 +40,9 @@ If you like the optimization flow of
 [Autoresearch](https://github.com/karpathy/autoresearch) or
 [cEvolve](https://github.com/jnormore/cevolve), this is the same
 `idea -> explore -> rethink` routine, but supported by Bayesian typed priors and
-the snapshot-eval outer loop harness provided by `autoclanker`.
+the snapshot-eval outer loop harness provided by `autoclanker`, so plans can
+stay explicit, be explored in parallel, and be judged against locked eval
+feedback instead of dissolving into one long prompt thread.
 
 ## Install
 
@@ -80,36 +82,8 @@ That is the shortest useful path. If you do not provide a real eval command
 yet, `pi-autoclanker` can generate a default checked-in `autoclanker.eval.sh`
 stub so the session starts immediately and stays inspectable.
 
-Once you want explicit multi-path comparison, keep a checked-in
-`autoclanker.frontier.json` beside the session files and use the frontier
-commands instead of burying alternative paths in prompt history.
-
-If you prefer a checked-in intake file over typing everything into the command,
-you can also start from an optional `autoclanker.ideas.json` at the project
-root:
-
-```json
-{
-  "goal": "Improve parser throughput without losing context quality.",
-  "ideas": [
-    "Cache repeated matcher work.",
-    "Try a context-pair parsing plan before widening capture windows."
-  ],
-  "constraints": ["Keep output quality stable."]
-}
-```
-
-That file is only an intake convenience surface. `autoclanker.beliefs.json`
-remains the generated belief surface, and `autoclanker.frontier.json` remains
-the explicit lane/frontier surface when the session needs it.
-
-Keep that intake file intentionally small. If you later want to capture risks,
-pairwise preferences, or confidence hints, let
-`/skill:autoclanker-advanced-beliefs` pull those out after the first preview
-instead of expanding the starter file up front.
-
-An idea does not need to be a single sentence. If one pathway already exists as
-a checked-in markdown or text plan, point at the file directly:
+If you want a checked-in intake file, store rough ideas directly or in
+`autoclanker.ideas.json`:
 
 ```json
 {
@@ -117,36 +91,34 @@ a checked-in markdown or text plan, point at the file directly:
   "ideas": [
     "Cache repeated matcher work.",
     { "id": "context_plan", "path": "plans/context-pair-plan.md" }
-  ]
+  ],
+  "constraints": ["Keep output quality stable."]
 }
 ```
 
-`pi-autoclanker` keeps a concise local label for that idea, but passes the full
-plan through a bounded canonicalization view to `autoclanker` while keeping
-file path and digest provenance locally in `autoclanker.beliefs.json`.
+Use plain strings for quick ideas, and point at the file directly when one idea
+is already a checked-in markdown or text plan. This is one of the main harness
+advantages: several rough ideas or fully-fledged plans can stay explicit, be
+explored in parallel when practical, and be measured against the same locked
+eval feedback instead of getting flattened into a single prompt history.
+
+That intake file is only a convenience surface, not the minimum required input.
+`autoclanker.beliefs.json` remains the generated belief surface. When you are
+ready for explicit multi-path comparison, add `autoclanker.frontier.json` and
+use the frontier commands instead of burying alternative paths in prompt
+history. `pi-autoclanker` keeps a concise local label for a plan-backed idea,
+but passes a bounded canonicalization view to `autoclanker` while keeping file
+path and digest provenance locally in `autoclanker.beliefs.json`.
+
+Keep the starter file intentionally small. If you later want to capture risks,
+pairwise preferences, or confidence hints, let
+`/skill:autoclanker-advanced-beliefs` pull those out after the first preview
+instead of expanding the starter file up front.
 
 If you already want explicit early lanes, keep that as a later-stage
 `pathways` shape instead of front-loading it into the first intake example. See
 [`examples/parser-demo-expanded/autoclanker.ideas.json`](examples/parser-demo-expanded/autoclanker.ideas.json)
-for the explicit-lane form.
-
-The simplest mental model is:
-
-```text
-goal + rough ideas
-        |
-        v
-/autoclanker start
-        |
-        v
-local session files
-        |
-        v
-preview/apply -> ingest eval -> fit -> suggest
-        |
-        v
-keep, split, compare, or drop candidate lanes
-```
+for the explicit-lane form and the expanded demo.
 
 If you want a guided setup instead of typing everything into a slash command,
 start with:
@@ -310,13 +282,12 @@ constraints:
 - keep the eval surface fixed while comparing paths
 ```
 
-That is enough to start a session. `autoclanker.beliefs.json` can keep those as
-plain strings at first. Candidate-pool JSON, graph directives, and advanced
-belief authoring stay opt-in until the search actually needs them.
-
-If you prefer a reusable intake file, the same beginner shape fits naturally in
-`autoclanker.ideas.json`. The wrapper will auto-detect that file when present,
-but direct prompt input stays the default path.
+That is enough to preview beliefs and start a session. `autoclanker.beliefs.json`
+can keep those as plain strings at first. Candidate-pool JSON, graph
+directives, and advanced belief authoring stay opt-in until the search actually
+needs them. If you prefer a reusable intake file, the same beginner shape fits
+naturally in `autoclanker.ideas.json`, but direct prompt input stays the
+default path.
 
 ## Optimization Loop
 
