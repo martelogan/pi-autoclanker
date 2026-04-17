@@ -14,7 +14,7 @@
     },
     {
       "path": "skills/autoclanker-create/SKILL.md",
-      "sha256": "fbc5a4b68280bd5339049ce47d6cce7fd306df25abe3ad6ee286dcdc970fac05"
+      "sha256": "a9189e52beab34ae9193be3dbe94d61ff60d9509d94ee1e43aef73defced4528"
     },
     {
       "path": "skills/autoclanker-advanced-beliefs/SKILL.md",
@@ -46,7 +46,7 @@
     },
     {
       "path": "examples/minimal/README.md",
-      "sha256": "5faca75d4443cd40f426347ef0a62f34e53f0a7e7d2c31dd6f68ac527ea40dbe"
+      "sha256": "ce6b0b2bfe3e9afabb3c331ece557d67a2262ad1feaa43b0519c75e418be57a3"
     },
     {
       "path": "examples/minimal/rough-ideas.json",

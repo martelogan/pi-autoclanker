@@ -90,6 +90,17 @@ const DEFAULT_STATUS_SESSION_ID = "status_workspace";
 const DEFAULT_STATUS_ERA_ID = "era_status_workspace_v1";
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 const CHILD_ENV_BLOCKLIST = ["NODE_V8_COVERAGE"] as const;
+const PLAN_CANONICALIZATION_MAX_CHARS = 3200;
+const PLAN_CANONICALIZATION_MAX_LINES = 32;
+const PLAN_CANONICALIZATION_MAX_LINE_CHARS = 220;
+const PLAN_SECTION_PRIORITY_PATTERNS = [
+  /\b(goal|problem|objective)\b/iu,
+  /\b(hypothesis|plan|approach|strategy|proposal)\b/iu,
+  /\b(expected|benefit|upside|impact|success)\b/iu,
+  /\b(risk|failure|danger|tradeoff|rollback)\b/iu,
+  /\b(constraint|guardrail|limit)\b/iu,
+  /\b(eval|metric|measure|benchmark|validation)\b/iu,
+] as const;
 
 export const DEFAULT_EVAL_COMMAND = `if [[ -n "\${PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_JSON:-}" ]]; then
   cat <<EVAL
@@ -734,6 +745,12 @@ type IdeasFileIdea = {
   displayText: string;
   sourceKind: "inline" | "file";
   sourcePath: string | null;
+  sourceSha256: string | null;
+  sourceByteCount: number | null;
+  sourceCharCount: number | null;
+  canonicalViewSha256: string | null;
+  canonicalViewCharCount: number | null;
+  canonicalViewTruncated: boolean;
 };
 
 type IdeasFileIdeaDocument = {
@@ -757,9 +774,15 @@ type IdeasFilePathwayDocument = {
 };
 
 type RoughIdeaSourceDocument = {
+  canonicalViewCharCount?: unknown;
+  canonicalViewSha256?: unknown;
+  canonicalViewTruncated?: unknown;
   id?: unknown;
   label?: unknown;
   path?: unknown;
+  sourceByteCount?: unknown;
+  sourceCharCount?: unknown;
+  sourceSha256?: unknown;
   sourceKind?: unknown;
 };
 
@@ -817,9 +840,15 @@ type RuntimePayload = {
 };
 
 type RoughIdeaSource = {
+  canonicalViewCharCount: number | null;
+  canonicalViewSha256: string | null;
+  canonicalViewTruncated: boolean;
   id: string;
   label: string;
   path: string | null;
+  sourceByteCount: number | null;
+  sourceCharCount: number | null;
+  sourceSha256: string | null;
   sourceKind: "inline" | "file";
 };
 
@@ -1239,6 +1268,11 @@ function fileSha256(path: string): string {
   return `sha256:${digest}`;
 }
 
+function textSha256(value: string): string {
+  const digest = createHash("sha256").update(value, "utf-8").digest("hex");
+  return `sha256:${digest}`;
+}
+
 function currentEvalSurfaceSha256(paths: SessionPaths): string | null {
   return existsSync(paths.evalPath) ? fileSha256(paths.evalPath) : null;
 }
@@ -1354,12 +1388,50 @@ function roughIdeaSourcesFromBeliefsDocument(
       );
     }
     return {
+      canonicalViewCharCount:
+        mapping.canonicalViewCharCount === undefined ||
+        mapping.canonicalViewCharCount === null
+          ? null
+          : numberValue(
+              mapping.canonicalViewCharCount,
+              `roughIdeaSources[${index + 1}].canonicalViewCharCount`,
+            ),
+      canonicalViewSha256: optionalString(
+        mapping.canonicalViewSha256,
+        `roughIdeaSources[${index + 1}].canonicalViewSha256`,
+      ),
+      canonicalViewTruncated:
+        mapping.canonicalViewTruncated === undefined ||
+        mapping.canonicalViewTruncated === null
+          ? false
+          : coerceBool(
+              mapping.canonicalViewTruncated,
+              `roughIdeaSources[${index + 1}].canonicalViewTruncated`,
+            ),
       id: requireNonEmptyString(mapping.id, `roughIdeaSources[${index + 1}].id`),
       label: requireNonEmptyString(
         mapping.label,
         `roughIdeaSources[${index + 1}].label`,
       ),
       path: optionalString(mapping.path, `roughIdeaSources[${index + 1}].path`),
+      sourceByteCount:
+        mapping.sourceByteCount === undefined || mapping.sourceByteCount === null
+          ? null
+          : numberValue(
+              mapping.sourceByteCount,
+              `roughIdeaSources[${index + 1}].sourceByteCount`,
+            ),
+      sourceCharCount:
+        mapping.sourceCharCount === undefined || mapping.sourceCharCount === null
+          ? null
+          : numberValue(
+              mapping.sourceCharCount,
+              `roughIdeaSources[${index + 1}].sourceCharCount`,
+            ),
+      sourceSha256: optionalString(
+        mapping.sourceSha256,
+        `roughIdeaSources[${index + 1}].sourceSha256`,
+      ),
       sourceKind,
     };
   });
@@ -3370,6 +3442,13 @@ function shortenIdeaLabel(value: string, maxLength = 88): string {
   return `${value.slice(0, maxLength - 3).trimEnd()}...`;
 }
 
+function shortenIdeaLine(
+  value: string,
+  maxLength = PLAN_CANONICALIZATION_MAX_LINE_CHARS,
+): string {
+  return shortenIdeaLabel(collapseIdeaWhitespace(value), maxLength);
+}
+
 function inferredIdeaLabelFromText(value: string, fallbackPath: string): string {
   const lines = value
     .split(/\r?\n/gu)
@@ -3390,6 +3469,171 @@ function inferredIdeaLabelFromText(value: string, fallbackPath: string): string 
     }
   }
   return `[plan] ${basename(fallbackPath)}`;
+}
+
+type PlanSection = {
+  heading: string | null;
+  index: number;
+  lines: string[];
+};
+
+function planSectionPriority(heading: string | null): number {
+  if (heading === null) {
+    return 0;
+  }
+  for (const [index, pattern] of PLAN_SECTION_PRIORITY_PATTERNS.entries()) {
+    if (pattern.test(heading)) {
+      return index + 1;
+    }
+  }
+  return PLAN_SECTION_PRIORITY_PATTERNS.length + 2;
+}
+
+function markdownSemanticLine(
+  rawLine: string,
+): { heading: string } | { text: string } | null {
+  const trimmed = rawLine.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  const headingMatch = trimmed.match(/^#+\s*(.+)$/u);
+  if (headingMatch) {
+    const heading = shortenIdeaLine(headingMatch[1] ?? "");
+    return heading.length === 0 ? null : { heading };
+  }
+  const bulletMatch = trimmed.match(/^([-*+]|\d+\.)\s+(.+)$/u);
+  if (bulletMatch) {
+    const text = shortenIdeaLine(bulletMatch[2] ?? "");
+    return text.length === 0 ? null : { text: `- ${text}` };
+  }
+  const text = shortenIdeaLine(trimmed);
+  return text.length === 0 ? null : { text };
+}
+
+function planSectionsFromText(value: string): PlanSection[] {
+  const sections: PlanSection[] = [];
+  let current: PlanSection = { heading: null, index: 0, lines: [] };
+  let inCodeFence = false;
+  for (const rawLine of value.split(/\r?\n/gu)) {
+    const trimmed = rawLine.trim();
+    if (trimmed.startsWith("```")) {
+      inCodeFence = !inCodeFence;
+      continue;
+    }
+    if (inCodeFence) {
+      continue;
+    }
+    const semantic = markdownSemanticLine(rawLine);
+    if (semantic === null) {
+      continue;
+    }
+    if ("heading" in semantic) {
+      if (current.heading !== null || current.lines.length > 0) {
+        sections.push(current);
+      }
+      current = {
+        heading: semantic.heading,
+        index: sections.length,
+        lines: [],
+      };
+      continue;
+    }
+    current.lines.push(semantic.text);
+  }
+  if (current.heading !== null || current.lines.length > 0) {
+    sections.push(current);
+  }
+  return sections;
+}
+
+function boundedPlanCanonicalizationView(
+  value: string,
+  label: string,
+): {
+  text: string;
+  truncated: boolean;
+  sourceSha256: string;
+  sourceByteCount: number;
+  sourceCharCount: number;
+  canonicalViewSha256: string;
+  canonicalViewCharCount: number;
+} {
+  const sourceText = value.trim();
+  const sections = planSectionsFromText(sourceText);
+  const prioritizedSections = [...sections].sort((left, right) => {
+    const priorityDelta =
+      planSectionPriority(left.heading) - planSectionPriority(right.heading);
+    if (priorityDelta !== 0) {
+      return priorityDelta;
+    }
+    return left.index - right.index;
+  });
+  const rendered: string[] = [`Plan title: ${label}`];
+  let currentLength = `Plan title: ${label}`.length;
+  let addedLines = 1;
+  let summaryAdded = false;
+  let truncated = false;
+  for (const section of prioritizedSections) {
+    if (
+      section.heading !== null &&
+      collapseIdeaWhitespace(section.heading).toLowerCase() !==
+        collapseIdeaWhitespace(label).toLowerCase()
+    ) {
+      const headingLine = `Section: ${section.heading}`;
+      if (
+        addedLines >= PLAN_CANONICALIZATION_MAX_LINES ||
+        currentLength + 1 + headingLine.length > PLAN_CANONICALIZATION_MAX_CHARS
+      ) {
+        truncated = true;
+        break;
+      }
+      rendered.push(headingLine);
+      currentLength += 1 + headingLine.length;
+      addedLines += 1;
+    }
+    for (const line of section.lines) {
+      const candidate =
+        !summaryAdded && !line.startsWith("- ") ? `Summary: ${line}` : line;
+      if (
+        addedLines >= PLAN_CANONICALIZATION_MAX_LINES ||
+        currentLength + 1 + candidate.length > PLAN_CANONICALIZATION_MAX_CHARS
+      ) {
+        truncated = true;
+        break;
+      }
+      rendered.push(candidate);
+      currentLength += 1 + candidate.length;
+      addedLines += 1;
+      if (candidate.startsWith("Summary: ")) {
+        summaryAdded = true;
+      }
+    }
+    if (truncated) {
+      break;
+    }
+  }
+  if (!summaryAdded) {
+    const fallbackSummary = `Summary: ${shortenIdeaLine(sourceText)}`;
+    if (
+      addedLines < PLAN_CANONICALIZATION_MAX_LINES &&
+      currentLength + 1 + fallbackSummary.length <= PLAN_CANONICALIZATION_MAX_CHARS
+    ) {
+      rendered.push(fallbackSummary);
+      currentLength += 1 + fallbackSummary.length;
+    } else {
+      truncated = true;
+    }
+  }
+  const canonicalText = rendered.join("\n");
+  return {
+    text: canonicalText,
+    truncated,
+    sourceSha256: textSha256(sourceText),
+    sourceByteCount: Buffer.byteLength(sourceText, "utf-8"),
+    sourceCharCount: sourceText.length,
+    canonicalViewSha256: textSha256(canonicalText),
+    canonicalViewCharCount: canonicalText.length,
+  };
 }
 
 function findLastHistoryEvent(
@@ -4078,9 +4322,15 @@ function parseIdeasFileIdea(
   if (typeof rawIdea === "string") {
     const text = requireNonEmptyString(rawIdea, `ideas[${index + 1}]`);
     return {
+      canonicalViewCharCount: null,
+      canonicalViewSha256: null,
+      canonicalViewTruncated: false,
       id: autoId,
       text,
       displayText: text,
+      sourceByteCount: null,
+      sourceCharCount: null,
+      sourceSha256: null,
       sourceKind: "inline",
       sourcePath: null,
     };
@@ -4108,12 +4358,20 @@ function parseIdeasFileIdea(
     if (fileText.length === 0) {
       throw new Error(`ideas[${index + 1}].path points to an empty file.`);
     }
+    const displayText =
+      optionalString(mapping.label, `ideas[${index + 1}].label`) ??
+      inferredIdeaLabelFromText(fileText, sourcePath);
+    const canonicalView = boundedPlanCanonicalizationView(fileText, displayText);
     return {
       id,
-      text: fileText,
-      displayText:
-        optionalString(mapping.label, `ideas[${index + 1}].label`) ??
-        inferredIdeaLabelFromText(fileText, sourcePath),
+      text: canonicalView.text,
+      displayText,
+      canonicalViewCharCount: canonicalView.canonicalViewCharCount,
+      canonicalViewSha256: canonicalView.canonicalViewSha256,
+      canonicalViewTruncated: canonicalView.truncated,
+      sourceByteCount: canonicalView.sourceByteCount,
+      sourceCharCount: canonicalView.sourceCharCount,
+      sourceSha256: canonicalView.sourceSha256,
       sourceKind: "file",
       sourcePath: resolvedPath,
     };
@@ -4122,9 +4380,15 @@ function parseIdeasFileIdea(
     throw new Error(`ideas[${index + 1}] must include an idea, text, or path field.`);
   }
   return {
+    canonicalViewCharCount: null,
+    canonicalViewSha256: null,
+    canonicalViewTruncated: false,
     id,
     text,
     displayText: optionalString(mapping.label, `ideas[${index + 1}].label`) ?? text,
+    sourceByteCount: null,
+    sourceCharCount: null,
+    sourceSha256: null,
     sourceKind: "inline",
     sourcePath: null,
   };
@@ -4206,12 +4470,18 @@ function resolvedInitInput(
       : (ideasInput?.constraints ?? []);
   const roughIdeaSources =
     ideasInput?.ideas.map((idea) => ({
+      canonicalViewCharCount: idea.canonicalViewCharCount,
+      canonicalViewSha256: idea.canonicalViewSha256,
+      canonicalViewTruncated: idea.canonicalViewTruncated,
       id: idea.id,
       label: idea.displayText,
       path:
         idea.sourcePath === null
           ? null
           : shortWorkspacePath(workspace, idea.sourcePath),
+      sourceByteCount: idea.sourceByteCount,
+      sourceCharCount: idea.sourceCharCount,
+      sourceSha256: idea.sourceSha256,
       sourceKind: idea.sourceKind,
     })) ?? [];
   return {

@@ -88,7 +88,9 @@ The same rule applies to the local intake file: keep `autoclanker.ideas.json`
 small unless you already know you want explicit seeded lanes. An idea can still
 be bigger than one sentence: if one path already exists as a checked-in
 markdown plan or spec, point the ideas file at that path instead of flattening
-it into prompt prose. If you later want to add risk, confidence, or
+it into prompt prose. The wrapper keeps the plan file as local evidence and
+provenance, but feeds `autoclanker` a bounded canonicalization view rather than
+an unbounded raw dump. If you later want to add risk, confidence, or
 pairwise-preference hints, the advanced skill is the better place to do that
 than the starter intake file.
 

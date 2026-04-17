@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   chmodSync,
   mkdirSync,
@@ -440,9 +441,15 @@ test("ideas helpers cover explicit intake loading pathway resolution and seeded 
   const paths = sessionPaths(workspace);
 
   expect(__testHooks.parseIdeasFileIdea("Cache repeated matcher work.", 0)).toEqual({
+    canonicalViewCharCount: null,
+    canonicalViewSha256: null,
+    canonicalViewTruncated: false,
     id: "idea_001",
     text: "Cache repeated matcher work.",
     displayText: "Cache repeated matcher work.",
+    sourceByteCount: null,
+    sourceCharCount: null,
+    sourceSha256: null,
     sourceKind: "inline",
     sourcePath: null,
   });
@@ -452,9 +459,15 @@ test("ideas helpers cover explicit intake loading pathway resolution and seeded 
       1,
     ),
   ).toEqual({
+    canonicalViewCharCount: null,
+    canonicalViewSha256: null,
+    canonicalViewTruncated: false,
     id: "idea_plan",
     text: "Use context-pair planning.",
     displayText: "Use context-pair planning.",
+    sourceByteCount: null,
+    sourceCharCount: null,
+    sourceSha256: null,
     sourceKind: "inline",
     sourcePath: null,
   });
@@ -471,13 +484,36 @@ test("ideas helpers cover explicit intake loading pathway resolution and seeded 
       2,
       workspace,
     ),
-  ).toEqual({
+  ).toMatchObject({
     id: "idea_plan_file",
-    text: "# Context Pair Plan\n\nKeep breadcrumb context attached while pairing parser output.",
+    text: "Plan title: Context Pair Plan\nSummary: Keep breadcrumb context attached while pairing parser output.",
     displayText: "Context Pair Plan",
+    canonicalViewTruncated: false,
     sourceKind: "file",
     sourcePath: ideasPlanPath,
   });
+  const parsedPlanIdea = __testHooks.parseIdeasFileIdea(
+    { id: "idea_plan_file", path: "ideas/context-pair-plan.md" },
+    2,
+    workspace,
+  );
+  expect(parsedPlanIdea.sourceCharCount).toBe(
+    "# Context Pair Plan\n\nKeep breadcrumb context attached while pairing parser output."
+      .length,
+  );
+  expect(parsedPlanIdea.sourceByteCount).toBe(
+    Buffer.byteLength(
+      "# Context Pair Plan\n\nKeep breadcrumb context attached while pairing parser output.",
+      "utf-8",
+    ),
+  );
+  expect(parsedPlanIdea.sourceSha256).toBe(
+    `sha256:${createHash("sha256").update("# Context Pair Plan\n\nKeep breadcrumb context attached while pairing parser output.", "utf-8").digest("hex")}`,
+  );
+  expect(parsedPlanIdea.canonicalViewSha256).toBe(
+    `sha256:${createHash("sha256").update(parsedPlanIdea.text, "utf-8").digest("hex")}`,
+  );
+  expect(parsedPlanIdea.canonicalViewCharCount).toBe(parsedPlanIdea.text.length);
   expect(() => __testHooks.parseIdeasFileIdea({ id: "broken" }, 3)).toThrow(
     /idea, text, or path field/u,
   );

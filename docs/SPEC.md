@@ -35,6 +35,10 @@ shape in a checked-in JSON form:
 
 That file is only an intake convenience surface. The generated working surfaces
 remain `autoclanker.beliefs.json` and, when needed, `autoclanker.frontier.json`.
+When an idea points at a checked-in plan file, the wrapper should keep file
+path and digest provenance locally, derive a bounded canonicalization view from
+that source, and pass that bounded view upstream instead of persisting the full
+raw file body into the generated belief surface.
 Once proposal state exists, the wrapper should also maintain a project-local
 `autoclanker.proposals.json` mirror for the active session and era so long
 autonomous runs remain resumable after the interactive view disappears.

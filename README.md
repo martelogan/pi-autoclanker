@@ -122,7 +122,8 @@ a checked-in markdown or text plan, point at the file directly:
 ```
 
 `pi-autoclanker` keeps a concise local label for that idea, but passes the full
-plan text through to `autoclanker` for canonicalization.
+plan through a bounded canonicalization view to `autoclanker` while keeping
+file path and digest provenance locally in `autoclanker.beliefs.json`.
 
 If you already want explicit early lanes, keep that as a later-stage
 `pathways` shape instead of front-loading it into the first intake example. See

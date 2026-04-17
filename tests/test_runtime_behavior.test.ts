@@ -137,6 +137,15 @@ type IdeasPlanBeliefsRecord = {
   upstreamPreviewInputMode?: unknown;
 };
 
+type RoughIdeaSourceRecord = {
+  canonicalViewSha256?: unknown;
+  canonicalViewTruncated?: unknown;
+  path?: unknown;
+  sourceCharCount?: unknown;
+  sourceKind?: unknown;
+  sourceSha256?: unknown;
+};
+
 function asRecord(value: unknown): JsonRecord {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Expected a JSON object.");
@@ -1482,20 +1491,33 @@ Preserve neighboring alarm context while reducing repeated parser rescans.
       expect(beliefsDocument.canonicalIdeaInputs).toEqual(
         expect.arrayContaining([
           "Cache repeated matcher work.",
+          expect.stringContaining("Plan title: Context Pair Plan"),
           expect.stringContaining("Preserve neighboring alarm context"),
         ]),
       );
       expect(beliefsDocument.roughIdeaSources).toEqual([
         {
+          canonicalViewCharCount: null,
+          canonicalViewSha256: null,
+          canonicalViewTruncated: false,
           id: "idea_001",
           label: "Cache repeated matcher work.",
           path: null,
+          sourceByteCount: null,
+          sourceCharCount: null,
+          sourceSha256: null,
           sourceKind: "inline",
         },
         {
+          canonicalViewCharCount: expect.any(Number),
+          canonicalViewSha256: expect.stringMatching(/^sha256:/u),
+          canonicalViewTruncated: false,
           id: "context_plan",
           label: "Context Pair Plan",
           path: "plans/context-pair-plan.md",
+          sourceByteCount: expect.any(Number),
+          sourceCharCount: expect.any(Number),
+          sourceSha256: expect.stringMatching(/^sha256:/u),
           sourceKind: "file",
         },
       ]);
@@ -1518,6 +1540,87 @@ Preserve neighboring alarm context while reducing repeated parser rescans.
             entry.argv[1] === "init",
         )?.argv,
       ).toEqual(expect.arrayContaining(["--beliefs-input"]));
+    });
+  },
+);
+
+coveredTest(
+  ["M2-002"],
+  "large plan-backed ideas keep bounded canonicalization views and local provenance",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-ideas-large-plan-"),
+    );
+    mkdirSync(resolve(workspace, "plans"), { recursive: true });
+    const repeatedNotes = Array.from(
+      { length: 80 },
+      (_, index) =>
+        `- Detail ${index + 1}: keep parser context stable while exploring the candidate lane.`,
+    ).join("\n");
+    writeFileSync(
+      resolve(workspace, "plans/large-context-plan.md"),
+      `# Large Context Plan
+
+Lower parser latency without losing incident context quality.
+
+## Approach
+
+- Cache repeated matcher work before widening any capture windows.
+- Evaluate context pairing separately before combining it with cache changes.
+
+## Risks
+
+- Breadcrumb pairing can regress correctness on long traces.
+- Wider windows can hide the real source of a throughput gain.
+
+## Evaluation
+
+- Keep the eval shell fixed for the whole session.
+- Compare isolated lanes before merged pathways.
+
+## Notes
+
+${repeatedNotes}
+`,
+      "utf-8",
+    );
+    writeFileSync(
+      resolve(workspace, "autoclanker.ideas.json"),
+      `${JSON.stringify(
+        {
+          goal: "Stress-test large plan-backed ideas.",
+          ideas: [{ id: "large_plan", path: "plans/large-context-plan.md" }],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      dispatchCommand("start", {
+        autoclankerBinary: binaryPath,
+        workspace,
+      });
+
+      const beliefsDocument = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, BELIEFS_FILENAME), "utf-8")),
+      ) as unknown as IdeasPlanBeliefsRecord;
+      const canonicalIdeaInputs = beliefsDocument.canonicalIdeaInputs as unknown[];
+      const roughIdeaSources =
+        beliefsDocument.roughIdeaSources as RoughIdeaSourceRecord[];
+      const canonicalView = String(canonicalIdeaInputs[0]);
+      const source = roughIdeaSources[0] ?? {};
+
+      expect(canonicalView).toContain("Plan title: Large Context Plan");
+      expect(canonicalView).toContain("Section: Risks");
+      expect(canonicalView.length).toBeLessThan(3300);
+      expect(canonicalView).not.toContain("Detail 80");
+      expect(source.path).toBe("plans/large-context-plan.md");
+      expect(source.sourceKind).toBe("file");
+      expect(source.canonicalViewTruncated).toBe(true);
+      expect(Number(source.sourceCharCount)).toBeGreaterThan(canonicalView.length);
+      expect(String(source.sourceSha256)).toMatch(/^sha256:/u);
+      expect(String(source.canonicalViewSha256)).toMatch(/^sha256:/u);
     });
   },
 );

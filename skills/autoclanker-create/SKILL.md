@@ -26,6 +26,9 @@ wrapper.
 - keep that ideas file intentionally small; idea entries may still point at
   checked-in markdown or text plan files when a single line would hide useful
   structure
+- for plan-backed idea files, keep file provenance local and let the wrapper
+  derive a bounded canonicalization view instead of shoving the whole raw plan
+  body into the generated belief surface
 - use `pathways` only when the user already wants explicit seeded lanes before
   the first compare
 - if stronger risk, confidence, or pairwise-preference hints matter, prefer the
