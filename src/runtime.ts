@@ -104,11 +104,11 @@ const PLAN_SECTION_PRIORITY_PATTERNS = [
 
 export const DEFAULT_EVAL_COMMAND = `if [[ -n "\${PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_JSON:-}" ]]; then
   cat <<EVAL
-{"era_id":"\${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"cand_default_eval","intended_genotype":[],"realized_genotype":[],"patch_hash":"sha256:pi-autoclanker-default-eval","status":"valid","seed":0,"runtime_sec":0.0,"peak_vram_mb":0.0,"raw_metrics":{"score":0.0},"delta_perf":0.0,"utility":0.0,"replication_index":0,"stdout_digest":"stdout:default","stderr_digest":"stderr:default","artifact_paths":[],"failure_metadata":{},"eval_contract":\${PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_JSON}}
+{"era_id":"\${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"\${PI_AUTOCLANKER_TARGET_CANDIDATE_ID:-cand_default_eval}","intended_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"realized_genotype":\${PI_AUTOCLANKER_TARGET_REALIZED_GENOTYPE_JSON:-\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]}},"patch_hash":"sha256:pi-autoclanker-default-eval","status":"valid","seed":0,"runtime_sec":0.0,"peak_vram_mb":0.0,"raw_metrics":{"score":0.0},"delta_perf":0.0,"utility":0.0,"replication_index":0,"stdout_digest":"stdout:default","stderr_digest":"stderr:default","artifact_paths":[],"failure_metadata":{},"eval_contract":\${PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_JSON}}
 EVAL
 else
   cat <<EVAL
-{"era_id":"\${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"cand_default_eval","intended_genotype":[],"realized_genotype":[],"patch_hash":"sha256:pi-autoclanker-default-eval","status":"valid","seed":0,"runtime_sec":0.0,"peak_vram_mb":0.0,"raw_metrics":{"score":0.0},"delta_perf":0.0,"utility":0.0,"replication_index":0,"stdout_digest":"stdout:default","stderr_digest":"stderr:default","artifact_paths":[],"failure_metadata":{}}
+{"era_id":"\${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"\${PI_AUTOCLANKER_TARGET_CANDIDATE_ID:-cand_default_eval}","intended_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"realized_genotype":\${PI_AUTOCLANKER_TARGET_REALIZED_GENOTYPE_JSON:-\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]}},"patch_hash":"sha256:pi-autoclanker-default-eval","status":"valid","seed":0,"runtime_sec":0.0,"peak_vram_mb":0.0,"raw_metrics":{"score":0.0},"delta_perf":0.0,"utility":0.0,"replication_index":0,"stdout_digest":"stdout:default","stderr_digest":"stderr:default","artifact_paths":[],"failure_metadata":{}}
 EVAL
 fi`;
 
@@ -816,6 +816,7 @@ type RuntimePayload = {
   autoclankerBinary?: string;
   autoclankerRepo?: string | null;
   canonicalizationModel?: string;
+  candidateId?: string;
   candidates?: unknown;
   candidatesInputPath?: string;
   constraints?: string[];
@@ -4937,6 +4938,135 @@ function candidateMap(
   return map;
 }
 
+function explicitEvalCandidateId(payload: RuntimePayload): string | null {
+  const direct = optionalString(payload.candidateId, "candidateId");
+  if (direct !== null) {
+    return direct;
+  }
+  if (payload.candidateIds === undefined) {
+    return null;
+  }
+  const candidateIds = stringArray(payload.candidateIds, "candidateIds");
+  if (candidateIds.length > 1) {
+    throw new Error(
+      "autoclanker_ingest_eval accepts at most one candidateId/candidateIds entry.",
+    );
+  }
+  return candidateIds[0] ?? null;
+}
+
+function frontierForEvalTarget(
+  workspace: string,
+  paths: SessionPaths,
+  payload: RuntimePayload,
+): CandidatePoolDocument | null {
+  if (
+    payload.candidates !== undefined ||
+    payload.candidatesInputPath !== undefined ||
+    payload.frontierInputPath !== undefined
+  ) {
+    return ensureFrontierForWorkspace(workspace, paths, payload);
+  }
+  return loadFrontierIfPresent(paths);
+}
+
+function resolveEvalTarget(options: {
+  workspace: string;
+  paths: SessionPaths;
+  payload: RuntimePayload;
+}): { candidateId: string | null; candidate: FrontierCandidateRecord | null } {
+  let candidateId = explicitEvalCandidateId(options.payload);
+  const frontier = frontierForEvalTarget(
+    options.workspace,
+    options.paths,
+    options.payload,
+  );
+
+  if (candidateId === null && options.payload.familyIds !== undefined) {
+    if (frontier === null) {
+      throw new Error(
+        `${FRONTIER_FILENAME} is missing; provide frontier input before selecting familyIds for ingest-eval.`,
+      );
+    }
+    const candidateIds = normalizedCandidateIds(frontier, options.payload);
+    if (candidateIds.length > 1) {
+      throw new Error(
+        "autoclanker_ingest_eval accepts at most one familyIds-derived candidate.",
+      );
+    }
+    candidateId = candidateIds[0] ?? null;
+  }
+
+  if (candidateId === null && frontier !== null) {
+    const candidates = frontierCandidateItems(frontier);
+    if (candidates.length === 1) {
+      const [onlyCandidate] = candidates;
+      const onlyCandidateId =
+        optionalString(onlyCandidate?.candidate_id, "candidate_id") ?? "cand_1";
+      return {
+        candidateId: onlyCandidateId,
+        candidate: onlyCandidate ?? null,
+      };
+    }
+    return { candidateId: null, candidate: null };
+  }
+
+  if (candidateId === null) {
+    return { candidateId: null, candidate: null };
+  }
+
+  return {
+    candidateId,
+    candidate:
+      frontier === null ? null : (candidateMap(frontier).get(candidateId) ?? null),
+  };
+}
+
+type EvalTargetEnv = Record<string, string> & {
+  PI_AUTOCLANKER_TARGET_CANDIDATE_ID?: string;
+  PI_AUTOCLANKER_TARGET_FAMILY_ID?: string;
+  PI_AUTOCLANKER_TARGET_CANDIDATE_NOTES?: string;
+  PI_AUTOCLANKER_TARGET_GENOTYPE_JSON?: string;
+  PI_AUTOCLANKER_TARGET_PARENT_CANDIDATE_IDS_JSON?: string;
+  PI_AUTOCLANKER_TARGET_PARENT_BELIEF_IDS_JSON?: string;
+};
+
+function evalTargetEnv(target: {
+  candidateId: string | null;
+  candidate: FrontierCandidateRecord | null;
+}): Record<string, string> {
+  const env: EvalTargetEnv = {};
+  if (target.candidateId !== null) {
+    env.PI_AUTOCLANKER_TARGET_CANDIDATE_ID = target.candidateId;
+  }
+  if (target.candidate === null) {
+    return env;
+  }
+
+  const familyId = optionalString(target.candidate.family_id, "family_id");
+  if (familyId !== null) {
+    env.PI_AUTOCLANKER_TARGET_FAMILY_ID = familyId;
+  }
+  const notes = optionalString(target.candidate.notes, "notes");
+  if (notes !== null) {
+    env.PI_AUTOCLANKER_TARGET_CANDIDATE_NOTES = notes;
+  }
+  env.PI_AUTOCLANKER_TARGET_GENOTYPE_JSON = JSON.stringify(
+    target.candidate.genotype ?? [],
+  );
+  if (target.candidate.parent_candidate_ids !== undefined) {
+    env.PI_AUTOCLANKER_TARGET_PARENT_CANDIDATE_IDS_JSON = JSON.stringify(
+      stringArray(target.candidate.parent_candidate_ids, "parent_candidate_ids"),
+    );
+  }
+  if (target.candidate.parent_belief_ids !== undefined) {
+    env.PI_AUTOCLANKER_TARGET_PARENT_BELIEF_IDS_JSON = JSON.stringify(
+      stringArray(target.candidate.parent_belief_ids, "parent_belief_ids"),
+    );
+  }
+  return env;
+}
+
 function normalizedCandidateIds(
   frontier: CandidatePoolDocument,
   payload: RuntimePayload,
@@ -5644,6 +5774,7 @@ function toolIngestEval(
     runner,
   });
   const lockedContract = upstreamContract.contract as EvalContractJson;
+  const evalTarget = resolveEvalTarget({ workspace, paths, payload });
   const evalPayload = ensureEvalPayloadIncludesContract(
     runEvalScript(paths.evalPath, workspace, {
       extraEnv: {
@@ -5656,6 +5787,7 @@ function toolIngestEval(
           summaryString(upstreamContract.status.eval_contract_digest) ??
           summaryString(lockedContract.contract_digest) ??
           "",
+        ...evalTargetEnv(evalTarget),
       },
     }),
     upstreamContract.contract,
@@ -5680,6 +5812,8 @@ function toolIngestEval(
   });
   appendHistory(paths.historyPath, {
     event: "eval_ingested",
+    candidateId: evalTarget.candidateId,
+    candidateLabel: candidateDescriptor(evalTarget.candidate),
     evalResultPath,
     evalSurfaceSha256,
     upstream,
@@ -5690,6 +5824,8 @@ function toolIngestEval(
     tool: "autoclanker_ingest_eval",
     workspace,
     sessionRoot: paths.upstreamSessionDir,
+    candidateId: evalTarget.candidateId,
+    candidateLabel: candidateDescriptor(evalTarget.candidate),
     evalResultPath,
     evalSurfaceSha256,
     ingest: upstream,
