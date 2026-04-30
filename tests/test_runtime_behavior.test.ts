@@ -758,7 +758,13 @@ function candidatePool(): JsonRecord {
         genotype: [
           { gene_id: "parser.matcher", state_id: "matcher_compiled" },
           { gene_id: "parser.plan", state_id: "plan_context_pair" },
-        ],
+      
+                ],        
+        parent_candidate_ids: ["cand_parser_default"],
+                parent_belief_ids: [
+                    "belief_parser_compiled_context",        
+                  "belief_context_pair",
+                ],
       },
       {
         candidate_id: "cand_parser_wide_window",
