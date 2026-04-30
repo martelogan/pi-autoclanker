@@ -166,6 +166,37 @@ test("runtime helpers cover eval scripts summary parsing and candidate descripti
     /stdout failure/u,
   );
 
+  const hooksDir = resolve(workspace, "autoclanker.hooks");
+  mkdirSync(hooksDir, { recursive: true });
+  const missingHook = __testHooks.runHook(workspace, "before-eval", { ok: true });
+  expect(missingHook.fired).toBe(false);
+  expect(__testHooks.hookScriptState(workspace, "before-eval")).toBe("absent");
+
+  const beforeHookPath = __testHooks.hookScriptPath(workspace, "before-eval");
+  writeFileSync(beforeHookPath, "#!/usr/bin/env bash\ncat >/dev/null\n", "utf-8");
+  expect(__testHooks.hookScriptState(workspace, "before-eval")).toBe(
+    "present but not executable",
+  );
+
+  writeExecutable(
+    beforeHookPath,
+    "cat >/dev/null\nnode -e 'process.stdout.write(\"x\".repeat(9000))'",
+  );
+  const longHook = __testHooks.runHook(workspace, "before-eval", { ok: true });
+  expect(longHook.fired).toBe(true);
+  expect(longHook.stdout.truncated).toBe(true);
+  expect(longHook.stdout.text).toContain("truncated");
+  const publicHookResult = __testHooks.hookResultForOutput(longHook, workspace) as {
+    stdoutTruncated: unknown;
+  };
+  expect(publicHookResult.stdoutTruncated).toBe(true);
+
+  const afterHookPath = __testHooks.hookScriptPath(workspace, "after-eval");
+  writeExecutable(afterHookPath, "cat >/dev/null\necho hook-error >&2\nexit 7");
+  const failedHook = __testHooks.runHook(workspace, "after-eval", { ok: true });
+  expect(failedHook.exitCode).toBe(7);
+  expect(failedHook.stderr.text).toContain("hook-error");
+
   expect(__testHooks.summaryObject(null)).toBeNull();
   expect(__testHooks.summaryObject([])).toBeNull();
   expect(__testHooks.summaryObject({ ok: true })).toEqual({ ok: true });
@@ -517,6 +548,38 @@ test("ideas helpers cover explicit intake loading pathway resolution and seeded 
   expect(() => __testHooks.parseIdeasFileIdea({ id: "broken" }, 3)).toThrow(
     /idea, text, or path field/u,
   );
+  expect(() =>
+    __testHooks.parseIdeasFileIdea(
+      { id: "conflicting_plan", path: "ideas/context-pair-plan.md", text: "nope" },
+      4,
+      workspace,
+    ),
+  ).toThrow(/must use either text\/idea or path/u);
+  expect(() =>
+    __testHooks.parseIdeasFileIdea(
+      { id: "missing_plan", path: "ideas/missing-plan.md" },
+      5,
+      workspace,
+    ),
+  ).toThrow(/does not resolve to a readable file/u);
+  const emptyPlanPath = resolve(workspace, "ideas", "empty-plan.md");
+  writeFileSync(emptyPlanPath, "\n", "utf-8");
+  expect(() =>
+    __testHooks.parseIdeasFileIdea(
+      { id: "empty_plan", path: "ideas/empty-plan.md" },
+      6,
+      workspace,
+    ),
+  ).toThrow(/points to an empty file/u);
+  expect(() =>
+    __testHooks.parseIdeasFilePathway(
+      {
+        id: "Broken",
+        idea_ids: "idea_cache",
+      },
+      1,
+    ),
+  ).toThrow(/must be a list of strings/u);
   expect(
     __testHooks.parseIdeasFilePathway(
       {
@@ -607,6 +670,22 @@ test("ideas helpers cover explicit intake loading pathway resolution and seeded 
   expect(mappedBeliefs.get("idea_cache")?.[0]?.gene_id).toBe("parser.matcher");
   expect(mappedBeliefs.get("idea_plan")?.[0]?.state_id).toBe("plan_context_pair");
   expect(mappedBeliefs.get("idea_conflict")?.[0]?.state_id).toBe("matcher_legacy");
+  expect(
+    __testHooks.canonicalIdeaBeliefsByIdeaId(ideasInput, {
+      canonicalBeliefs: {
+        not: "a list",
+      },
+    }).size,
+  ).toBe(0);
+  expect(
+    __testHooks.canonicalIdeaBeliefsByIdeaId(ideasInput, {
+      canonicalBeliefs: [
+        null,
+        { kind: "idea", gene: {} },
+        { kind: "idea", gene: { gene_id: "missing_state" } },
+      ],
+    }).size,
+  ).toBe(0);
 
   expect(
     __testHooks.resolvePathwayIdeaIds(

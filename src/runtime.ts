@@ -24,6 +24,7 @@ export const FRONTIER_FILENAME = "autoclanker.frontier.json";
 export const IDEAS_FILENAME = "autoclanker.ideas.json";
 export const PROPOSALS_FILENAME = "autoclanker.proposals.json";
 export const HISTORY_FILENAME = "autoclanker.history.jsonl";
+export const HOOKS_DIRNAME = "autoclanker.hooks";
 export const SESSION_FILENAMES = [
   SUMMARY_FILENAME,
   CONFIG_FILENAME,
@@ -90,6 +91,9 @@ const DEFAULT_STATUS_SESSION_ID = "status_workspace";
 const DEFAULT_STATUS_ERA_ID = "era_status_workspace_v1";
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 const CHILD_ENV_BLOCKLIST = ["NODE_V8_COVERAGE"] as const;
+const HOOK_TIMEOUT_MS = 30_000;
+const HOOK_OUTPUT_MAX_BYTES = 8 * 1024;
+const HOOK_TRUNCATION_MARKER = "\n...[truncated: hook output exceeded 8KB]";
 const PLAN_CANONICALIZATION_MAX_CHARS = 3200;
 const PLAN_CANONICALIZATION_MAX_LINES = 32;
 const PLAN_CANONICALIZATION_MAX_LINE_CHARS = 220;
@@ -177,8 +181,13 @@ type BeliefsDocument = {
 
 type SummaryHistoryEntry = {
   briefFingerprint?: unknown;
+  candidateId?: unknown;
   candidateInput?: unknown;
   event?: unknown;
+  hookExitCode?: unknown;
+  hookStage?: unknown;
+  hookStdout?: unknown;
+  hookTimedOut?: unknown;
   proposalFingerprint?: unknown;
   timestamp?: unknown;
   upstream?: unknown;
@@ -267,6 +276,25 @@ type FrontierCandidateRecord = {
 type FrontierGeneRecord = {
   gene_id?: unknown;
   state_id?: unknown;
+};
+
+type HookStage = "before-eval" | "after-eval";
+
+type HookOutput = {
+  byteCount: number;
+  text: string;
+  truncated: boolean;
+};
+
+type HookResult = {
+  durationMs: number;
+  exitCode: number | null;
+  fired: boolean;
+  scriptPath: string;
+  stage: HookStage;
+  stderr: HookOutput;
+  stdout: HookOutput;
+  timedOut: boolean;
 };
 
 type UpstreamStatusRecord = {
@@ -2027,6 +2055,118 @@ function runEvalScript(
   );
 }
 
+function hookScriptPath(workspace: string, stage: HookStage): string {
+  return resolve(workspace, HOOKS_DIRNAME, `${stage}.sh`);
+}
+
+function isExecutableFile(path: string): boolean {
+  try {
+    const stat = statSync(path);
+    return stat.isFile() && (stat.mode & 0o111) !== 0;
+  } catch {
+    return false;
+  }
+}
+
+function truncateUtf8Buffer(buffer: Buffer, maxBytes: number): Buffer {
+  if (buffer.length <= maxBytes) {
+    return buffer;
+  }
+  const prefix = buffer.subarray(0, maxBytes);
+  const newline = prefix.lastIndexOf(0x0a);
+  if (newline >= 0) {
+    return prefix.subarray(0, newline + 1);
+  }
+  let end = maxBytes;
+  while (end > 0) {
+    const byte = buffer[end];
+    if (byte === undefined || (byte & 0xc0) !== 0x80) {
+      break;
+    }
+    end -= 1;
+  }
+  return buffer.subarray(0, end);
+}
+
+function hookOutput(raw: string): HookOutput {
+  const buffer = Buffer.from(raw, "utf-8");
+  if (buffer.length <= HOOK_OUTPUT_MAX_BYTES) {
+    return {
+      byteCount: buffer.length,
+      text: raw,
+      truncated: false,
+    };
+  }
+  return {
+    byteCount: buffer.length,
+    text: `${truncateUtf8Buffer(buffer, HOOK_OUTPUT_MAX_BYTES).toString("utf-8")}${HOOK_TRUNCATION_MARKER}`,
+    truncated: true,
+  };
+}
+
+function emptyHookResult(workspace: string, stage: HookStage): HookResult {
+  return {
+    durationMs: 0,
+    exitCode: null,
+    fired: false,
+    scriptPath: hookScriptPath(workspace, stage),
+    stage,
+    stderr: { byteCount: 0, text: "", truncated: false },
+    stdout: { byteCount: 0, text: "", truncated: false },
+    timedOut: false,
+  };
+}
+
+function runHook(workspace: string, stage: HookStage, payload: JsonObject): HookResult {
+  const scriptPath = hookScriptPath(workspace, stage);
+  if (!isExecutableFile(scriptPath)) {
+    return emptyHookResult(workspace, stage);
+  }
+  const startedAt = Date.now();
+  const completed = spawnSync("bash", [scriptPath], {
+    cwd: workspace,
+    encoding: "utf-8",
+    env: childProcessEnv(),
+    input: `${JSON.stringify(payload)}\n`,
+    stdio: ["pipe", "pipe", "pipe"],
+    timeout: HOOK_TIMEOUT_MS,
+  });
+  const errorWithCode = completed.error as (Error & { code?: string }) | undefined;
+  const timedOut =
+    errorWithCode?.code === "ETIMEDOUT" || completed.signal === "SIGTERM";
+  const stderrParts = [completed.stderr ?? ""];
+  if (completed.error && !timedOut) {
+    stderrParts.push(completed.error.message);
+  }
+  return {
+    durationMs: Date.now() - startedAt,
+    exitCode: typeof completed.status === "number" ? completed.status : null,
+    fired: true,
+    scriptPath,
+    stage,
+    stderr: hookOutput(stderrParts.filter(Boolean).join("\n")),
+    stdout: hookOutput(completed.stdout ?? ""),
+    timedOut,
+  };
+}
+
+function hookResultForOutput(result: HookResult, workspace: string): JsonObject {
+  return {
+    durationMs: result.durationMs,
+    exitCode: result.exitCode,
+    fired: result.fired,
+    scriptPath: shortWorkspacePath(workspace, result.scriptPath),
+    stage: result.stage,
+    stderr: result.stderr.text,
+    stderrBytes: result.stderr.byteCount,
+    stderrTruncated: result.stderr.truncated,
+    stdout: result.stdout.text,
+    stdoutBytes: result.stdout.byteCount,
+    stdoutTruncated: result.stdout.truncated,
+    timedOut: result.timedOut,
+  };
+}
+
 function lockedUpstreamEvalContract(options: {
   workspace: string;
   config: RuntimeConfig;
@@ -3319,6 +3459,9 @@ function writeSummary(
     summaryObject<UpstreamReviewTrustRecord>(view.dashboard.trust) ?? {};
   const reviewEvidenceRecord =
     summaryObject<UpstreamReviewEvidenceRecord>(reviewBundleRecord.evidence) ?? {};
+  const hooksDirPresent = existsSync(resolve(paths.workspace, HOOKS_DIRNAME));
+  const latestBeforeEvalHook = latestHookEvent(history, "before-eval");
+  const latestAfterEvalHook = latestHookEvent(history, "after-eval");
   const lines = [
     "# pi-autoclanker session",
     "",
@@ -3380,6 +3523,13 @@ function writeSummary(
     `- current eval contract digest: \`${optionalString(trustRecord.currentEvalContractDigest ?? trustRecord.current_eval_contract_digest, "currentEvalContractDigest") ?? "Not recorded"}\``,
     `- eval contract matches current: ${String(trustRecord.evalContractMatchesCurrent ?? trustRecord.eval_contract_matches_current ?? false).toLowerCase()}`,
     ...summaryStringList(reviewEvidenceRecord.notes).map((item) => `- ${item}`),
+    "",
+    "## Hooks",
+    `- directory: \`${HOOKS_DIRNAME}/\` (${hooksDirPresent ? "present" : "absent"})`,
+    `- before-eval.sh: \`${hookScriptState(paths.workspace, "before-eval")}\``,
+    `- after-eval.sh: \`${hookScriptState(paths.workspace, "after-eval")}\``,
+    `- latest before-eval: ${hookSummaryLine("before-eval", latestBeforeEvalHook)}`,
+    `- latest after-eval: ${hookSummaryLine("after-eval", latestAfterEvalHook)}`,
     "",
     "## Run Files",
     `- \`${SUMMARY_FILENAME}\`: durable human brief`,
@@ -5067,6 +5217,209 @@ function evalTargetEnv(target: {
   return env;
 }
 
+function candidateForHook(target: {
+  candidateId: string | null;
+  candidate: FrontierCandidateRecord | null;
+}): JsonObject | null {
+  if (target.candidateId === null && target.candidate === null) {
+    return null;
+  }
+  const candidate = target.candidate;
+  return {
+    candidate_id: target.candidateId,
+    family_id:
+      candidate === null ? null : optionalString(candidate.family_id, "family_id"),
+    genotype: candidate?.genotype ?? [],
+    notes: candidate === null ? null : optionalString(candidate.notes, "notes"),
+    origin_kind:
+      candidate === null ? null : optionalString(candidate.origin_kind, "origin_kind"),
+    parent_belief_ids:
+      candidate?.parent_belief_ids === undefined
+        ? []
+        : stringArray(candidate.parent_belief_ids, "parent_belief_ids"),
+    parent_candidate_ids:
+      candidate?.parent_candidate_ids === undefined
+        ? []
+        : stringArray(candidate.parent_candidate_ids, "parent_candidate_ids"),
+  };
+}
+
+function frontierForHook(frontier: CandidatePoolDocument | null): JsonObject {
+  if (frontier === null) {
+    return {
+      candidate_count: 0,
+      candidates: [],
+      family_count: 0,
+      frontier_id: null,
+      present: false,
+    };
+  }
+  return {
+    candidate_count: frontierCandidateItems(frontier).length,
+    candidates: frontierCandidateItems(frontier)
+      .slice(0, 12)
+      .map((candidate) => ({
+        candidate_id: optionalString(candidate.candidate_id, "candidate_id"),
+        family_id: optionalString(candidate.family_id, "family_id"),
+        notes: optionalString(candidate.notes, "notes"),
+      })),
+    family_count: frontierFamilyCount(frontier),
+    frontier_id: optionalString(frontier.frontier_id, "frontier_id"),
+    present: true,
+  };
+}
+
+function historyForHook(history: SummaryHistoryEntry[]): JsonObject {
+  return {
+    count: history.length,
+    recent: history.slice(-8).map((entry) => ({
+      candidateId: optionalString(entry.candidateId, "candidateId"),
+      event: optionalString(entry.event, "event"),
+      hookStage: optionalString(entry.hookStage, "hookStage"),
+      timestamp: optionalString(entry.timestamp, "timestamp"),
+    })),
+  };
+}
+
+function evalHookSessionPayload(options: {
+  beliefsDocument: BeliefsDocument;
+  config: RuntimeConfig;
+  evalSurfaceSha256: string;
+  paths: SessionPaths;
+  upstreamContract: {
+    contract: unknown;
+    eraId: string;
+    sessionId: string;
+    status: UpstreamStatusRecord;
+  };
+}): JsonObject {
+  const contract = summaryObject<EvalContractJson>(options.upstreamContract.contract);
+  return {
+    apply_state: optionalString(options.beliefsDocument.applyState, "applyState"),
+    default_ideas_mode: options.config.defaultIdeasMode,
+    enabled: options.config.enabled,
+    era_id: options.upstreamContract.eraId,
+    eval_contract_digest:
+      summaryString(options.upstreamContract.status.eval_contract_digest) ??
+      summaryString(contract?.contract_digest) ??
+      null,
+    eval_surface_sha256: options.evalSurfaceSha256,
+    goal: options.config.goal,
+    session_id: options.upstreamContract.sessionId,
+    upstream_session_root: shortWorkspacePath(
+      options.paths.workspace,
+      options.paths.upstreamSessionDir,
+    ),
+  };
+}
+
+function evalHookPayload(options: {
+  beliefsDocument: BeliefsDocument;
+  config: RuntimeConfig;
+  evalPayload?: JsonObject;
+  evalResultPath?: string;
+  evalSurfaceSha256: string;
+  evalTarget: {
+    candidateId: string | null;
+    candidate: FrontierCandidateRecord | null;
+  };
+  history: SummaryHistoryEntry[];
+  paths: SessionPaths;
+  stage: HookStage;
+  upstream?: JsonObject;
+  upstreamContract: {
+    contract: unknown;
+    eraId: string;
+    sessionId: string;
+    status: UpstreamStatusRecord;
+  };
+}): JsonObject {
+  const payload: JsonObject & { eval?: JsonObject } = {
+    candidate: candidateForHook(options.evalTarget),
+    cwd: options.paths.workspace,
+    event: options.stage,
+    frontier: frontierForHook(loadFrontierIfPresent(options.paths)),
+    history: historyForHook(options.history),
+    session: evalHookSessionPayload({
+      beliefsDocument: options.beliefsDocument,
+      config: options.config,
+      evalSurfaceSha256: options.evalSurfaceSha256,
+      paths: options.paths,
+      upstreamContract: options.upstreamContract,
+    }),
+  };
+  if (options.evalPayload !== undefined) {
+    const evalResultPath = requireNonEmptyString(
+      options.evalResultPath,
+      "evalResultPath",
+    );
+    payload.eval = {
+      ingest: options.upstream ?? null,
+      result: options.evalPayload,
+      result_path: shortWorkspacePath(options.paths.workspace, evalResultPath),
+    };
+  }
+  return payload;
+}
+
+function appendHookHistory(
+  historyPath: string,
+  result: HookResult,
+  workspace: string,
+): void {
+  if (!result.fired) {
+    return;
+  }
+  appendHistory(historyPath, {
+    event: "hook_fired",
+    hookStage: result.stage,
+    hookScriptPath: shortWorkspacePath(workspace, result.scriptPath),
+    hookStdout: result.stdout.text,
+    hookStdoutBytes: result.stdout.byteCount,
+    hookStdoutTruncated: result.stdout.truncated,
+    hookStderr: result.stderr.text,
+    hookStderrBytes: result.stderr.byteCount,
+    hookStderrTruncated: result.stderr.truncated,
+    hookExitCode: result.exitCode,
+    hookTimedOut: result.timedOut,
+    hookDurationMs: result.durationMs,
+  });
+}
+
+function hookScriptState(workspace: string, stage: HookStage): string {
+  const path = hookScriptPath(workspace, stage);
+  if (!existsSync(path)) {
+    return "absent";
+  }
+  return isExecutableFile(path) ? "executable" : "present but not executable";
+}
+
+function latestHookEvent(
+  history: SummaryHistoryEntry[],
+  stage: HookStage,
+): SummaryHistoryEntry | null {
+  for (const entry of [...history].reverse()) {
+    if (
+      optionalString(entry.event, "event") === "hook_fired" &&
+      optionalString(entry.hookStage, "hookStage") === stage
+    ) {
+      return entry;
+    }
+  }
+  return null;
+}
+
+function hookSummaryLine(stage: HookStage, entry: SummaryHistoryEntry | null): string {
+  if (entry === null) {
+    return `${stage}: no fired hook recorded`;
+  }
+  const exitCode =
+    typeof entry.hookExitCode === "number" ? String(entry.hookExitCode) : "null";
+  const timedOut = entry.hookTimedOut === true ? " timed out" : "";
+  const stdout = summaryString(entry.hookStdout);
+  return `${stage}: exit ${exitCode}${timedOut}${stdout === null ? "" : `; ${shortenIdeaLabel(stdout, 96)}`}`;
+}
+
 function normalizedCandidateIds(
   frontier: CandidatePoolDocument,
   payload: RuntimePayload,
@@ -5775,6 +6128,21 @@ function toolIngestEval(
   });
   const lockedContract = upstreamContract.contract as EvalContractJson;
   const evalTarget = resolveEvalTarget({ workspace, paths, payload });
+  const beforeHook = runHook(
+    workspace,
+    "before-eval",
+    evalHookPayload({
+      beliefsDocument,
+      config,
+      evalSurfaceSha256,
+      evalTarget,
+      history: loadHistory(paths.historyPath),
+      paths,
+      stage: "before-eval",
+      upstreamContract,
+    }),
+  );
+  appendHookHistory(paths.historyPath, beforeHook, workspace);
   const evalPayload = ensureEvalPayloadIncludesContract(
     runEvalScript(paths.evalPath, workspace, {
       extraEnv: {
@@ -5809,13 +6177,36 @@ function toolIngestEval(
     ],
     runner,
     requireUpstream: true,
-  });
+  }) as JsonObject;
+  const afterHook = runHook(
+    workspace,
+    "after-eval",
+    evalHookPayload({
+      beliefsDocument,
+      config,
+      evalPayload,
+      evalResultPath,
+      evalSurfaceSha256,
+      evalTarget,
+      history: loadHistory(paths.historyPath),
+      paths,
+      stage: "after-eval",
+      upstream,
+      upstreamContract,
+    }),
+  );
+  appendHookHistory(paths.historyPath, afterHook, workspace);
+  const hooks = {
+    afterEval: hookResultForOutput(afterHook, workspace),
+    beforeEval: hookResultForOutput(beforeHook, workspace),
+  };
   appendHistory(paths.historyPath, {
     event: "eval_ingested",
     candidateId: evalTarget.candidateId,
     candidateLabel: candidateDescriptor(evalTarget.candidate),
     evalResultPath,
     evalSurfaceSha256,
+    hooks,
     upstream,
   });
   writeSummary(paths, config, beliefsDocument, runner);
@@ -5828,6 +6219,7 @@ function toolIngestEval(
     candidateLabel: candidateDescriptor(evalTarget.candidate),
     evalResultPath,
     evalSurfaceSha256,
+    hooks,
     ingest: upstream,
   };
 }
@@ -6306,6 +6698,10 @@ export const __testHooks = {
   humanizeHistoryEvent,
   latestHistoryEventByName,
   latestSummarySnapshot,
+  hookScriptPath,
+  hookScriptState,
+  hookResultForOutput,
+  runHook,
   loadIdeasInput,
   loadUpstreamReviewBundle,
   locateIdeasInput,

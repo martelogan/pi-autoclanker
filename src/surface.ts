@@ -53,11 +53,21 @@ export const surfaceManifest = {
   ],
   packagedSurfaceFiles: [
     "extensions/pi-autoclanker/index.ts",
+    "extensions/pi-autoclanker/compaction.ts",
     "schemas/pi-autoclanker.config.schema.json",
     "schemas/pi-autoclanker.proposals.schema.json",
     "extensions/pi-autoclanker/assets/dashboard.html",
     "skills/autoclanker-create/SKILL.md",
     "skills/autoclanker-advanced-beliefs/SKILL.md",
+    "skills/autoclanker-hooks/SKILL.md",
+    "skills/autoclanker-hooks/examples/README.md",
+    "skills/autoclanker-hooks/examples/before-eval/frontier-reminder.sh",
+    "skills/autoclanker-hooks/examples/before-eval/external-context.sh",
+    "skills/autoclanker-hooks/examples/before-eval/anti-thrash.sh",
+    "skills/autoclanker-hooks/examples/before-eval/idea-rotator.sh",
+    "skills/autoclanker-hooks/examples/after-eval/learnings-journal.sh",
+    "skills/autoclanker-hooks/examples/after-eval/evidence-digest.sh",
+    "skills/autoclanker-hooks/examples/after-eval/macos-notify.sh",
     "skills/autoclanker-review/SKILL.md",
     "docs/MENTAL_MODEL.md",
     "docs/assets/pi-autoclanker-mental-model.svg",
@@ -94,6 +104,7 @@ export const surfaceManifest = {
     "autoclanker.frontier.json",
     "autoclanker.proposals.json",
     "autoclanker.history.jsonl",
+    "autoclanker.hooks/",
   ],
   slashCommandPrefix: "/autoclanker",
   tools: [
@@ -122,7 +133,8 @@ export const surfaceManifest = {
       name: "autoclanker_apply_beliefs",
     },
     {
-      description: "Run the checked-in eval surface through autoclanker ingest.",
+      description:
+        "Run optional eval hooks, then execute the checked-in eval surface through autoclanker ingest.",
       name: "autoclanker_ingest_eval",
     },
     {

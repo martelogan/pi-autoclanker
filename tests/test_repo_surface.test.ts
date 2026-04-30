@@ -51,6 +51,7 @@ coveredTest(
     expect(readme).toContain("Commands");
     expect(readme).toContain("Tools");
     expect(readme).toContain("Skills");
+    expect(readme).toContain("Hooks");
     expect(readme).toContain("Mental model");
     expect(readme).toContain("docs/MENTAL_MODEL.md");
     expect(readme).toContain("Files & output");
@@ -74,7 +75,12 @@ coveredTest(
     expect(readme).toContain("autoclanker_init_session");
     expect(readme).toContain("/autoclanker start <goal>");
     expect(readme).toContain("autoclanker-create");
+    expect(readme).toContain("autoclanker-hooks");
+    expect(readme).toContain("anti-thrash nudges");
+    expect(readme).toContain("machine-readable evidence digests");
     expect(readme).toContain("autoclanker.history.jsonl");
+    expect(readme).toContain("autoclanker.hooks/before-eval.sh");
+    expect(readme).toContain("deterministic summary");
     expect(readme).toContain("plain strings at first");
     expect(readme).toContain("RESULTS.md");
     expect(readme).toContain("observations.jsonl");
@@ -89,6 +95,8 @@ coveredTest(
     expect(readme).not.toContain("TypeScript port scaffold");
     expect(spec).toContain("Optimization loop mental model");
     expect(spec).toContain("Artifact dominance");
+    expect(spec).toContain("Eval lifecycle hooks");
+    expect(spec).toContain("deterministic summary");
     expect(spec).toContain("goal, rough ideas, and optional");
     expect(spec).toContain("autoclanker.ideas.json");
     expect(spec).toContain("markdown or text plans");

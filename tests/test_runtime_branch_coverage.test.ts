@@ -690,6 +690,17 @@ coveredTest(
         "autoclanker_ingest_eval",
         {
           candidates: candidatePool,
+          candidateIds: ["cand_alpha", "cand_beta"],
+        },
+        { workspace: multiFamilyWorkspace, runner },
+      ),
+    ).toThrowError(/at most one candidateId/u);
+
+    expect(() =>
+      dispatchTool(
+        "autoclanker_ingest_eval",
+        {
+          candidates: candidatePool,
           familyIds: ["family_alpha", "family_beta"],
         },
         { workspace: multiFamilyWorkspace, runner },
@@ -728,6 +739,21 @@ coveredTest(
       ),
     );
     expect(unselectedResult.candidateId).toBeNull();
+
+    const emptyCandidateIdsWorkspace = initEvalWorkspace({
+      evalCommand: JSON_EVAL_COMMAND,
+      goal: "Treat an empty candidateIds selector as no explicit target.",
+      prefix: "pi-autoclanker-ts-target-empty-candidate-ids-",
+      runner,
+    });
+    const emptyCandidateIdsResult = asRecord(
+      dispatchTool(
+        "autoclanker_ingest_eval",
+        { candidates: candidatePool, candidateIds: [] },
+        { workspace: emptyCandidateIdsWorkspace, runner },
+      ),
+    );
+    expect(emptyCandidateIdsResult.candidateId).toBeNull();
   },
 );
 

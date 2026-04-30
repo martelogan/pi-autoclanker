@@ -17,6 +17,7 @@
 **[Commands](#commands)** ·
 **[Tools](#tools)** ·
 **[Skills](#skills)** ·
+**[Hooks](#hooks)** ·
 **[Start simple](#start-simple)** ·
 **[Optimization loop](#optimization-loop)** ·
 **[Why this is different](#why-this-is-different)** ·
@@ -162,6 +163,7 @@ can safely ignore.
 | --- | --- |
 | Extension | pi tools plus the `/autoclanker` command family |
 | Skills | beginner creation, advanced belief authoring, and session review |
+| Hooks | optional executable before/after eval sidecars for context refresh, notifications, and learnings |
 | Local files | resumable checked-in session files plus an optional `autoclanker.ideas.json` intake file |
 | Status surface | trust digest, backend choice, and next concrete comparison without digging through raw JSON |
 | Upstream artifacts | `.autoclanker/<session>/` JSON, reports, and charts from `autoclanker` |
@@ -202,6 +204,12 @@ data is merged with local frontier and artifact state rather than replacing it,
 and the wrapper does not leave behind extra `dashboard_payload.json`-style
 files by default.
 
+During pi context compaction, the extension emits a deterministic summary from
+`autoclanker.md`, beliefs, frontier, proposals, hooks, and recent local history
+instead of relying on an LLM to rediscover the run state from chat. New turns
+also receive a short active-session prompt pointer so the agent resumes from the
+project-local files rather than from stale conversation memory.
+
 ## Commands
 
 `pi-autoclanker` exposes one slash-command family:
@@ -239,7 +247,7 @@ These are the extension tools available to pi:
 | `autoclanker_frontier_status` | Read the local frontier file and ask `autoclanker` for upstream frontier status. |
 | `autoclanker_preview_beliefs` | Preview or canonicalize rough ideas before apply. |
 | `autoclanker_apply_beliefs` | Apply the current belief batch through `autoclanker`. |
-| `autoclanker_ingest_eval` | Run the checked-in eval surface under the locked upstream eval contract and ingest its JSON result. |
+| `autoclanker_ingest_eval` | Run optional eval hooks, execute the checked-in eval surface under the locked upstream eval contract, and ingest its JSON result. |
 | `autoclanker_fit` | Fit the active upstream `autoclanker` session. |
 | `autoclanker_suggest` | Request the next suggestion, optionally against an explicit candidate pool. |
 | `autoclanker_compare_frontier` | Persist or reuse `autoclanker.frontier.json`, then compare explicit pathways through upstream `autoclanker`. |
@@ -256,6 +264,7 @@ source of truth.
 | --- | --- |
 | `autoclanker-create` | Start from a direct goal or optional `autoclanker.ideas.json`, write the local files, preview beliefs, and initialize the session. |
 | `autoclanker-advanced-beliefs` | Turn rough ideas into compact advanced JSON beliefs by starting with up to three high-yield follow-up questions per round when the beginner path is no longer enough. |
+| `autoclanker-hooks` | Add optional `autoclanker.hooks/before-eval.sh` and `after-eval.sh` scripts for eval-adjacent side effects without turning hooks into a second optimizer. |
 | `autoclanker-review` | Read the current session and summarize it through the Prior / Run / Posterior / Proposal briefs in plain language. |
 
 The common flow is:
@@ -264,6 +273,41 @@ The common flow is:
 - keep rough ideas as plain strings at first,
 - move to `autoclanker-advanced-beliefs` only when risks, relations, or
   graph-structured priors actually matter.
+
+## Hooks
+
+`pi-autoclanker` also has a small lifecycle hook surface inspired by recent
+[`pi-autoresearch`](https://github.com/martelogan/pi-autoresearch) workflow
+improvements, adapted to autoclanker's eval-contract model:
+
+```text
+autoclanker.hooks/
+  before-eval.sh    # optional, executable, runs before autoclanker.eval.sh
+  after-eval.sh     # optional, executable, runs after upstream eval ingest
+```
+
+Each hook receives one JSON object on stdin with workspace, session, candidate,
+frontier, and recent history context. `after-eval.sh` also receives the eval
+JSON and upstream ingest result. Hook stdout/stderr are capped, returned from
+`autoclanker_ingest_eval`, and recorded in `autoclanker.history.jsonl`.
+Non-zero exits and timeouts are visible but do not by themselves fail the eval
+lane.
+
+Use hooks for side effects around evidence collection: pull fresh external
+context before an expensive lane, append a learnings journal after an ingest,
+notify on interesting results, or remind the agent that a lane is missing
+notes. Do not use hooks to rewrite the fixed eval contract or hide candidate
+selection outside the frontier.
+
+For guided setup:
+
+```bash
+/skill:autoclanker-hooks
+```
+
+That skill ships reference scripts for frontier reminders, operator-provided
+context lookup, anti-thrash nudges, idea rotation, learnings journals,
+machine-readable evidence digests, and local macOS notifications.
 
 ## Start Simple
 
@@ -415,6 +459,7 @@ intake file:
 | `autoclanker.proposals.json` | Optional project-local mirror of the active session proposal ledger once proposal state exists. |
 | `autoclanker.history.jsonl` | Local chronological wrapper log. |
 | `autoclanker.ideas.json` | Optional user-authored intake file for a goal, ideas, constraints, and simple pathway seeds. |
+| `autoclanker.hooks/` | Optional user-authored executable hooks around eval ingestion. |
 
 Those files live at the project root. They are enough for local inspection and
 lightweight handoff.
@@ -430,6 +475,8 @@ A run has three layers:
   explicit path comparison and merges
 - `autoclanker.ideas.json`: the optional user-authored intake surface that can
   seed beliefs and, when present, a first frontier draft
+- `autoclanker.hooks/`: optional before/after eval scripts; hook output is
+  returned from ingest and logged locally
 - `.autoclanker/<session>/RESULTS.md` plus the session PNGs: the upstream
   summary and visual report bundle
 - `.autoclanker/<session>/...`: the deeper upstream JSON and YAML artifacts when

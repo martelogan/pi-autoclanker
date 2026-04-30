@@ -1,8 +1,23 @@
-import { existsSync, readFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
 import { expect } from "vitest";
 
+import {
+  activeAutoclankerPromptNote,
+  autoclankerCompactionPathsFor,
+  buildAutoclankerCompactionSummary,
+  hasAutoclankerSession,
+  isAutoclankerSessionEnabled,
+} from "../extensions/pi-autoclanker/compaction.js";
 import {
   renderCompactWidgetLines,
   renderDashboardHtml,
@@ -32,6 +47,7 @@ coveredTest(["M1-004"], "required skills exist at canonical repo paths", () => {
   const required = [
     "skills/autoclanker-create/SKILL.md",
     "skills/autoclanker-advanced-beliefs/SKILL.md",
+    "skills/autoclanker-hooks/SKILL.md",
     "skills/autoclanker-review/SKILL.md",
   ];
   for (const relativePath of required) {
@@ -137,7 +153,145 @@ coveredTest(
     expect(rendered).toContain('pi.registerShortcut("ctrl+shift+x"');
     expect(rendered).toContain("dashboard.html");
     expect(rendered).toContain('pi.on("session_start"');
+    expect(rendered).toContain('pi.on("session_before_compact"');
+    expect(rendered).toContain('pi.on("before_agent_start"');
     expect(rendered).toContain('pi.on("session_tree"');
     expect(rendered).toContain('pi.on("session_shutdown"');
+  },
+);
+
+coveredTest(
+  ["M2-014"],
+  "deterministic compaction summary and prompt note read project-local state",
+  () => {
+    const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-compaction-"));
+    writeFileSync(
+      resolve(workspace, "autoclanker.config.json"),
+      `${JSON.stringify(
+        {
+          defaultIdeasMode: "rough",
+          enabled: true,
+          goal: "Improve parser throughput.",
+          sessionRoot: ".autoclanker/example-session",
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    writeFileSync(
+      resolve(workspace, "autoclanker.beliefs.json"),
+      `${JSON.stringify(
+        {
+          applyState: "applied",
+          constraints: ["Keep output quality stable."],
+          evalSurfaceSha256: "sha256:eval",
+          roughIdeas: ["Cache repeated matcher work."],
+          upstreamEraId: "era_example_v1",
+          upstreamSessionId: "example-session",
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    writeFileSync(
+      resolve(workspace, "autoclanker.frontier.json"),
+      `${JSON.stringify(
+        {
+          candidates: [
+            {
+              candidate_id: "cand_cache",
+              family_id: "family_cache",
+              notes: "Cache repeated matcher work.",
+            },
+          ],
+          frontier_id: "frontier_demo",
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    writeFileSync(
+      resolve(workspace, "autoclanker.proposals.json"),
+      `${JSON.stringify(
+        {
+          active: {
+            era_id: "era_example_v1",
+            session_id: "example-session",
+          },
+          sessions: {
+            "example-session": {
+              eras: {
+                era_example_v1: {
+                  entries: [
+                    {
+                      evidence_summary: "Cache lane is ahead on utility.",
+                      proposal_id: "proposal_cache",
+                      readiness_state: "candidate",
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    writeFileSync(
+      resolve(workspace, "autoclanker.md"),
+      "# pi-autoclanker session\n\n## Prior Brief\nCache candidate exists.\n",
+      "utf-8",
+    );
+    writeFileSync(
+      resolve(workspace, "autoclanker.history.jsonl"),
+      `${JSON.stringify({
+        event: "hook_fired",
+        hookStage: "after-eval",
+        hookStdout: "appended evidence note",
+        timestamp: "2026-04-30T00:00:00.000Z",
+      })}\n`,
+      "utf-8",
+    );
+    const hooksDir = resolve(workspace, "autoclanker.hooks");
+    mkdirSync(hooksDir, { recursive: true });
+    writeFileSync(resolve(hooksDir, "after-eval.sh"), "#!/usr/bin/env bash\n", "utf-8");
+    chmodSync(resolve(hooksDir, "after-eval.sh"), 0o755);
+
+    const paths = autoclankerCompactionPathsFor(workspace);
+    expect(hasAutoclankerSession(paths)).toBe(true);
+    expect(isAutoclankerSessionEnabled(paths)).toBe(true);
+    const summary = buildAutoclankerCompactionSummary(paths);
+    expect(summary).toContain("# pi-autoclanker Compaction Summary");
+    expect(summary).toContain("Improve parser throughput.");
+    expect(summary).toContain("cand_cache");
+    expect(summary).toContain("proposal_cache");
+    expect(summary).toContain("after-eval.sh: `executable`");
+    expect(summary).toContain("appended evidence note");
+
+    const note = activeAutoclankerPromptNote(workspace);
+    expect(note).toContain("pi-autoclanker Session");
+    expect(note).toContain("autoclanker_ingest_eval");
+
+    writeFileSync(
+      resolve(workspace, "autoclanker.config.json"),
+      `${JSON.stringify(
+        {
+          defaultIdeasMode: "rough",
+          enabled: false,
+          goal: "Improve parser throughput.",
+          sessionRoot: ".autoclanker/example-session",
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    expect(isAutoclankerSessionEnabled(paths)).toBe(false);
+    expect(activeAutoclankerPromptNote(workspace)).toBeNull();
   },
 );

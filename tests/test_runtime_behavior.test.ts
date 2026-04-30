@@ -21,6 +21,7 @@ import {
   EVAL_FILENAME,
   FRONTIER_FILENAME,
   HISTORY_FILENAME,
+  HOOKS_DIRNAME,
   PROPOSALS_FILENAME,
   SESSION_FILENAMES,
   SUMMARY_FILENAME,
@@ -58,8 +59,10 @@ type JsonRecord = {
   context?: unknown;
   directive?: unknown;
   enabled?: unknown;
+  eval?: unknown;
   evalCommand?: unknown;
   evalResultPath?: unknown;
+  eval_contract_digest?: unknown;
   eval_contract?: EvalContractRecord;
   evalContractDriftStatus?: unknown;
   evalSummary?: unknown;
@@ -76,12 +79,14 @@ type JsonRecord = {
   frontierFamilyCount?: unknown;
   frontierFilePresent?: unknown;
   frontierSeedWarnings?: unknown;
+  fired?: unknown;
   familyCount?: unknown;
   gene?: unknown;
   gene_id?: unknown;
   genotype?: unknown;
   goal?: unknown;
   handoff?: unknown;
+  hooks?: unknown;
   ingest?: unknown;
   kind?: unknown;
   llmLive?: unknown;
@@ -124,10 +129,16 @@ type JsonRecord = {
   upstreamPreviewInputMode?: unknown;
   usedDefaultEvalCommand?: unknown;
   argv?: unknown;
+  afterEval?: unknown;
+  beforeEval?: unknown;
+  candidate?: unknown;
   candidate_id?: unknown;
   candidate_count?: unknown;
   comparedLaneCount?: unknown;
   constraints?: unknown;
+  result?: unknown;
+  session?: unknown;
+  stdout?: unknown;
 };
 
 type IdeasPlanBeliefsRecord = {
@@ -1379,6 +1390,104 @@ EOF`,
         { gene_id: "parser.plan", state_id: "plan_context_pair" },
       ]);
       expect(evalResultPayload.failure_metadata?.family_id).toBe("family_context_pair");
+    });
+  },
+);
+
+coveredTest(
+  ["M2-003", "M2-008"],
+  "ingest-eval runs optional lifecycle hooks and logs their bounded output",
+  () => {
+    const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-hooks-"));
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      const frontierPath = resolve(workspace, "candidate-pool.json");
+      writeFileSync(
+        frontierPath,
+        `${JSON.stringify(candidatePool(), null, 2)}\n`,
+        "utf-8",
+      );
+      const hooksDir = resolve(workspace, HOOKS_DIRNAME);
+      mkdirSync(hooksDir, { recursive: true });
+      const beforePayloadPath = resolve(workspace, "before-hook-payload.json");
+      const afterPayloadPath = resolve(workspace, "after-hook-payload.json");
+      writeFileSync(
+        resolve(hooksDir, "before-eval.sh"),
+        `#!/usr/bin/env bash
+set -euo pipefail
+payload="$(cat)"
+printf '%s' "$payload" > "${beforePayloadPath}"
+node -e 'const fs = require("node:fs"); const payload = JSON.parse(fs.readFileSync(process.argv[1], "utf-8")); console.log("before " + payload.event + " " + payload.candidate.candidate_id + " " + payload.session.session_id);' "${beforePayloadPath}"
+`,
+        "utf-8",
+      );
+      chmodSync(resolve(hooksDir, "before-eval.sh"), 0o755);
+      writeFileSync(
+        resolve(hooksDir, "after-eval.sh"),
+        `#!/usr/bin/env bash
+set -euo pipefail
+payload="$(cat)"
+printf '%s' "$payload" > "${afterPayloadPath}"
+node -e 'const fs = require("node:fs"); const payload = JSON.parse(fs.readFileSync(process.argv[1], "utf-8")); console.log("after " + payload.event + " " + payload.eval.result.candidate_id + " " + payload.eval.ingest.evalSummary);' "${afterPayloadPath}"
+`,
+        "utf-8",
+      );
+      chmodSync(resolve(hooksDir, "after-eval.sh"), 0o755);
+
+      dispatchTool("autoclanker_init_session", {
+        ...sessionPayload(binaryPath, workspace),
+        evalCommand: `cat <<EOF
+{"era_id":"\${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"\${PI_AUTOCLANKER_TARGET_CANDIDATE_ID:-cand_missing}","intended_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"realized_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"patch_hash":"sha256:hook-demo","status":"valid","seed":11,"runtime_sec":1.25,"peak_vram_mb":24.0,"raw_metrics":{"score":0.72},"delta_perf":0.04,"utility":0.03,"replication_index":0,"stdout_digest":"stdout:hook-demo","stderr_digest":"stderr:clean","artifact_paths":[],"failure_metadata":{}}
+EOF`,
+      });
+      dispatchTool("autoclanker_preview_beliefs", { workspace });
+      dispatchTool("autoclanker_apply_beliefs", { workspace });
+
+      const ingestResult = asRecord(
+        dispatchTool("autoclanker_ingest_eval", {
+          workspace,
+          candidateId: "cand_parser_compiled_context",
+          candidatesInputPath: frontierPath,
+        }),
+      );
+      const hooks = asRecord(ingestResult.hooks);
+      const beforeHook = asRecord(hooks.beforeEval);
+      const afterHook = asRecord(hooks.afterEval);
+      expect(beforeHook.fired).toBe(true);
+      expect(afterHook.fired).toBe(true);
+      expect(beforeHook.stdout).toContain(
+        "before before-eval cand_parser_compiled_context",
+      );
+      expect(afterHook.stdout).toContain(
+        "after after-eval cand_parser_compiled_context Eval ingested",
+      );
+
+      const beforePayload = asRecord(
+        JSON.parse(readFileSync(beforePayloadPath, "utf-8")) as JsonRecord,
+      );
+      expect(beforePayload.event).toBe("before-eval");
+      expect(asRecord(beforePayload.candidate).candidate_id).toBe(
+        "cand_parser_compiled_context",
+      );
+      expect(asRecord(beforePayload.session).eval_contract_digest).toBe(
+        "sha256:contract-locked",
+      );
+
+      const afterPayload = asRecord(
+        JSON.parse(readFileSync(afterPayloadPath, "utf-8")) as JsonRecord,
+      );
+      expect(afterPayload.event).toBe("after-eval");
+      expect(asRecord(asRecord(afterPayload.eval).result).candidate_id).toBe(
+        "cand_parser_compiled_context",
+      );
+
+      const history = readFileSync(resolve(workspace, HISTORY_FILENAME), "utf-8");
+      expect(history).toContain('"event":"hook_fired"');
+      expect(history).toContain('"hookStage":"before-eval"');
+      expect(history).toContain('"hookStage":"after-eval"');
+      expect(history).toContain('"hooks"');
+      expect(readFileSync(resolve(workspace, SUMMARY_FILENAME), "utf-8")).toContain(
+        "## Hooks",
+      );
     });
   },
 );

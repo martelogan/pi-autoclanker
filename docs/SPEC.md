@@ -78,6 +78,7 @@ The wrapper should also expose one shared derived state model that powers:
 - the `Ctrl+X` inline dashboard
 - the `Ctrl+Shift+X` fullscreen overlay
 - the browser dashboard opened from `/autoclanker export`
+- deterministic pi context compaction summaries
 
 That shared model should preserve four readable briefs:
 
@@ -91,6 +92,12 @@ prefer that normalized model and mirror it additively through status, export,
 the widget stack, lineage, trust, and next-action surfaces. If that command is
 absent or the upstream session is incomplete, the wrapper may fall back to its
 local derived view so the beginner path does not break.
+
+The extension should also add a small active-session prompt pointer before
+agent turns and, during pi context compaction, replace lossy chat-memory
+reconstruction with a deterministic summary from persisted project-local files:
+`autoclanker.md`, config, beliefs, frontier, proposals, hooks, and recent
+history.
 
 ## Optimization loop mental model
 
@@ -229,6 +236,7 @@ The extension must operate through explicit project-local files:
 - `autoclanker.frontier.json`
 - `autoclanker.proposals.json` once proposal state exists
 - `autoclanker.history.jsonl`
+- optional `autoclanker.hooks/` user-authored eval lifecycle scripts
 
 These files must be sufficient for local inspection, lightweight metadata handoff,
 and export initiation. Complete operational handoff also depends on a resolvable
@@ -237,6 +245,27 @@ that includes those artifacts.
 
 An optional `autoclanker.ideas.json` may also exist at the project root as a
 user-authored intake file. It is not a required generated session artifact.
+
+### 5. Eval lifecycle hooks
+
+The wrapper may run optional executable hook scripts around eval ingestion:
+
+- `autoclanker.hooks/before-eval.sh` before the checked-in eval shell
+- `autoclanker.hooks/after-eval.sh` after upstream ingest accepts the eval JSON
+
+Each hook must receive bounded JSON context on stdin, including workspace,
+session identity, eval surface hash, locked contract digest when available,
+selected candidate context, local frontier summary, and recent local history.
+The after hook must also receive the eval result and upstream ingest payload.
+
+Hook scripts are sidecars. Missing or non-executable files are ignored.
+Non-zero exits, stderr, stdout, and timeouts must be reported in the
+`autoclanker_ingest_eval` result and logged in `autoclanker.history.jsonl`, but
+hook failure must not become a second eval trust gate. The fixed eval surface
+and upstream locked eval contract remain the source of eval validity.
+
+Hooks are user-authored local automation and should not be deleted implicitly by
+normal session cleanup.
 
 ## Integration requirements
 
@@ -251,6 +280,9 @@ user-authored intake file. It is not a required generated session artifact.
 6. Keep local frontier edits thin and reviewable: `compare-frontier` and
    `merge-pathways` may update `autoclanker.frontier.json`, but they must still
    call upstream `autoclanker` for ranking and query logic.
+7. Keep eval hooks transparent and bounded: their output must be inspectable in
+   tool results and local history, and they must not hide candidate selection,
+   mutate the locked eval contract, or replace upstream fit/suggest logic.
 
 ## Value boundary
 

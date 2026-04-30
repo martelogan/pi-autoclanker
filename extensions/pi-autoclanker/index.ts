@@ -9,6 +9,14 @@ import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-age
 import { matchesKey } from "@mariozechner/pi-tui";
 import type { TSchema } from "@sinclair/typebox";
 
+import {
+  activeAutoclankerPromptNote,
+  autoclankerCompactionPathsFor,
+  buildAutoclankerCompactionSummary,
+  hasAutoclankerSession,
+  isAutoclankerSessionEnabled,
+} from "./compaction.js";
+
 type JsonObject = Record<string, unknown>;
 type JsonSchema = {
   type: "array" | "boolean" | "number" | "object" | "string";
@@ -363,6 +371,7 @@ export const runtimeNotes = {
     "autoclanker.frontier.json",
     "autoclanker.proposals.json",
     "autoclanker.history.jsonl",
+    "autoclanker.hooks/",
   ],
   stance: "thin wrapper over the autoclanker CLI",
 };
@@ -1211,6 +1220,30 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
   pi.on("resources_discover", async () => ({
     skillPaths: [packageSkillPath()],
   }));
+
+  pi.on("session_before_compact", async (event, ctx) => {
+    const paths = autoclankerCompactionPathsFor(ctx.cwd);
+    if (!hasAutoclankerSession(paths) || !isAutoclankerSessionEnabled(paths)) {
+      return;
+    }
+    return {
+      compaction: {
+        firstKeptEntryId: event.preparation.firstKeptEntryId,
+        summary: buildAutoclankerCompactionSummary(paths),
+        tokensBefore: event.preparation.tokensBefore,
+      },
+    };
+  });
+
+  pi.on("before_agent_start", async (event, ctx) => {
+    const note = activeAutoclankerPromptNote(ctx.cwd);
+    if (note === null) {
+      return;
+    }
+    return {
+      systemPrompt: `${event.systemPrompt}${note}`,
+    };
+  });
 
   pi.on("session_start", async (_event, ctx) => {
     await syncWidget(ctx);
