@@ -1279,7 +1279,7 @@ coveredTest(
           (command) =>
             Array.isArray(command.argv) &&
             (command.argv as string[]).slice(0, 2).join(" ") ===
-            "session review-bundle",
+              "session review-bundle",
         ),
       ).toBe(true);
     });
@@ -2243,7 +2243,7 @@ coveredTest(
         (command) =>
           Array.isArray(command.argv) &&
           (command.argv as string[]).slice(0, 2).join(" ") ===
-          "beliefs canonicalize-ideas" &&
+            "beliefs canonicalize-ideas" &&
           (command.argv as string[]).includes("--canonicalization-model"),
       );
       expect(previewRecord?.billedLive).toBe("1");
