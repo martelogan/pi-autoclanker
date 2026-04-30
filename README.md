@@ -79,9 +79,17 @@ Inside a real project:
 /autoclanker start Improve parser throughput without losing context quality.
 ```
 
-That is the shortest useful path. If you do not provide a real eval command
-yet, `pi-autoclanker` can generate a default checked-in `autoclanker.eval.sh`
-stub so the session starts immediately and stays inspectable.
+That is the shortest useful path to **initialize or resume the session**. It
+materializes the project-local files, previews typed beliefs through
+`autoclanker`, and refreshes the widget/dashboard. It does not by itself launch
+an autonomous coding loop. After the session starts, give the agent normal
+instructions to use the `autoclanker_*` tools, implement candidates, run the
+fixed eval surface, ingest measurements, fit, suggest, and repeat until a
+measured keep/reject/blocker result exists.
+
+If you do not provide a real eval command yet, `pi-autoclanker` can generate a
+default checked-in `autoclanker.eval.sh` stub so the session starts immediately
+and stays inspectable.
 
 If you want a checked-in intake file, store rough ideas directly or in
 `autoclanker.ideas.json`:
@@ -126,6 +134,22 @@ start with:
 
 ```bash
 /skill:autoclanker-create
+```
+
+For a preseeded benchmark workspace, start from the directory that contains the
+session files and point at the existing intake file:
+
+```bash
+/autoclanker start --ideas-input autoclanker.ideas.json
+```
+
+Then paste the workspace prompt, for example:
+
+```text
+Read README.md, autoclanker.md, autoclanker.ideas.json, and the benchmark
+briefs first. Use the active pi-autoclanker session and its autoclanker_* tools.
+Treat bash autoclanker.eval.sh as the fixed eval surface. Do not stop until you
+have a measured keep/reject/blocker result.
 ```
 
 ## Mental model
@@ -180,7 +204,12 @@ The fastest way to understand the repo now is:
 
 The wrapper now keeps one shared live model and exposes it through four views:
 
-- a compact always-visible widget for the active session and next action
+- a compact widget that appears when the current cwd contains an autoclanker
+  session (i.e. `autoclanker.config.json`, `autoclanker.md`, or
+  `autoclanker.history.jsonl` is present at the project root). In directories
+  without an autoclanker session the widget stays hidden so pi boots silently
+  outside of optimization work; `/autoclanker` and the keyboard shortcuts
+  below still surface the widget on demand from anywhere.
 - `Ctrl+Alt+X` for an expanded inline dashboard
 - `Ctrl+Alt+Shift+X` for a fullscreen overlay
 - `/autoclanker export` for the machine-readable bundle and, inside the
@@ -216,7 +245,7 @@ project-local files rather than from stale conversation memory.
 
 | Command | Description |
 | --- | --- |
-| `/autoclanker start <goal>` | Start a new session or resume the current one from a goal. |
+| `/autoclanker start <goal>` | Initialize or resume the project-local session from a goal; it does not launch autonomous coding by itself. |
 | `/autoclanker resume` | Mark the current session active again without changing beliefs. |
 | `/autoclanker status` | Summarize the current local session files plus upstream review, trust, lineage, and next-action state. |
 | `/autoclanker frontier-status` | Show local frontier state plus upstream frontier summary. |

@@ -513,6 +513,30 @@ function renderCards(cardsValue: unknown): string[] {
     });
 }
 
+function cardValue(cardsValue: unknown, label: string): string | null {
+  const cards = Array.isArray(cardsValue) ? cardsValue : [];
+  for (const rawCard of cards) {
+    const card = objectValue<DashboardCard>(rawCard);
+    if (card === null) {
+      continue;
+    }
+    if (optionalString(card.label) === label) {
+      return optionalString(card.value);
+    }
+  }
+  return null;
+}
+
+function trustGlyph(status: string | null): string {
+  if (status === "locked") {
+    return "✅";
+  }
+  if (status === "drifted" || status === "mismatched") {
+    return "⚠";
+  }
+  return "◇";
+}
+
 function renderBriefSection(title: string, briefValue: unknown): string[] {
   const brief = objectValue<DashboardBrief>(briefValue);
   if (brief === null) {
@@ -528,22 +552,29 @@ function renderBriefSection(title: string, briefValue: unknown): string[] {
 
 export function renderCompactWidgetLines(dashboard: DashboardPayload | null): string[] {
   if (dashboard === null) {
-    return ["autoclanker", "status unavailable"];
+    return ["🧭 autoclanker idle", "status unavailable — run /autoclanker status"];
   }
   const session = objectValue<DashboardSession>(dashboard.session);
   const trust = objectValue<DashboardTrust>(dashboard.trust);
   const resume = objectValue<DashboardResume>(dashboard.resume);
   const nextAction = objectValue<DashboardNextAction>(dashboard.nextAction);
-  const cards = renderCards(dashboard.cards);
+  const trustStatus =
+    optionalString(trust?.driftStatus) ?? cardValue(dashboard.cards, "Trust");
+  const leader = cardValue(dashboard.cards, "Leader lane") ?? "none";
+  const families = cardValue(dashboard.cards, "Families") ?? "0";
+  const pendingQueries = cardValue(dashboard.cards, "Pending queries") ?? "0";
+  const proposal = cardValue(dashboard.cards, "Top proposal");
   const lines = [
-    `autoclanker ${optionalString(session?.sessionId) ?? "idle"}`,
-    ...cards.slice(0, 3),
-    `trust: ${optionalString(trust?.driftStatus) ?? "unverified"}`,
+    `🧭 autoclanker ${optionalString(session?.sessionId) ?? "idle"}`,
+    `🏁 leader: ${leader} │ families: ${families} │ queries: ${pendingQueries}`,
+    `${trustGlyph(trustStatus)} trust: ${trustStatus ?? "unverified"}${
+      proposal === null ? "" : ` │ proposal: ${proposal}`
+    }`,
   ];
   if (optionalString(nextAction?.summary) !== null) {
-    lines.push(`next: ${optionalString(nextAction?.summary)}`);
+    lines.push(`➡ next: ${optionalString(nextAction?.summary)}`);
   } else if (optionalString(resume?.lastEvent) !== null) {
-    lines.push(`next: ${optionalString(resume?.lastEvent)}`);
+    lines.push(`➡ next: ${optionalString(resume?.lastEvent)}`);
   }
   return lines;
 }
@@ -570,42 +601,42 @@ export function renderExpandedWidgetLines(
   return [
     ...renderCompactWidgetLines(dashboard),
     "",
-    ...renderBriefSection("Prior Brief", briefs.prior),
+    ...renderBriefSection("🧠 Prior Brief", briefs.prior),
     "",
-    ...renderBriefSection("Run Brief", briefs.run),
+    ...renderBriefSection("🏃 Run Brief", briefs.run),
     "",
-    ...renderBriefSection("Posterior Brief", briefs.posterior),
+    ...renderBriefSection("📈 Posterior Brief", briefs.posterior),
     "",
-    ...renderBriefSection("Proposal Brief", briefs.proposal),
+    ...renderBriefSection("🧾 Proposal Brief", briefs.proposal),
     "",
-    "Frontier",
+    "🏁 Frontier",
     ...frontierRows.slice(0, 5).map((rawRow) => {
       const row = objectValue<DashboardFrontierRow>(rawRow) ?? {};
       return `  ${optionalString(row.laneId) ?? "lane"} | ${optionalString(row.decisionState) ?? "hold"} | ${optionalString(row.nextAction) ?? "review"}`;
     }),
     "",
-    "Proposals",
+    "🧾 Proposals",
     ...proposalRows.slice(0, 5).map((rawRow) => {
       const row = objectValue<DashboardProposalRow>(rawRow) ?? {};
       return `  ${optionalString(row.proposalId) ?? "proposal"} | ${optionalString(row.readinessState) ?? "not_ready"} | ${optionalString(row.sourceLane) ?? "lane"}`;
     }),
     "",
-    "Next Action",
+    "➡ Next Action",
     `  ${optionalString(nextAction?.summary) ?? "No concrete next action recorded."}`,
     optionalString(nextAction?.reason) === null
       ? "  no reason recorded"
       : `  ${optionalString(nextAction?.reason)}`,
     "",
-    "Trust",
+    "🔐 Trust",
     `  drift: ${optionalString(trust?.driftStatus) ?? "unverified"}`,
     `  contract: ${optionalString(trust?.lockedEvalContractDigest) ?? "not recorded"}`,
     "",
-    "Lineage",
+    "🧬 Lineage",
     ...stringList(lineage?.chain)
       .slice(0, 6)
       .map((item) => `  ${item}`),
     "",
-    "Evidence",
+    "📎 Evidence",
     ...evidenceViews.slice(0, 4).map((rawView) => {
       const view = objectValue<DashboardEvidenceView>(rawView) ?? {};
       return `  ${optionalString(view.label) ?? "view"} | ${optionalString(view.pathRelativeToWorkspace) ?? optionalString(view.path) ?? "missing"}`;
@@ -1245,11 +1276,25 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
     };
   });
 
+  // Only render the widget when this cwd actually contains an autoclanker
+  // session. Without this guard, every fresh pi boot in an unrelated
+  // directory shells out to the runtime, gets the synthetic "status_workspace"
+  // dashboard, and pins a noisy 6-line widget (Leader lane: none / Families: 0
+  // / Pending queries: 0 / trust: unverified / next: …) above the editor.
+  // The /autoclanker slash command and ctrl+alt+x toggle still bypass this
+  // gate and will surface the widget on demand.
   pi.on("session_start", async (_event, ctx) => {
+    if (!hasAutoclankerSession(autoclankerCompactionPathsFor(ctx.cwd))) {
+      ctx.ui.setWidget("pi-autoclanker", undefined);
+      return;
+    }
     await syncWidget(ctx);
   });
 
   pi.on("session_tree", async (_event, ctx) => {
+    if (!hasAutoclankerSession(autoclankerCompactionPathsFor(ctx.cwd))) {
+      return;
+    }
     await syncWidget(ctx);
   });
 
