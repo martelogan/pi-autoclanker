@@ -1384,6 +1384,78 @@ EOF`,
 );
 
 coveredTest(
+  ["M2-003", "M2-008"],
+  "ingest-eval auto-selects a sole candidate and exports candidate notes",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-ingest-sole-candidate-"),
+    );
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      const frontierPath = resolve(workspace, "candidate-pool.json");
+      writeFileSync(
+        frontierPath,
+        `${JSON.stringify(
+          {
+            candidates: [
+              {
+                candidate_id: "cand_parser_notes",
+                family_id: "family_notes",
+                genotype: [
+                  {
+                    gene_id: "parser.matcher",
+                    state_id: "matcher_compiled",
+                  },
+                  {
+                    gene_id: "parser.plan",
+                    state_id: "plan_context_pair",
+                  },
+                ],
+                notes: "carry candidate notes into eval",
+              },
+            ],
+          },
+          null,
+          2,
+        )}\n`,
+        "utf-8",
+      );
+
+      dispatchTool("autoclanker_init_session", {
+        ...sessionPayload(binaryPath, workspace),
+        evalCommand: `cat <<EOF
+{"candidate_id":"\${PI_AUTOCLANKER_TARGET_CANDIDATE_ID:-cand_missing}","notes":"\${PI_AUTOCLANKER_TARGET_CANDIDATE_NOTES:-notes_missing}","intended_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"patch_hash":"sha256:demo","status":"valid","seed":9,"runtime_sec":1.0,"peak_vram_mb":16.0,"raw_metrics":{"score":0.64},"delta_perf":0.03,"utility":0.02,"replication_index":0,"stdout_digest":"stdout:demo","stderr_digest":"stderr:clean","artifact_paths":[]}
+EOF`,
+      });
+      dispatchTool("autoclanker_preview_beliefs", { workspace });
+      dispatchTool("autoclanker_apply_beliefs", { workspace });
+
+      const ingestResult = dispatchTool("autoclanker_ingest_eval", {
+        workspace,
+        candidatesInputPath: frontierPath,
+      }) as {
+        candidateId?: string;
+        evalResultPath?: string;
+      };
+      expect(ingestResult.candidateId).toBe("cand_parser_notes");
+
+      const evalResultPayload = JSON.parse(
+        readFileSync(String(ingestResult.evalResultPath), "utf-8"),
+      ) as {
+        candidate_id?: string;
+        intended_genotype?: unknown;
+        notes?: string;
+      };
+      expect(evalResultPayload.candidate_id).toBe("cand_parser_notes");
+      expect(evalResultPayload.notes).toBe("carry candidate notes into eval");
+      expect(evalResultPayload.intended_genotype).toEqual([
+        { gene_id: "parser.matcher", state_id: "matcher_compiled" },
+        { gene_id: "parser.plan", state_id: "plan_context_pair" },
+      ]);
+    });
+  },
+);
+
+coveredTest(
   ["M1-003", "M2-008"],
   "start auto-detects autoclanker.ideas.json and seeds beliefs without forcing a frontier",
   () => {
