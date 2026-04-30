@@ -758,13 +758,9 @@ function candidatePool(): JsonRecord {
         genotype: [
           { gene_id: "parser.matcher", state_id: "matcher_compiled" },
           { gene_id: "parser.plan", state_id: "plan_context_pair" },
-      
-                ],        
+        ],
         parent_candidate_ids: ["cand_parser_default"],
-                parent_belief_ids: [
-                    "belief_parser_compiled_context",        
-                  "belief_context_pair",
-                ],
+        parent_belief_ids: ["belief_parser_compiled_context", "belief_context_pair"],
       },
       {
         candidate_id: "cand_parser_wide_window",
@@ -1283,7 +1279,7 @@ coveredTest(
           (command) =>
             Array.isArray(command.argv) &&
             (command.argv as string[]).slice(0, 2).join(" ") ===
-              "session review-bundle",
+            "session review-bundle",
         ),
       ).toBe(true);
     });
@@ -2247,7 +2243,7 @@ coveredTest(
         (command) =>
           Array.isArray(command.argv) &&
           (command.argv as string[]).slice(0, 2).join(" ") ===
-            "beliefs canonicalize-ideas" &&
+          "beliefs canonicalize-ideas" &&
           (command.argv as string[]).includes("--canonicalization-model"),
       );
       expect(previewRecord?.billedLive).toBe("1");
