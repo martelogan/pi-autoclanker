@@ -134,7 +134,7 @@
   {
     "requirement_id": "M2-014",
     "gate": "required",
-    "description": "The extension provides a compact widget, `Ctrl+X` inline dashboard, `Ctrl+Shift+X` fullscreen overlay, and browser dashboard export from the same shared dashboard model.",
+    "description": "The extension provides a compact widget, `Ctrl+Alt+X` inline dashboard, `Ctrl+Alt+Shift+X` fullscreen overlay, and browser dashboard export from the same shared dashboard model.",
     "status": "active"
   },
   {

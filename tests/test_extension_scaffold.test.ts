@@ -133,8 +133,8 @@ coveredTest(
 
     const extensionPath = resolve(repoRoot(), "extensions/pi-autoclanker/index.ts");
     const rendered = readFileSync(extensionPath, "utf-8");
-    expect(rendered).toContain('pi.registerShortcut("ctrl+x"');
-    expect(rendered).toContain('pi.registerShortcut("ctrl+shift+x"');
+    expect(rendered).toContain('pi.registerShortcut("ctrl+alt+x"');
+    expect(rendered).toContain('pi.registerShortcut("ctrl+alt+shift+x"');
     expect(rendered).toContain("dashboard.html");
     expect(rendered).toContain('pi.on("session_start"');
     expect(rendered).toContain('pi.on("session_tree"');

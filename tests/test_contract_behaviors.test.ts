@@ -404,8 +404,8 @@ coveredTest(
     );
 
     expect(readme).toContain("## Live surfaces");
-    expect(readme).toContain("Ctrl+X");
-    expect(readme).toContain("Ctrl+Shift+X");
+    expect(readme).toContain("Ctrl+Alt+X");
+    expect(readme).toContain("Ctrl+Alt+Shift+X");
     expect(readme).toContain("browser dashboard");
     expect(readme).toContain("autoclanker.proposals.json");
     expect(readme).toContain("Prior Brief");

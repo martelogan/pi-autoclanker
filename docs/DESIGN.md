@@ -149,8 +149,8 @@ four-brief vocabulary:
 Those same briefs should be visible through:
 
 - the compact always-visible widget
-- `Ctrl+X` inline expansion
-- `Ctrl+Shift+X` fullscreen overlay
+- `Ctrl+Alt+X` inline expansion
+- `Ctrl+Alt+Shift+X` fullscreen overlay
 - the browser dashboard launched from `/autoclanker export`
 
 When the upstream session can derive `session review-bundle`, the wrapper

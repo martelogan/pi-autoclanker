@@ -179,8 +179,8 @@ The fastest way to understand the repo now is:
 The wrapper now keeps one shared live model and exposes it through four views:
 
 - a compact always-visible widget for the active session and next action
-- `Ctrl+X` for an expanded inline dashboard
-- `Ctrl+Shift+X` for a fullscreen overlay
+- `Ctrl+Alt+X` for an expanded inline dashboard
+- `Ctrl+Alt+Shift+X` for a fullscreen overlay
 - `/autoclanker export` for the machine-readable bundle and, inside the
   interactive extension, a browser dashboard that auto-refreshes while the
   extension is driving work

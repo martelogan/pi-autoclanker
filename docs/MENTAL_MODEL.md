@@ -41,8 +41,8 @@ Those briefs show up in:
 
 - `autoclanker.md` at the project root
 - `/autoclanker status` and `/autoclanker export`
-- the compact widget plus the `Ctrl+X` inline dashboard
-- the `Ctrl+Shift+X` fullscreen overlay
+- the compact widget plus the `Ctrl+Alt+X` inline dashboard
+- the `Ctrl+Alt+Shift+X` fullscreen overlay
 - the browser dashboard opened from `/autoclanker export`
 
 If proposal state exists, the wrapper also keeps a project-local

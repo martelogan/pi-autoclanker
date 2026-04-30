@@ -72,7 +72,11 @@
   ],
   "pi": {
     "extensions": ["./extensions/pi-autoclanker/index.ts"],
-    "skills": ["./skills"]
+    "skills": [
+      "./skills/autoclanker-advanced-beliefs",
+      "./skills/autoclanker-create",
+      "./skills/autoclanker-review"
+    ]
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
