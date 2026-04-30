@@ -75,6 +75,7 @@
     "skills": [
       "./skills/autoclanker-advanced-beliefs",
       "./skills/autoclanker-create",
+      "./skills/autoclanker-hooks",
       "./skills/autoclanker-review"
     ]
   },
