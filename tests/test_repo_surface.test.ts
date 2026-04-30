@@ -24,7 +24,11 @@ coveredTest(["M0-001", "M1-006"], "package identity is pi-autoclanker", () => {
   expect(manifest.name).toBe("pi-autoclanker");
   expect(manifest.bin["pi-autoclanker"]).toBe("./dist/cli.js");
   expect(manifest.pi.extensions).toEqual(["./extensions/pi-autoclanker/index.ts"]);
-  expect(manifest.pi.skills).toEqual(["./skills"]);
+  expect(manifest.pi.skills).toEqual([
+    "./skills/autoclanker-advanced-beliefs",
+    "./skills/autoclanker-create",
+    "./skills/autoclanker-review",
+  ]);
   expect(manifest.keywords).toEqual(
     expect.arrayContaining(["pi-package", "autoclanker", "typescript"]),
   );

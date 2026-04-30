@@ -2360,6 +2360,51 @@ coveredTest(
 );
 
 coveredTest(
+  ["M1-003", "M2-003", "M2-006"],
+  "start refuses to ignore new initialization input when a session already exists",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-start-existing-"),
+    );
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      dispatchCommand("start", {
+        autoclankerBinary: binaryPath,
+        goal: "Improve parser throughput from rough ideas first.",
+        roughIdeas: ["Cache compiled matchers for repeated incident shapes."],
+        workspace,
+      });
+
+      expect(() =>
+        dispatchCommand("start", {
+          goal: "This should not be silently ignored.",
+          workspace,
+        }),
+      ).toThrow("would ignore initialization field(s): goal");
+    });
+  },
+);
+
+coveredTest(
+  ["M1-003", "M2-003", "M2-006"],
+  "start rejects eval commands that recurse through the generated eval script",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-recursive-eval-"),
+    );
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      expect(() =>
+        dispatchCommand("start", {
+          autoclankerBinary: binaryPath,
+          evalCommand: `bash "${resolve(workspace, EVAL_FILENAME)}"`,
+          goal: "Improve parser throughput from rough ideas first.",
+          workspace,
+        }),
+      ).toThrow("must not call the workspace autoclanker.eval.sh file");
+    });
+  },
+);
+
+coveredTest(
   ["M1-003"],
   "clear reports absolute upstream roots when the session lives outside the workspace",
   () => {

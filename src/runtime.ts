@@ -2232,6 +2232,22 @@ function usesDefaultEvalCommand(command: string | null): boolean {
   return command !== null && command.trim() === DEFAULT_EVAL_COMMAND.trim();
 }
 
+function assertEvalCommandDoesNotSelfReference(
+  evalCommand: string,
+  evalPath: string,
+): void {
+  const directWorkspaceReference = evalCommand.includes(evalPath);
+  const relativeWorkspaceReference =
+    /(?:^|[\s;&|()])(?:bash\s+)?["']?(?:\.\/)?autoclanker\.eval\.sh["']?(?:$|[\s;&|()])/.test(
+      evalCommand,
+    );
+  if (directWorkspaceReference || relativeWorkspaceReference) {
+    throw new Error(
+      "evalCommand must not call the workspace autoclanker.eval.sh file; pi-autoclanker writes that file during start, so this would create a recursive eval surface. Point evalCommand at the real benchmark wrapper instead.",
+    );
+  }
+}
+
 function resolveEvalCommand(
   payload: RuntimePayload,
   config: RuntimeConfig,
@@ -5562,6 +5578,7 @@ function toolInitSession(
     ideasInput,
   } = resolvedInitInput(workspace, payload, paths);
   const { evalCommand, usedDefaultEvalCommand } = resolveEvalCommand(payload, config);
+  assertEvalCommandDoesNotSelfReference(evalCommand, paths.evalPath);
   const ideasMode = (optionalString(payload.mode, "mode") ??
     config.defaultIdeasMode) as IdeasMode;
   if (!IDEAS_MODES.includes(ideasMode)) {
@@ -6490,6 +6507,22 @@ function commandStart(
 ): JsonObject {
   const { paths } = runtimeContext(workspace, payload);
   if (existsSync(paths.configPath)) {
+    const ignoredInitFields = [
+      "candidates",
+      "candidatesInputPath",
+      "constraints",
+      "evalCommand",
+      "frontierInputPath",
+      "goal",
+      "ideasInputPath",
+      "mode",
+      "roughIdeas",
+    ].filter((field) => payload[field] !== undefined);
+    if (ignoredInitFields.length > 0) {
+      throw new Error(
+        `start found an existing pi-autoclanker session at ${workspace} and would ignore initialization field(s): ${ignoredInitFields.join(", ")}. Use resume to resume the existing session, clear it first, or pass the intended --workspace.`,
+      );
+    }
     return commandResume(workspace, payload, runner);
   }
   return {

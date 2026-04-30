@@ -1259,7 +1259,7 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
     widgetState.running = null;
   });
 
-  pi.registerShortcut("ctrl+x", {
+  pi.registerShortcut("ctrl+alt+x", {
     description: "Toggle the pi-autoclanker inline dashboard",
     handler: async (ctx) => {
       expandedWidget = !expandedWidget;
@@ -1267,7 +1267,7 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
     },
   });
 
-  pi.registerShortcut("ctrl+shift+x", {
+  pi.registerShortcut("ctrl+alt+shift+x", {
     description: "Open the pi-autoclanker fullscreen dashboard",
     handler: async (ctx) => {
       await openOverlay(ctx);

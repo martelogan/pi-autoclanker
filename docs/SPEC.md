@@ -75,8 +75,8 @@ The wrapper should also expose one shared derived state model that powers:
 - `autoclanker.md`
 - machine-readable `status` and `export`
 - the compact widget
-- the `Ctrl+X` inline dashboard
-- the `Ctrl+Shift+X` fullscreen overlay
+- the `Ctrl+Alt+X` inline dashboard
+- the `Ctrl+Alt+Shift+X` fullscreen overlay
 - the browser dashboard opened from `/autoclanker export`
 - deterministic pi context compaction summaries
 
