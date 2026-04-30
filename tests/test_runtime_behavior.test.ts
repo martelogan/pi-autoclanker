@@ -759,6 +759,8 @@ function candidatePool(): JsonRecord {
           { gene_id: "parser.matcher", state_id: "matcher_compiled" },
           { gene_id: "parser.plan", state_id: "plan_context_pair" },
         ],
+        parent_candidate_ids: ["cand_parser_default"],
+        parent_belief_ids: ["belief_parser_compiled_context", "belief_context_pair"],
       },
       {
         candidate_id: "cand_parser_wide_window",
@@ -1319,6 +1321,136 @@ coveredTest(
       expect(
         (evalResultPayload.eval_contract as EvalContractRecord).contract_digest,
       ).toBe("sha256:contract-locked");
+    });
+  },
+);
+
+coveredTest(
+  ["M2-003", "M2-008"],
+  "ingest-eval forwards a selected candidate id and genotype into the eval shell",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-ingest-candidate-"),
+    );
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      const frontierPath = resolve(workspace, "candidate-pool.json");
+      writeFileSync(
+        frontierPath,
+        `${JSON.stringify(candidatePool(), null, 2)}\n`,
+        "utf-8",
+      );
+
+      dispatchTool("autoclanker_init_session", {
+        ...sessionPayload(binaryPath, workspace),
+        evalCommand: `cat <<EOF
+{"era_id":"\${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"\${PI_AUTOCLANKER_TARGET_CANDIDATE_ID:-cand_missing}","intended_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"realized_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"patch_hash":"sha256:demo","status":"valid","seed":7,"runtime_sec":1.5,"peak_vram_mb":32.0,"raw_metrics":{"score":0.61},"delta_perf":0.02,"utility":0.01,"replication_index":0,"stdout_digest":"stdout:demo","stderr_digest":"stderr:clean","artifact_paths":[],"failure_metadata":{"family_id":"\${PI_AUTOCLANKER_TARGET_FAMILY_ID:-}"}} 
+EOF`,
+      });
+      dispatchTool("autoclanker_preview_beliefs", { workspace });
+      dispatchTool("autoclanker_apply_beliefs", { workspace });
+
+      const ingestResult = dispatchTool("autoclanker_ingest_eval", {
+        workspace,
+        candidateId: "cand_parser_compiled_context",
+        candidatesInputPath: frontierPath,
+      }) as {
+        candidateId?: string;
+        evalResultPath?: string;
+      };
+      expect(ingestResult.candidateId).toBe("cand_parser_compiled_context");
+
+      const evalResultPayload = JSON.parse(
+        readFileSync(String(ingestResult.evalResultPath), "utf-8"),
+      ) as {
+        candidate_id?: string;
+        intended_genotype?: unknown;
+        realized_genotype?: unknown;
+        failure_metadata?: {
+          family_id?: string;
+        };
+      };
+      expect(evalResultPayload.candidate_id).toBe("cand_parser_compiled_context");
+      expect(evalResultPayload.intended_genotype).toEqual([
+        { gene_id: "parser.matcher", state_id: "matcher_compiled" },
+        { gene_id: "parser.plan", state_id: "plan_context_pair" },
+      ]);
+      expect(evalResultPayload.realized_genotype).toEqual([
+        { gene_id: "parser.matcher", state_id: "matcher_compiled" },
+        { gene_id: "parser.plan", state_id: "plan_context_pair" },
+      ]);
+      expect(evalResultPayload.failure_metadata?.family_id).toBe("family_context_pair");
+    });
+  },
+);
+
+coveredTest(
+  ["M2-003", "M2-008"],
+  "ingest-eval auto-selects a sole candidate and exports candidate notes",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-ingest-sole-candidate-"),
+    );
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      const frontierPath = resolve(workspace, "candidate-pool.json");
+      writeFileSync(
+        frontierPath,
+        `${JSON.stringify(
+          {
+            candidates: [
+              {
+                candidate_id: "cand_parser_notes",
+                family_id: "family_notes",
+                genotype: [
+                  {
+                    gene_id: "parser.matcher",
+                    state_id: "matcher_compiled",
+                  },
+                  {
+                    gene_id: "parser.plan",
+                    state_id: "plan_context_pair",
+                  },
+                ],
+                notes: "carry candidate notes into eval",
+              },
+            ],
+          },
+          null,
+          2,
+        )}\n`,
+        "utf-8",
+      );
+
+      dispatchTool("autoclanker_init_session", {
+        ...sessionPayload(binaryPath, workspace),
+        evalCommand: `cat <<EOF
+{"candidate_id":"\${PI_AUTOCLANKER_TARGET_CANDIDATE_ID:-cand_missing}","notes":"\${PI_AUTOCLANKER_TARGET_CANDIDATE_NOTES:-notes_missing}","intended_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"patch_hash":"sha256:demo","status":"valid","seed":9,"runtime_sec":1.0,"peak_vram_mb":16.0,"raw_metrics":{"score":0.64},"delta_perf":0.03,"utility":0.02,"replication_index":0,"stdout_digest":"stdout:demo","stderr_digest":"stderr:clean","artifact_paths":[]}
+EOF`,
+      });
+      dispatchTool("autoclanker_preview_beliefs", { workspace });
+      dispatchTool("autoclanker_apply_beliefs", { workspace });
+
+      const ingestResult = dispatchTool("autoclanker_ingest_eval", {
+        workspace,
+        candidatesInputPath: frontierPath,
+      }) as {
+        candidateId?: string;
+        evalResultPath?: string;
+      };
+      expect(ingestResult.candidateId).toBe("cand_parser_notes");
+
+      const evalResultPayload = JSON.parse(
+        readFileSync(String(ingestResult.evalResultPath), "utf-8"),
+      ) as {
+        candidate_id?: string;
+        intended_genotype?: unknown;
+        notes?: string;
+      };
+      expect(evalResultPayload.candidate_id).toBe("cand_parser_notes");
+      expect(evalResultPayload.notes).toBe("carry candidate notes into eval");
+      expect(evalResultPayload.intended_genotype).toEqual([
+        { gene_id: "parser.matcher", state_id: "matcher_compiled" },
+        { gene_id: "parser.plan", state_id: "plan_context_pair" },
+      ]);
     });
   },
 );

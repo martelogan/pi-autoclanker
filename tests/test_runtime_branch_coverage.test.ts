@@ -37,6 +37,7 @@ type JsonRecord = {
   billedLive?: unknown;
   bundle?: unknown;
   canonicalizationModel?: unknown;
+  candidateId?: unknown;
   candidateInput?: unknown;
   command?: unknown;
   contentBase64?: unknown;
@@ -617,6 +618,116 @@ coveredTest(
       }),
     );
     expect(asRecord(ingestResult.ingest).argv).toEqual(["kept-upstream"]);
+  },
+);
+
+coveredTest(
+  ["M1-002", "M2-008"],
+  "eval target resolution covers family selectors and unselected multi-candidate frontiers",
+  () => {
+    const runner = (argv: string[], cwd: string): InvocationResult => {
+      void cwd;
+      if (argv.includes("session") && argv.includes("init")) {
+        return {
+          returncode: 0,
+          stdout: '{"preview_digest":"digest-target-resolution"}',
+          stderr: "",
+        };
+      }
+      if (argv.includes("session") && argv.includes("status")) {
+        return {
+          returncode: 0,
+          stdout: hardenedStatusPayload(),
+          stderr: "",
+        };
+      }
+      if (argv.includes("ingest-eval")) {
+        return {
+          returncode: 0,
+          stdout: '{"ingested":true}',
+          stderr: "",
+        };
+      }
+      return { returncode: 0, stdout: "{}", stderr: "" };
+    };
+    const candidatePool = {
+      candidates: [
+        {
+          candidate_id: "cand_alpha",
+          family_id: "family_alpha",
+          genotype: [{ gene_id: "gene.alpha", state_id: "state.one" }],
+        },
+        {
+          candidate_id: "cand_beta",
+          family_id: "family_beta",
+          genotype: [{ gene_id: "gene.beta", state_id: "state.two" }],
+        },
+      ],
+    };
+
+    const missingFrontierWorkspace = initEvalWorkspace({
+      evalCommand: JSON_EVAL_COMMAND,
+      goal: "Reject family selectors before a frontier exists.",
+      prefix: "pi-autoclanker-ts-target-missing-frontier-",
+      runner,
+    });
+    expect(() =>
+      dispatchTool(
+        "autoclanker_ingest_eval",
+        { familyIds: ["family_alpha"] },
+        { workspace: missingFrontierWorkspace, runner },
+      ),
+    ).toThrowError(/frontier input/u);
+
+    const multiFamilyWorkspace = initEvalWorkspace({
+      evalCommand: JSON_EVAL_COMMAND,
+      goal: "Reject ambiguous family selectors.",
+      prefix: "pi-autoclanker-ts-target-multi-family-",
+      runner,
+    });
+    expect(() =>
+      dispatchTool(
+        "autoclanker_ingest_eval",
+        {
+          candidates: candidatePool,
+          familyIds: ["family_alpha", "family_beta"],
+        },
+        { workspace: multiFamilyWorkspace, runner },
+      ),
+    ).toThrowError(/at most one familyIds-derived candidate/u);
+
+    const singleFamilyWorkspace = initEvalWorkspace({
+      evalCommand: JSON_EVAL_COMMAND,
+      goal: "Resolve one family selector to one eval target.",
+      prefix: "pi-autoclanker-ts-target-single-family-",
+      runner,
+    });
+    const singleFamilyResult = asRecord(
+      dispatchTool(
+        "autoclanker_ingest_eval",
+        {
+          candidates: candidatePool,
+          familyIds: ["family_alpha"],
+        },
+        { workspace: singleFamilyWorkspace, runner },
+      ),
+    );
+    expect(singleFamilyResult.candidateId).toBe("cand_alpha");
+
+    const unselectedWorkspace = initEvalWorkspace({
+      evalCommand: JSON_EVAL_COMMAND,
+      goal: "Allow multi-candidate frontiers without implicit target selection.",
+      prefix: "pi-autoclanker-ts-target-unselected-frontier-",
+      runner,
+    });
+    const unselectedResult = asRecord(
+      dispatchTool(
+        "autoclanker_ingest_eval",
+        { candidates: candidatePool },
+        { workspace: unselectedWorkspace, runner },
+      ),
+    );
+    expect(unselectedResult.candidateId).toBeNull();
   },
 );
 
