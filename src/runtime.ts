@@ -782,11 +782,19 @@ type IdeasFileIdea = {
 };
 
 type IdeasFileIdeaDocument = {
+  eval_plan?: unknown;
+  guardrails?: unknown;
   id?: unknown;
   idea?: unknown;
+  hypothesis?: unknown;
+  implementation_sketch?: unknown;
   label?: unknown;
   path?: unknown;
+  rationale?: unknown;
+  starting_points?: unknown;
   text?: unknown;
+  title?: unknown;
+  why_global_max?: unknown;
 };
 
 type IdeasFilePathway = {
@@ -4507,10 +4515,13 @@ function parseIdeasFileIdea(
     `ideas[${index + 1}] must be a string or JSON object.`,
   );
   const id = optionalString(mapping.id, `ideas[${index + 1}].id`) ?? autoId;
-  const text =
+  const sourcePath = optionalString(mapping.path, `ideas[${index + 1}].path`);
+  const explicitText =
     optionalString(mapping.idea, `ideas[${index + 1}].idea`) ??
     optionalString(mapping.text, `ideas[${index + 1}].text`);
-  const sourcePath = optionalString(mapping.path, `ideas[${index + 1}].path`);
+  const text =
+    explicitText ??
+    (sourcePath === null ? richIdeasFileIdeaText(mapping, index) : null);
   if (text !== null && sourcePath !== null) {
     throw new Error(`ideas[${index + 1}] must use either text/idea or path, not both.`);
   }
@@ -4559,6 +4570,65 @@ function parseIdeasFileIdea(
     sourceKind: "inline",
     sourcePath: null,
   };
+}
+
+function optionalIdeaStringList(value: unknown, fieldName: string): string[] {
+  if (value === undefined || value === null) {
+    return [];
+  }
+  return stringList(value, fieldName);
+}
+
+function appendIdeaSection(lines: string[], label: string, values: string[]): void {
+  if (values.length === 0) {
+    return;
+  }
+  lines.push(`${label}:`);
+  lines.push(...values.map((value) => `- ${value}`));
+}
+
+function richIdeasFileIdeaText(
+  mapping: IdeasFileIdeaDocument,
+  index: number,
+): string | null {
+  const prefix = `ideas[${index + 1}]`;
+  const title = optionalString(mapping.title, `${prefix}.title`);
+  const hypothesis = optionalString(mapping.hypothesis, `${prefix}.hypothesis`);
+  const rationale = optionalString(mapping.rationale, `${prefix}.rationale`);
+  const whyGlobalMax = optionalString(
+    mapping.why_global_max,
+    `${prefix}.why_global_max`,
+  );
+  const startingPoints = optionalIdeaStringList(
+    mapping.starting_points,
+    `${prefix}.starting_points`,
+  );
+  const implementationSketch = optionalIdeaStringList(
+    mapping.implementation_sketch,
+    `${prefix}.implementation_sketch`,
+  );
+  const evalPlan = optionalIdeaStringList(mapping.eval_plan, `${prefix}.eval_plan`);
+  const guardrails = optionalIdeaStringList(mapping.guardrails, `${prefix}.guardrails`);
+  const lines: string[] = [];
+
+  if (title !== null) {
+    lines.push(title);
+  }
+  if (hypothesis !== null) {
+    lines.push(`Hypothesis: ${hypothesis}`);
+  }
+  if (rationale !== null) {
+    lines.push(`Rationale: ${rationale}`);
+  }
+  if (whyGlobalMax !== null) {
+    lines.push(`Why global max: ${whyGlobalMax}`);
+  }
+  appendIdeaSection(lines, "Starting points", startingPoints);
+  appendIdeaSection(lines, "Implementation sketch", implementationSketch);
+  appendIdeaSection(lines, "Eval plan", evalPlan);
+  appendIdeaSection(lines, "Guardrails", guardrails);
+
+  return lines.length > 0 ? lines.join("\n") : null;
 }
 
 function parseIdeasFilePathway(rawPathway: unknown, index: number): IdeasFilePathway {

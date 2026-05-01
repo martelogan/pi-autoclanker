@@ -502,6 +502,51 @@ test("ideas helpers cover explicit intake loading pathway resolution and seeded 
     sourceKind: "inline",
     sourcePath: null,
   });
+  expect(
+    __testHooks.parseIdeasFileIdea(
+      {
+        id: "idea_rich_plan",
+        title: "Compile settings once",
+        hypothesis:
+          "Repeated hot-path settings parsing is better fixed at the request boundary.",
+        why_global_max: "It removes the parser from every render callsite.",
+        starting_points: ["app/liquid/theme_render_context.rb"],
+        implementation_sketch: ["Create an immutable request-scoped settings view."],
+        eval_plan: ["Run the fixed eval surface before promoting a keep."],
+        guardrails: ["Do not change Liquid output semantics."],
+      },
+      2,
+    ),
+  ).toMatchObject({
+    id: "idea_rich_plan",
+    text: [
+      "Compile settings once",
+      "Hypothesis: Repeated hot-path settings parsing is better fixed at the request boundary.",
+      "Why global max: It removes the parser from every render callsite.",
+      "Starting points:",
+      "- app/liquid/theme_render_context.rb",
+      "Implementation sketch:",
+      "- Create an immutable request-scoped settings view.",
+      "Eval plan:",
+      "- Run the fixed eval surface before promoting a keep.",
+      "Guardrails:",
+      "- Do not change Liquid output semantics.",
+    ].join("\n"),
+    displayText: [
+      "Compile settings once",
+      "Hypothesis: Repeated hot-path settings parsing is better fixed at the request boundary.",
+      "Why global max: It removes the parser from every render callsite.",
+      "Starting points:",
+      "- app/liquid/theme_render_context.rb",
+      "Implementation sketch:",
+      "- Create an immutable request-scoped settings view.",
+      "Eval plan:",
+      "- Run the fixed eval surface before promoting a keep.",
+      "Guardrails:",
+      "- Do not change Liquid output semantics.",
+    ].join("\n"),
+    sourceKind: "inline",
+  });
   const ideasPlanPath = resolve(workspace, "ideas", "context-pair-plan.md");
   mkdirSync(resolve(workspace, "ideas"), { recursive: true });
   writeFileSync(
