@@ -191,6 +191,7 @@ coveredTest(
       dispatchTool(
         "autoclanker_init_session",
         {
+          autoclankerBinary: "./missing-autoclanker",
           goal: "Bootstrap without autoclanker installed yet.",
           evalCommand: "printf 'offline\\n'",
           roughIdeas: [],

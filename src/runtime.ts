@@ -24,6 +24,7 @@ export const FRONTIER_FILENAME = "autoclanker.frontier.json";
 export const IDEAS_FILENAME = "autoclanker.ideas.json";
 export const PROPOSALS_FILENAME = "autoclanker.proposals.json";
 export const HISTORY_FILENAME = "autoclanker.history.jsonl";
+export const PROGRESS_FILENAME = "autoclanker.progress.json";
 export const HOOKS_DIRNAME = "autoclanker.hooks";
 export const SESSION_FILENAMES = [
   SUMMARY_FILENAME,
@@ -65,6 +66,7 @@ const CONFIG_OVERRIDE_KEYS = [
   "defaultIdeasMode",
   "autoclankerRepo",
   "allowBilledLive",
+  "maxIterations",
 ] as const;
 const BILLED_LIVE_ENV_KEY = "PI_AUTOCLANKER_ALLOW_BILLED_LIVE";
 const UPSTREAM_LLM_LIVE_ENV_KEY = "AUTOCLANKER_ENABLE_LLM_LIVE";
@@ -136,6 +138,7 @@ export type RuntimeConfig = {
   defaultIdeasMode: IdeasMode;
   autoclankerRepo: string | null;
   allowBilledLive: boolean;
+  maxIterations?: number | null;
   goal: string | null;
   evalCommand: string | null;
   constraints: string[];
@@ -151,6 +154,7 @@ type ConfigDocument = {
   enabled?: unknown;
   evalCommand?: unknown;
   goal?: unknown;
+  maxIterations?: unknown;
   [key: string]: unknown;
   sessionRoot?: unknown;
 };
@@ -486,6 +490,7 @@ type SessionPaths = {
   frontierPath: string;
   ideasPath: string;
   proposalsPath: string;
+  progressPath: string;
   historyPath: string;
   upstreamSessionDir: string;
 };
@@ -495,6 +500,14 @@ type IdeasFileDocument = {
   ideas?: unknown;
   constraints?: unknown;
   pathways?: unknown;
+  surface_overlay?: unknown;
+  surfaceOverlay?: unknown;
+  frontier?: unknown;
+  candidates?: unknown;
+  candidate_lanes?: unknown;
+  max_iterations?: unknown;
+  maxIterations?: unknown;
+  convergence?: unknown;
 };
 
 type BeliefDeltaEntryRecord = {
@@ -800,12 +813,14 @@ type IdeasFileIdeaDocument = {
 type IdeasFilePathway = {
   id: string;
   ideaIds: string[];
+  genotype: FrontierGeneRecord[];
   notes: string | null;
 };
 
 type IdeasFilePathwayDocument = {
   id?: unknown;
   idea_ids?: unknown;
+  genotype?: unknown;
   notes?: unknown;
 };
 
@@ -829,6 +844,10 @@ type LoadedIdeasInput = {
   ideas: IdeasFileIdea[];
   constraints: string[];
   pathways: IdeasFilePathway[];
+  surfaceOverlay: JsonObject | null;
+  frontier: CandidatePoolDocument | null;
+  maxIterations: number | null;
+  convergence: JsonObject | null;
 };
 
 type CanonicalIdeaBeliefMapping = {
@@ -853,6 +872,7 @@ type RuntimePayload = {
   autoclankerRepo?: string | null;
   canonicalizationModel?: string;
   candidateId?: string;
+  baselineCandidateId?: string;
   candidates?: unknown;
   candidatesInputPath?: string;
   constraints?: string[];
@@ -866,6 +886,7 @@ type RuntimePayload = {
   mergedGenotype?: unknown;
   mode?: IdeasMode;
   notes?: string;
+  maxIterations?: number;
   outputPath?: string;
   roughIdeas?: string[];
   sessionRoot?: string;
@@ -951,6 +972,17 @@ function writeJsonFile(path: string, payload: JsonObject): void {
   writeFileSync(path, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
 }
 
+function writeProgress(paths: SessionPaths, payload: JsonObject): void {
+  writeJsonFile(paths.progressPath, {
+    ...payload,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function loadProgress(paths: SessionPaths): JsonObject | null {
+  return loadJsonObjectIfPresent<JsonObject>(paths.progressPath);
+}
+
 function writeEvalScript(path: string, evalCommand: string): void {
   const rendered = `#!/usr/bin/env bash\nset -euo pipefail\n\n${evalCommand}\n`;
   writeFileSync(path, rendered, "utf-8");
@@ -987,6 +1019,7 @@ export function validateConfigDocument(payload: ConfigDocument): ConfigDocument 
     "enabled",
     "evalCommand",
     "goal",
+    "maxIterations",
   ]);
 
   const unexpected = Object.keys(normalized)
@@ -1034,6 +1067,9 @@ export function validateConfigDocument(payload: ConfigDocument): ConfigDocument 
   if ("constraints" in normalized) {
     stringList(normalized.constraints, "constraints");
   }
+  if ("maxIterations" in normalized && normalized.maxIterations !== null) {
+    positiveIntegerValue(normalized.maxIterations, "maxIterations");
+  }
   return normalized;
 }
 
@@ -1046,6 +1082,7 @@ function defaultConfigDocument(options?: {
     defaultIdeasMode: "canonicalize",
     autoclankerRepo: "../autoclanker",
     allowBilledLive: false,
+    maxIterations: null,
     enabled: true,
   };
 }
@@ -1067,6 +1104,10 @@ function runtimeConfigFromDocument(payload: ConfigDocument): RuntimeConfig {
         ? null
         : requireNonEmptyString(payload.autoclankerRepo, "autoclankerRepo"),
     allowBilledLive: coerceBool(payload.allowBilledLive ?? false, "allowBilledLive"),
+    maxIterations:
+      payload.maxIterations === undefined || payload.maxIterations === null
+        ? null
+        : positiveIntegerValue(payload.maxIterations, "maxIterations"),
     goal: optionalString(payload.goal, "goal"),
     evalCommand: optionalString(payload.evalCommand, "evalCommand"),
     constraints: stringList(payload.constraints ?? [], "constraints"),
@@ -1082,6 +1123,9 @@ function runtimeConfigToDocument(config: RuntimeConfig): ConfigDocument {
     allowBilledLive: config.allowBilledLive,
     enabled: config.enabled,
   };
+  if (config.maxIterations !== null) {
+    payload.maxIterations = config.maxIterations;
+  }
   if (config.autoclankerRepo !== null) {
     payload.autoclankerRepo = config.autoclankerRepo;
   }
@@ -1193,6 +1237,7 @@ function sessionPathsForWorkspace(
     frontierPath: resolve(root, FRONTIER_FILENAME),
     ideasPath: resolve(root, IDEAS_FILENAME),
     proposalsPath: resolve(root, PROPOSALS_FILENAME),
+    progressPath: resolve(root, PROGRESS_FILENAME),
     historyPath: resolve(root, HISTORY_FILENAME),
     upstreamSessionDir: resolve(root, sessionRoot),
   };
@@ -1240,6 +1285,11 @@ function runtimeContext(
       config = {
         ...config,
         allowBilledLive: coerceBool(payload.allowBilledLive, "allowBilledLive"),
+      };
+    } else if (key === "maxIterations") {
+      config = {
+        ...config,
+        maxIterations: positiveIntegerValue(payload.maxIterations, "maxIterations"),
       };
     }
   }
@@ -1480,6 +1530,7 @@ function shouldMaterializeIdeaInputFile(
 ): boolean {
   const roughIdeaSources = roughIdeaSourcesFromBeliefsDocument(beliefsDocument);
   return (
+    summaryObject(beliefsDocument.surfaceOverlay) !== null ||
     roughIdeaSources.some(
       (source) => source.sourceKind === "file" || source.path !== null,
     ) ||
@@ -1493,16 +1544,19 @@ function materializedIdeaInputPayload(
   canonicalIdeaInputs: string[],
 ): JsonObject {
   const roughIdeaSources = roughIdeaSourcesFromBeliefsDocument(beliefsDocument);
+  const surfaceOverlay = summaryObject<JsonObject>(beliefsDocument.surfaceOverlay);
   if (roughIdeaSources.length === canonicalIdeaInputs.length) {
     return {
       ideas: roughIdeaSources.map((source, index) => ({
         id: source.id,
         idea: canonicalIdeaInputs[index],
       })),
+      ...(surfaceOverlay === null ? {} : { surface_overlay: surfaceOverlay }),
     };
   }
   return {
     ideas: [...canonicalIdeaInputs],
+    ...(surfaceOverlay === null ? {} : { surface_overlay: surfaceOverlay }),
   };
 }
 
@@ -1646,11 +1700,13 @@ function sessionInitBeliefsInputPayload(
       sessionContext = { ...(rawSessionContext as JsonObject) };
     }
   }
+  const surfaceOverlay = summaryObject<JsonObject>(beliefsDocument.surfaceOverlay);
   return {
     session_context: sessionContext,
     beliefs: canonicalBeliefs.map((belief) =>
       sessionInputCompatibleBelief(beliefMapping(belief)),
     ),
+    ...(surfaceOverlay === null ? {} : { surface_overlay: surfaceOverlay }),
   };
 }
 
@@ -1857,8 +1913,6 @@ function canonicalizeIdeasPayload(options: {
     }
     if (payload.surface_overlay !== undefined) {
       options.beliefsDocument.surfaceOverlay = payload.surface_overlay;
-    } else {
-      options.beliefsDocument.surfaceOverlay = undefined;
     }
     if (model !== null) {
       options.beliefsDocument.canonicalizationModel = model;
@@ -2236,6 +2290,83 @@ function ensureEvalPayloadIncludesContract(
   };
 }
 
+function normalizeEvalPayloadForSchema(payload: JsonObject): JsonObject {
+  const evalPayload = payload as JsonObject & {
+    failure_metadata?: unknown;
+    raw_metrics?: unknown;
+  };
+  const rawMetrics = summaryObject<JsonObject>(evalPayload.raw_metrics);
+  if (rawMetrics === null) {
+    return payload;
+  }
+  const normalizedRawMetrics: JsonObject = {};
+  let changed = false;
+  for (const [key, value] of Object.entries(rawMetrics)) {
+    if (Array.isArray(value)) {
+      normalizedRawMetrics[`${key}_count`] = value.length;
+      changed = true;
+      continue;
+    }
+    normalizedRawMetrics[key] = value;
+  }
+  if (!changed) {
+    return payload;
+  }
+  return {
+    ...payload,
+    raw_metrics: normalizedRawMetrics,
+    failure_metadata: {
+      ...(summaryObject<JsonObject>(evalPayload.failure_metadata) ?? {}),
+      raw_metrics_array_fields_normalized: Object.keys(rawMetrics).filter((key) =>
+        Array.isArray(rawMetrics[key]),
+      ),
+    },
+  };
+}
+
+function evalEvidenceSummary(payload: JsonObject): JsonObject {
+  const evalPayload = payload as JsonObject & {
+    candidate_id?: unknown;
+    delta_perf?: unknown;
+    raw_metrics?: unknown;
+    status?: unknown;
+    utility?: unknown;
+  };
+  const rawMetrics = (summaryObject<JsonObject>(evalPayload.raw_metrics) ??
+    {}) as JsonObject & {
+    baseline_candidate_id?: unknown;
+    confidence?: unknown;
+    noise_multiple?: unknown;
+    noiseMultiple?: unknown;
+    signal_to_noise?: unknown;
+  };
+  const deltaPerf = summaryNumber(evalPayload.delta_perf);
+  const utility = summaryNumber(evalPayload.utility);
+  const noiseMultiple =
+    summaryNumber(rawMetrics.noise_multiple) ??
+    summaryNumber(rawMetrics.noiseMultiple) ??
+    summaryNumber(rawMetrics.signal_to_noise) ??
+    null;
+  const confidence =
+    summaryString(rawMetrics.confidence) ??
+    (noiseMultiple === null
+      ? null
+      : noiseMultiple >= 2
+        ? "high"
+        : noiseMultiple >= 1
+          ? "medium"
+          : "low");
+  return {
+    candidateId: summaryString(evalPayload.candidate_id),
+    baselineCandidateId: summaryString(rawMetrics.baseline_candidate_id),
+    deltaPerf,
+    utility,
+    noiseMultiple,
+    confidence,
+    status: summaryString(evalPayload.status),
+  };
+}
+
 function usesDefaultEvalCommand(command: string | null): boolean {
   return command !== null && command.trim() === DEFAULT_EVAL_COMMAND.trim();
 }
@@ -2607,6 +2738,16 @@ function buildDerivedWorkspaceView(
       : (activeProposalLedger.entries.find(
           (entry) => entry.proposal_id === activeProposalLedger.current_proposal_id,
         ) ?? null);
+  const activeProgress = loadProgress(options.paths);
+  const activeProgressFields = activeProgress as
+    | (JsonObject & { command?: unknown; stage?: unknown })
+    | null;
+  const activeStage = summaryString(activeProgressFields?.stage);
+  const activeCommand =
+    activeStage === "completed" || activeStage === "failed"
+      ? null
+      : summaryString(activeProgressFields?.command);
+  const evalCount = ingestedEvalCount(options.history);
   const localFrontierCandidates =
     options.localFrontier === null ? [] : frontierCandidateItems(options.localFrontier);
   const pendingQueryTargets = new Set(
@@ -3177,6 +3318,14 @@ function buildDerivedWorkspaceView(
       tone: leaderId === null && frontierRows.length === 0 ? "muted" : "primary",
     },
     {
+      label: "Active",
+      value:
+        activeCommand === null
+          ? "idle"
+          : `${activeCommand}${activeStage === null ? "" : `:${activeStage}`}`,
+      tone: activeCommand === null ? "muted" : "warning",
+    },
+    {
       label: "Families",
       value: String(options.frontierFamilyCount),
       tone: "muted",
@@ -3185,6 +3334,20 @@ function buildDerivedWorkspaceView(
       label: "Pending queries",
       value: String(options.pendingQueryCount),
       tone: options.pendingQueryCount > 0 ? "warning" : "success",
+    },
+    {
+      label: "Iterations",
+      value:
+        options.config.maxIterations === null ||
+        options.config.maxIterations === undefined
+          ? String(evalCount)
+          : `${evalCount}/${options.config.maxIterations}`,
+      tone:
+        options.config.maxIterations !== null &&
+        options.config.maxIterations !== undefined &&
+        evalCount >= options.config.maxIterations
+          ? "warning"
+          : "muted",
     },
     {
       label: "Top proposal",
@@ -3331,6 +3494,7 @@ function buildDerivedWorkspaceView(
         workspace: options.workspace,
         sessionId: options.identity.sessionId,
         eraId: options.identity.eraId,
+        active: activeProgress,
       },
       cards,
       frontierDecisionTable: frontierRows,
@@ -3560,6 +3724,7 @@ function writeSummary(
     `- \`${IDEAS_FILENAME}\`: optional intake file`,
     `- \`${FRONTIER_FILENAME}\`: optional explicit frontier lanes`,
     `- \`${PROPOSALS_FILENAME}\`: durable active-session proposal mirror`,
+    `- \`${PROGRESS_FILENAME}\`: latest active command progress snapshot`,
     `- \`${HISTORY_FILENAME}\`: local chronological log`,
     `- upstream preview digest: \`${previewDigest}\``,
     `- eval command source: \`${evalSource}\``,
@@ -4402,6 +4567,7 @@ function sessionFileMap(paths: SessionPaths): Record<string, boolean> {
     [EVAL_FILENAME]: existsSync(paths.evalPath),
     [FRONTIER_FILENAME]: existsSync(paths.frontierPath),
     [PROPOSALS_FILENAME]: existsSync(paths.proposalsPath),
+    [PROGRESS_FILENAME]: existsSync(paths.progressPath),
     [HISTORY_FILENAME]: existsSync(paths.historyPath),
   };
 }
@@ -4414,6 +4580,7 @@ function requireSession(paths: SessionPaths, ...fileNames: string[]): void {
     [EVAL_FILENAME]: paths.evalPath,
     [FRONTIER_FILENAME]: paths.frontierPath,
     [PROPOSALS_FILENAME]: paths.proposalsPath,
+    [PROGRESS_FILENAME]: paths.progressPath,
     [HISTORY_FILENAME]: paths.historyPath,
   };
   const missing = fileNames.filter((fileName) => {
@@ -4463,6 +4630,14 @@ function numberValue(value: unknown, fieldName: string): number {
     throw new Error(`${fieldName} must be a finite number.`);
   }
   return value;
+}
+
+function positiveIntegerValue(value: unknown, fieldName: string): number {
+  const parsed = numberValue(value, fieldName);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`${fieldName} must be a positive integer.`);
+  }
+  return parsed;
 }
 
 function stringArray(value: unknown, fieldName: string): string[] {
@@ -4631,16 +4806,93 @@ function richIdeasFileIdeaText(
   return lines.length > 0 ? lines.join("\n") : null;
 }
 
+function frontierGeneRecordList(
+  value: unknown,
+  fieldName: string,
+): FrontierGeneRecord[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`${fieldName} must be a list.`);
+  }
+  if (value.length === 0) {
+    throw new Error(`${fieldName} must contain at least one gene-state entry.`);
+  }
+  return value.map((rawGene, geneIndex) => {
+    const gene = ensureJsonObject<FrontierGeneRecord>(
+      rawGene,
+      `${fieldName}[${geneIndex + 1}] must be a JSON object.`,
+    );
+    return {
+      gene_id: requireNonEmptyString(
+        gene.gene_id,
+        `${fieldName}[${geneIndex + 1}].gene_id`,
+      ),
+      state_id: requireNonEmptyString(
+        gene.state_id,
+        `${fieldName}[${geneIndex + 1}].state_id`,
+      ),
+    };
+  });
+}
+
 function parseIdeasFilePathway(rawPathway: unknown, index: number): IdeasFilePathway {
   const mapping = ensureJsonObject<IdeasFilePathwayDocument>(
     rawPathway,
     `pathways[${index + 1}] must be a JSON object.`,
   );
+  const genotype =
+    mapping.genotype === undefined || mapping.genotype === null
+      ? []
+      : frontierGeneRecordList(mapping.genotype, `pathways[${index + 1}].genotype`);
+  const ideaIds =
+    mapping.idea_ids === undefined || mapping.idea_ids === null
+      ? []
+      : stringArray(mapping.idea_ids, `pathways[${index + 1}].idea_ids`);
+  if (ideaIds.length === 0 && genotype.length === 0) {
+    throw new Error(`pathways[${index + 1}] must include idea_ids, genotype, or both.`);
+  }
   return {
     id: requireNonEmptyString(mapping.id, `pathways[${index + 1}].id`),
-    ideaIds: stringArray(mapping.idea_ids, `pathways[${index + 1}].idea_ids`),
+    ideaIds,
+    genotype,
     notes: optionalString(mapping.notes, `pathways[${index + 1}].notes`),
   };
+}
+
+function surfaceOverlayPayload(value: unknown, fieldName: string): JsonObject | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const overlay = ensureJsonObject<JsonObject>(
+    value,
+    `${fieldName} must be a JSON object.`,
+  );
+  const overlayFields = overlay as JsonObject & { registry?: unknown };
+  ensureJsonObject(
+    overlayFields.registry,
+    `${fieldName}.registry must be a JSON object.`,
+  );
+  return overlay;
+}
+
+function frontierFromIdeasDocument(
+  document: IdeasFileDocument,
+): CandidatePoolDocument | null {
+  const rawFrontier =
+    document.frontier ?? document.candidates ?? document.candidate_lanes;
+  if (rawFrontier === undefined || rawFrontier === null) {
+    return null;
+  }
+  const wrappedFrontier = Array.isArray(rawFrontier)
+    ? { candidates: rawFrontier }
+    : rawFrontier;
+  return frontierPayload(wrappedFrontier, "frontier");
+}
+
+function convergenceDocument(value: unknown): JsonObject | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  return ensureJsonObject<JsonObject>(value, "convergence must be a JSON object.");
 }
 
 function loadIdeasInput(
@@ -4664,6 +4916,17 @@ function loadIdeasInput(
       : stringArray(document.constraints, "constraints");
   const rawPathways = Array.isArray(document.pathways) ? document.pathways : [];
   const pathways = rawPathways.map((item, index) => parseIdeasFilePathway(item, index));
+  const surfaceOverlay = surfaceOverlayPayload(
+    document.surface_overlay ?? document.surfaceOverlay,
+    "surface_overlay",
+  );
+  const maxIterations =
+    document.max_iterations === undefined && document.maxIterations === undefined
+      ? null
+      : positiveIntegerValue(
+          document.max_iterations ?? document.maxIterations,
+          "max_iterations",
+        );
   return {
     path: located.path,
     source: located.source,
@@ -4671,6 +4934,10 @@ function loadIdeasInput(
     ideas,
     constraints,
     pathways,
+    surfaceOverlay,
+    frontier: frontierFromIdeasDocument(document),
+    maxIterations,
+    convergence: convergenceDocument(document.convergence),
   };
 }
 
@@ -4824,6 +5091,11 @@ function seedFrontierFromIdeasInput(
     const ideaIds = resolvePathwayIdeaIds(pathway, ideasInput);
     const genotypeByGene = new Map<string, FrontierGeneRecord>();
     let conflict = false;
+    for (const ref of pathway.genotype) {
+      const geneId = requireNonEmptyString(ref.gene_id, "gene_id");
+      const stateId = requireNonEmptyString(ref.state_id, "state_id");
+      genotypeByGene.set(geneId, { gene_id: geneId, state_id: stateId });
+    }
     for (const ideaId of ideaIds) {
       const refs = geneRefsByIdeaId.get(ideaId) ?? [];
       for (const ref of refs) {
@@ -4835,7 +5107,7 @@ function seedFrontierFromIdeasInput(
           requireNonEmptyString(existing.state_id, "state_id") !== stateId
         ) {
           warnings.push(
-            `Skipped pathway ${pathway.id}: ${geneId} resolved to conflicting states across its selected ideas.`,
+            `Skipped pathway ${pathway.id}: ${geneId} resolved to conflicting states across its explicit genotype and selected ideas.`,
           );
           conflict = true;
           break;
@@ -4945,6 +5217,9 @@ function frontierPayload(value: unknown, fieldName: string): CandidatePoolDocume
     }
     if (!Array.isArray(candidate.genotype)) {
       throw new Error(`${prefix}.genotype must be a list.`);
+    }
+    if (candidate.genotype.length === 0) {
+      throw new Error(`${prefix}.genotype must contain at least one entry.`);
     }
     candidate.genotype.forEach((rawGene, geneIndex) => {
       const gene = ensureJsonObject<CandidatePoolDocument>(
@@ -5244,17 +5519,71 @@ function resolveEvalTarget(options: {
         candidate: onlyCandidate ?? null,
       };
     }
+    if (candidates.length > 1) {
+      throw new Error(
+        "ingest-eval found a multi-candidate frontier but no explicit candidateId, candidateIds, or unambiguous familyIds selector. Bind the eval to one lane before ingesting evidence.",
+      );
+    }
     return { candidateId: null, candidate: null };
   }
 
   if (candidateId === null) {
     return { candidateId: null, candidate: null };
   }
+  if (frontier !== null) {
+    const candidate = candidateMap(frontier).get(candidateId);
+    if (!candidate) {
+      throw new Error(
+        `Candidate ${candidateId} is not present in ${FRONTIER_FILENAME}; choose a lane from the active frontier before ingesting evidence.`,
+      );
+    }
+    return {
+      candidateId,
+      candidate,
+    };
+  }
 
   return {
     candidateId,
-    candidate:
-      frontier === null ? null : (candidateMap(frontier).get(candidateId) ?? null),
+    candidate: null,
+  };
+}
+
+function resolveBaselineEvalTarget(options: {
+  workspace: string;
+  paths: SessionPaths;
+  payload: RuntimePayload;
+  target: { candidateId: string | null };
+}): { candidateId: string; candidate: FrontierCandidateRecord } | null {
+  const baselineCandidateId = optionalString(
+    options.payload.baselineCandidateId,
+    "baselineCandidateId",
+  );
+  if (baselineCandidateId === null) {
+    return null;
+  }
+  const frontier = frontierForEvalTarget(
+    options.workspace,
+    options.paths,
+    options.payload,
+  );
+  if (frontier === null) {
+    throw new Error(
+      `${FRONTIER_FILENAME} is missing; provide frontier input before selecting baselineCandidateId for paired eval.`,
+    );
+  }
+  if (baselineCandidateId === options.target.candidateId) {
+    throw new Error("baselineCandidateId must differ from the target candidateId.");
+  }
+  const candidate = candidateMap(frontier).get(baselineCandidateId);
+  if (!candidate) {
+    throw new Error(
+      `Baseline candidate ${baselineCandidateId} is not present in ${FRONTIER_FILENAME}.`,
+    );
+  }
+  return {
+    candidateId: baselineCandidateId,
+    candidate,
   };
 }
 
@@ -5265,12 +5594,21 @@ type EvalTargetEnv = Record<string, string> & {
   PI_AUTOCLANKER_TARGET_GENOTYPE_JSON?: string;
   PI_AUTOCLANKER_TARGET_PARENT_CANDIDATE_IDS_JSON?: string;
   PI_AUTOCLANKER_TARGET_PARENT_BELIEF_IDS_JSON?: string;
+  PI_AUTOCLANKER_BASELINE_CANDIDATE_ID?: string;
+  PI_AUTOCLANKER_BASELINE_FAMILY_ID?: string;
+  PI_AUTOCLANKER_BASELINE_GENOTYPE_JSON?: string;
 };
 
-function evalTargetEnv(target: {
-  candidateId: string | null;
-  candidate: FrontierCandidateRecord | null;
-}): Record<string, string> {
+function evalTargetEnv(
+  target: {
+    candidateId: string | null;
+    candidate: FrontierCandidateRecord | null;
+  },
+  baseline?: {
+    candidateId: string;
+    candidate: FrontierCandidateRecord;
+  } | null,
+): Record<string, string> {
   const env: EvalTargetEnv = {};
   if (target.candidateId !== null) {
     env.PI_AUTOCLANKER_TARGET_CANDIDATE_ID = target.candidateId;
@@ -5298,6 +5636,16 @@ function evalTargetEnv(target: {
   if (target.candidate.parent_belief_ids !== undefined) {
     env.PI_AUTOCLANKER_TARGET_PARENT_BELIEF_IDS_JSON = JSON.stringify(
       stringArray(target.candidate.parent_belief_ids, "parent_belief_ids"),
+    );
+  }
+  if (baseline !== undefined && baseline !== null) {
+    env.PI_AUTOCLANKER_BASELINE_CANDIDATE_ID = baseline.candidateId;
+    const baselineFamilyId = optionalString(baseline.candidate.family_id, "family_id");
+    if (baselineFamilyId !== null) {
+      env.PI_AUTOCLANKER_BASELINE_FAMILY_ID = baselineFamilyId;
+    }
+    env.PI_AUTOCLANKER_BASELINE_GENOTYPE_JSON = JSON.stringify(
+      baseline.candidate.genotype ?? [],
     );
   }
   return env;
@@ -5367,6 +5715,27 @@ function historyForHook(history: SummaryHistoryEntry[]): JsonObject {
   };
 }
 
+function ingestedEvalCount(history: SummaryHistoryEntry[]): number {
+  return history.filter(
+    (entry) => optionalString(entry.event, "event") === "eval_ingested",
+  ).length;
+}
+
+function requireIterationBudget(
+  config: RuntimeConfig,
+  history: SummaryHistoryEntry[],
+): void {
+  if (config.maxIterations === null || config.maxIterations === undefined) {
+    return;
+  }
+  const count = ingestedEvalCount(history);
+  if (count >= config.maxIterations) {
+    throw new Error(
+      `pi-autoclanker maxIterations=${config.maxIterations} has been reached; stop, summarize the evidence, or start a new session with a higher limit.`,
+    );
+  }
+}
+
 function evalHookSessionPayload(options: {
   beliefsDocument: BeliefsDocument;
   config: RuntimeConfig;
@@ -5400,6 +5769,10 @@ function evalHookSessionPayload(options: {
 }
 
 function evalHookPayload(options: {
+  baselineTarget?: {
+    candidateId: string | null;
+    candidate: FrontierCandidateRecord | null;
+  } | null;
   beliefsDocument: BeliefsDocument;
   config: RuntimeConfig;
   evalPayload?: JsonObject;
@@ -5421,6 +5794,9 @@ function evalHookPayload(options: {
   };
 }): JsonObject {
   const payload: JsonObject & { eval?: JsonObject } = {
+    baselineCandidate: candidateForHook(
+      options.baselineTarget ?? nullCandidateTarget(),
+    ),
     candidate: candidateForHook(options.evalTarget),
     cwd: options.paths.workspace,
     event: options.stage,
@@ -5446,6 +5822,13 @@ function evalHookPayload(options: {
     };
   }
   return payload;
+}
+
+function nullCandidateTarget(): {
+  candidateId: string | null;
+  candidate: FrontierCandidateRecord | null;
+} {
+  return { candidateId: null, candidate: null };
 }
 
 function appendHookHistory(
@@ -5665,6 +6048,7 @@ function toolInitSession(
     goal,
     evalCommand,
     constraints,
+    maxIterations: config.maxIterations ?? ideasInput?.maxIterations ?? null,
     enabled: true,
     defaultIdeasMode: ideasMode,
   };
@@ -5678,6 +6062,13 @@ function toolInitSession(
   });
   beliefsDocument.ideasInputPath = ideasInput?.path;
   beliefsDocument.ideasInputSource = ideasInput?.source;
+  if (ideasInput?.surfaceOverlay !== null && ideasInput?.surfaceOverlay !== undefined) {
+    beliefsDocument.surfaceOverlay = ideasInput.surfaceOverlay;
+  }
+  if (ideasInput?.convergence !== null && ideasInput?.convergence !== undefined) {
+    (beliefsDocument as JsonObject & { convergence?: unknown }).convergence =
+      ideasInput.convergence;
+  }
 
   mkdirSync(workspace, { recursive: true });
   mkdirSync(paths.upstreamSessionDir, { recursive: true });
@@ -5691,6 +6082,9 @@ function toolInitSession(
     payload.frontierInputPath !== undefined
   ) {
     localFrontier = ensureFrontierForWorkspace(workspace, paths, payload);
+  } else if (ideasInput?.frontier !== null && ideasInput?.frontier !== undefined) {
+    localFrontier = ideasInput.frontier;
+    writeFrontierDocument(paths, ideasInput.frontier);
   }
   const [lockedEvalSurfaceSha256] = ensureLockedEvalSurface(paths, beliefsDocument, {
     establishIfMissing: true,
@@ -6039,6 +6433,7 @@ function toolStatus(
     followUpComparison,
     frontierFilePresent: existsSync(paths.frontierPath),
     ideasFilePresent,
+    progress: loadProgress(paths),
     frontierSummary,
     briefs: view.briefs,
     proposalLedger: view.proposalLedger,
@@ -6204,6 +6599,8 @@ function toolIngestEval(
     paths.beliefsPath,
     BELIEFS_FILENAME,
   );
+  const historyBeforeEval = loadHistory(paths.historyPath);
+  requireIterationBudget(config, historyBeforeEval);
   const evalSurfaceSha256 = requireLockedEvalSurface(paths, beliefsDocument);
   writeJsonFile(paths.beliefsPath, beliefsDocument);
   const upstreamContract = lockedUpstreamEvalContract({
@@ -6215,38 +6612,65 @@ function toolIngestEval(
   });
   const lockedContract = upstreamContract.contract as EvalContractJson;
   const evalTarget = resolveEvalTarget({ workspace, paths, payload });
+  const baselineTarget = resolveBaselineEvalTarget({
+    workspace,
+    paths,
+    payload,
+    target: evalTarget,
+  });
+  writeProgress(paths, {
+    command: "autoclanker_ingest_eval",
+    stage: "before-eval",
+    candidateId: evalTarget.candidateId,
+    baselineCandidateId: baselineTarget?.candidateId ?? null,
+  });
   const beforeHook = runHook(
     workspace,
     "before-eval",
     evalHookPayload({
+      baselineTarget,
       beliefsDocument,
       config,
       evalSurfaceSha256,
       evalTarget,
-      history: loadHistory(paths.historyPath),
+      history: historyBeforeEval,
       paths,
       stage: "before-eval",
       upstreamContract,
     }),
   );
   appendHookHistory(paths.historyPath, beforeHook, workspace);
+  writeProgress(paths, {
+    command: "autoclanker_ingest_eval",
+    stage: "running-eval",
+    candidateId: evalTarget.candidateId,
+    baselineCandidateId: baselineTarget?.candidateId ?? null,
+  });
   const evalPayload = ensureEvalPayloadIncludesContract(
-    runEvalScript(paths.evalPath, workspace, {
-      extraEnv: {
-        PI_AUTOCLANKER_UPSTREAM_SESSION_ID: upstreamContract.sessionId,
-        PI_AUTOCLANKER_UPSTREAM_ERA_ID: upstreamContract.eraId,
-        PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_JSON: JSON.stringify(
-          upstreamContract.contract,
-        ),
-        PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_DIGEST:
-          summaryString(upstreamContract.status.eval_contract_digest) ??
-          summaryString(lockedContract.contract_digest) ??
-          "",
-        ...evalTargetEnv(evalTarget),
-      },
-    }),
+    normalizeEvalPayloadForSchema(
+      runEvalScript(paths.evalPath, workspace, {
+        extraEnv: {
+          PI_AUTOCLANKER_UPSTREAM_SESSION_ID: upstreamContract.sessionId,
+          PI_AUTOCLANKER_UPSTREAM_ERA_ID: upstreamContract.eraId,
+          PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_JSON: JSON.stringify(
+            upstreamContract.contract,
+          ),
+          PI_AUTOCLANKER_UPSTREAM_EVAL_CONTRACT_DIGEST:
+            summaryString(upstreamContract.status.eval_contract_digest) ??
+            summaryString(lockedContract.contract_digest) ??
+            "",
+          ...evalTargetEnv(evalTarget, baselineTarget),
+        },
+      }),
+    ),
     upstreamContract.contract,
   );
+  writeProgress(paths, {
+    command: "autoclanker_ingest_eval",
+    stage: "ingesting-upstream",
+    candidateId: evalTarget.candidateId,
+    baselineCandidateId: baselineTarget?.candidateId ?? null,
+  });
   const evalResultPath = upstreamEvalResultPath(paths, upstreamContract.sessionId);
   writeJsonFile(evalResultPath, evalPayload);
   const upstream = invokeAutoclanker({
@@ -6269,6 +6693,7 @@ function toolIngestEval(
     workspace,
     "after-eval",
     evalHookPayload({
+      baselineTarget,
       beliefsDocument,
       config,
       evalPayload,
@@ -6290,11 +6715,20 @@ function toolIngestEval(
   appendHistory(paths.historyPath, {
     event: "eval_ingested",
     candidateId: evalTarget.candidateId,
+    baselineCandidateId: baselineTarget?.candidateId ?? null,
     candidateLabel: candidateDescriptor(evalTarget.candidate),
     evalResultPath,
     evalSurfaceSha256,
+    evalSummary: evalEvidenceSummary(evalPayload),
     hooks,
     upstream,
+  });
+  writeProgress(paths, {
+    command: "autoclanker_ingest_eval",
+    stage: "completed",
+    candidateId: evalTarget.candidateId,
+    baselineCandidateId: baselineTarget?.candidateId ?? null,
+    evalSummary: evalEvidenceSummary(evalPayload),
   });
   writeSummary(paths, config, beliefsDocument, runner);
   return {
@@ -6303,7 +6737,9 @@ function toolIngestEval(
     workspace,
     sessionRoot: paths.upstreamSessionDir,
     candidateId: evalTarget.candidateId,
+    baselineCandidateId: baselineTarget?.candidateId ?? null,
     candidateLabel: candidateDescriptor(evalTarget.candidate),
+    evalSummary: evalEvidenceSummary(evalPayload),
     evalResultPath,
     evalSurfaceSha256,
     hooks,
@@ -6695,6 +7131,7 @@ function commandClear(workspace: string, payload: RuntimePayload): JsonObject {
     paths.evalPath,
     paths.frontierPath,
     paths.proposalsPath,
+    paths.progressPath,
     paths.historyPath,
   ]) {
     if (!existsSync(path)) {
@@ -6744,6 +7181,7 @@ function commandExport(
       [FRONTIER_FILENAME]: loadJsonIfPresent(paths.frontierPath),
       [IDEAS_FILENAME]: loadJsonIfPresent(paths.ideasPath),
       [PROPOSALS_FILENAME]: loadJsonIfPresent(paths.proposalsPath),
+      [PROGRESS_FILENAME]: loadJsonIfPresent(paths.progressPath),
       [HISTORY_FILENAME]: loadHistory(paths.historyPath),
     },
     handoff: {
@@ -6808,6 +7246,7 @@ export const __testHooks = {
   loadIdeasInput,
   loadUpstreamReviewBundle,
   locateIdeasInput,
+  normalizeEvalPayloadForSchema,
   parseIdeasFileIdea,
   parseIdeasFilePathway,
   proposalMirrorFromUpstreamLedger,

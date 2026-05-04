@@ -129,12 +129,81 @@ If you already want explicit early lanes, keep that as a later-stage
 [`examples/parser-demo-expanded/autoclanker.ideas.json`](examples/parser-demo-expanded/autoclanker.ideas.json)
 for the explicit-lane form and the expanded demo.
 
+For domain work, do not rely on the package demo surface. Put the domain-local
+typed surface and explicit candidate lanes directly in `autoclanker.ideas.json`
+or `autoclanker.frontier.json`. A compact domain intake can carry:
+
+```json
+{
+  "goal": "Improve a domain-specific hot path.",
+  "surface_overlay": {
+    "registry": {
+      "domain.request_boundary": {
+        "states": ["baseline", "precompute_settings"],
+        "default_state": "baseline",
+        "description": "Move repeated request setup work earlier.",
+        "surface_kind": "mutation_family",
+        "semantic_level": "strategy",
+        "materializable": false,
+        "origin": "idea_file"
+      }
+    }
+  },
+  "ideas": [{ "id": "settings_boundary", "text": "Precompute settings once." }],
+  "pathways": [
+    {
+      "id": "settings_boundary",
+      "idea_ids": ["settings_boundary"],
+      "genotype": [
+        {
+          "gene_id": "domain.request_boundary",
+          "state_id": "precompute_settings"
+        }
+      ]
+    }
+  ]
+}
+```
+
+When a frontier has more than one lane, `ingest-eval` now requires an explicit
+`--candidate-id` or unambiguous `--family-id`; this prevents measurements from
+being attributed to a generic current workspace lane.
+
 If you want a guided setup instead of typing everything into a slash command,
 start with:
 
 ```bash
 /skill:autoclanker-create
 ```
+
+For the LLM-assisted intake path, start with rough notes rather than trying to
+hand-author Bayes syntax:
+
+```text
+I want to start a pi-autoclanker run from these rough optimization notes.
+Ask at most three clarifying questions if needed, then create or update
+autoclanker.ideas.json with:
+
+- a short goal
+- the rough ideas as strings, markdown-plan paths, or rich idea objects
+- the fixed eval command or a checked-in autoclanker.eval.sh surface
+- domain-local surface_overlay genes when this is not the package demo domain
+- explicit pathways with genotype entries for the first lanes worth comparing
+
+After writing the file, run autoclanker_preview_beliefs, show me the typed
+belief/frontier preview, revise once if the lanes are wrong, then apply and
+start the measured loop. For multi-candidate frontiers, bind every eval ingest
+to a candidateId or unambiguous familyIds selector.
+```
+
+That discussion phase is intentionally lightweight. The LLM should help turn
+loose markdown, JSON snippets, benchmark notes, and operator constraints into a
+reviewable `autoclanker.ideas.json`; `pi-autoclanker` then keeps the resulting
+beliefs, frontier, eval surface, progress snapshot, and history inspectable on
+disk instead of leaving the setup hidden in chat. During long runs, use the
+widget, `/autoclanker status`, and `autoclanker.progress.json` to see the active
+command, current lane, iteration count, trust/eval state, and latest measured
+summary.
 
 For a preseeded benchmark workspace, start from the directory that contains the
 session files and point at the existing intake file:

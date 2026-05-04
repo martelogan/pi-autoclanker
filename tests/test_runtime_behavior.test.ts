@@ -1396,6 +1396,73 @@ EOF`,
 
 coveredTest(
   ["M2-003", "M2-008"],
+  "ingest-eval forwards paired baseline context and normalizes array metrics",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-ingest-paired-"),
+    );
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      const frontierPath = resolve(workspace, "candidate-pool.json");
+      writeFileSync(
+        frontierPath,
+        `${JSON.stringify(candidatePool(), null, 2)}\n`,
+        "utf-8",
+      );
+
+      dispatchTool("autoclanker_init_session", {
+        ...sessionPayload(binaryPath, workspace),
+        evalCommand: `cat <<EOF
+{"era_id":"\${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"\${PI_AUTOCLANKER_TARGET_CANDIDATE_ID:-cand_missing}","intended_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"realized_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"patch_hash":"sha256:paired","status":"valid","seed":12,"runtime_sec":1.5,"peak_vram_mb":32.0,"raw_metrics":{"score":0.71,"empty_samples":[],"noise_multiple":2.5,"baseline_candidate_id":"\${PI_AUTOCLANKER_BASELINE_CANDIDATE_ID:-missing}"},"delta_perf":0.05,"utility":0.04,"replication_index":0,"stdout_digest":"stdout:paired","stderr_digest":"stderr:clean","artifact_paths":[],"failure_metadata":{"baseline_genotype":\${PI_AUTOCLANKER_BASELINE_GENOTYPE_JSON:-[]}}}
+EOF`,
+      });
+      dispatchTool("autoclanker_preview_beliefs", { workspace });
+      dispatchTool("autoclanker_apply_beliefs", { workspace });
+
+      const ingestResult = asRecord(
+        dispatchTool("autoclanker_ingest_eval", {
+          workspace,
+          candidateId: "cand_parser_compiled_context",
+          baselineCandidateId: "cand_parser_default",
+          candidatesInputPath: frontierPath,
+        }),
+      ) as {
+        baselineCandidateId?: unknown;
+        evalResultPath?: unknown;
+        evalSummary?: unknown;
+      };
+      expect(ingestResult.baselineCandidateId).toBe("cand_parser_default");
+      expect(
+        (asRecord(ingestResult.evalSummary) as { confidence?: unknown }).confidence,
+      ).toBe("high");
+
+      const evalResultPayload = asRecord(
+        JSON.parse(readFileSync(String(ingestResult.evalResultPath), "utf-8")),
+      ) as { failure_metadata?: unknown; raw_metrics?: unknown };
+      const rawMetrics = asRecord(evalResultPayload.raw_metrics) as {
+        baseline_candidate_id?: unknown;
+        empty_samples?: unknown;
+        empty_samples_count?: unknown;
+      };
+      expect(rawMetrics.empty_samples).toBeUndefined();
+      expect(rawMetrics.empty_samples_count).toBe(0);
+      expect(rawMetrics.baseline_candidate_id).toBe("cand_parser_default");
+      const failureMetadata = asRecord(evalResultPayload.failure_metadata) as {
+        baseline_genotype?: unknown;
+        raw_metrics_array_fields_normalized?: unknown;
+      };
+      expect(failureMetadata.baseline_genotype).toEqual([
+        { gene_id: "parser.matcher", state_id: "matcher_basic" },
+        { gene_id: "parser.plan", state_id: "plan_default" },
+      ]);
+      expect(failureMetadata.raw_metrics_array_fields_normalized).toEqual([
+        "empty_samples",
+      ]);
+    });
+  },
+);
+
+coveredTest(
+  ["M2-003", "M2-008"],
   "ingest-eval runs optional lifecycle hooks and logs their bounded output",
   () => {
     const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-hooks-"));
@@ -1921,6 +1988,170 @@ coveredTest(
       expect(candidates.map((candidate) => String(candidate.candidate_id))).toEqual(
         expect.arrayContaining(["cand_a", "cand_b", "cand_a_b"]),
       );
+    });
+  },
+);
+
+coveredTest(
+  ["M1-003", "M2-004", "M2-008"],
+  "ideas-file top-level frontier and convergence metadata are persisted",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-ideas-frontier-document-"),
+    );
+    const frontier = {
+      ...candidatePool(),
+      frontier_id: "frontier_from_ideas_file",
+      default_family_id: "family_context_pair",
+    };
+    writeFileSync(
+      resolve(workspace, "autoclanker.ideas.json"),
+      `${JSON.stringify(
+        {
+          goal: "Compare checked-in parser frontier lanes.",
+          ideas: [
+            {
+              id: "compiled_context",
+              text: "Use a checked-in candidate frontier as the initial lane set.",
+            },
+          ],
+          convergence: {
+            max_stale_iterations: 2,
+            stop_when_noise_multiple_below: 1,
+          },
+          frontier,
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      const initResult = asRecord(
+        dispatchTool("autoclanker_init_session", {
+          autoclankerBinary: binaryPath,
+          workspace,
+        }),
+      );
+      expect(asRecord(initResult.frontier).candidate_count).toBe(3);
+
+      const beliefsDocument = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, BELIEFS_FILENAME), "utf-8")),
+      ) as { convergence?: unknown };
+      expect(
+        (
+          asRecord(beliefsDocument.convergence) as {
+            max_stale_iterations?: unknown;
+          }
+        ).max_stale_iterations,
+      ).toBe(2);
+
+      const frontierDocument = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, FRONTIER_FILENAME), "utf-8")),
+      ) as { default_family_id?: unknown; frontier_id?: unknown };
+      expect(frontierDocument.frontier_id).toBe("frontier_from_ideas_file");
+      expect(frontierDocument.default_family_id).toBe("family_context_pair");
+    });
+  },
+);
+
+coveredTest(
+  ["M1-003", "M2-004"],
+  "ideas-file surface overlays and explicit lanes stay domain-local",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-domain-surface-"),
+    );
+    writeFileSync(
+      resolve(workspace, "autoclanker.ideas.json"),
+      `${JSON.stringify(
+        {
+          goal: "Compare domain-local optimization lanes.",
+          surface_overlay: {
+            registry: {
+              "domain.settings": {
+                states: ["baseline", "request_boundary"],
+                default_state: "baseline",
+                description: "Domain-local request settings strategy.",
+                state_descriptions: {
+                  baseline: "Keep the current runtime settings path.",
+                  request_boundary: "Move settings parsing to the request boundary.",
+                },
+                surface_kind: "mutation_family",
+                semantic_level: "strategy",
+                materializable: false,
+                origin: "idea_file",
+              },
+            },
+          },
+          ideas: [
+            {
+              id: "settings_boundary",
+              text: "Parse settings once at the request boundary.",
+            },
+          ],
+          pathways: [
+            {
+              id: "settings_boundary",
+              idea_ids: ["settings_boundary"],
+              genotype: [
+                {
+                  gene_id: "domain.settings",
+                  state_id: "request_boundary",
+                },
+              ],
+              notes: "Domain-local settings boundary lane.",
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    withFakeAutoclanker(workspace, ({ binaryPath, logPath }) => {
+      const initResult = asRecord(
+        dispatchTool("autoclanker_init_session", {
+          autoclankerBinary: binaryPath,
+          workspace,
+        }),
+      );
+      expect(asRecord(initResult.frontier).candidate_count).toBe(1);
+      const upstreamInput = asRecord(
+        (asRecord(initResult.upstream) as { beliefs_input?: unknown }).beliefs_input,
+      ) as { surface_overlay?: unknown };
+      const upstreamSurfaceOverlay = asRecord(upstreamInput.surface_overlay) as {
+        registry?: unknown;
+      };
+      expect(upstreamSurfaceOverlay.registry).toBeDefined();
+
+      const beliefsDocument = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, BELIEFS_FILENAME), "utf-8")),
+      ) as { surfaceOverlay?: unknown };
+      expect(
+        asRecord(
+          (asRecord(beliefsDocument.surfaceOverlay) as { registry?: unknown }).registry,
+        ),
+      ).toHaveProperty("domain.settings");
+
+      const frontierDocument = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, FRONTIER_FILENAME), "utf-8")),
+      );
+      const [candidate] = frontierDocument.candidates as Array<{
+        genotype?: Array<{ gene_id?: unknown; state_id?: unknown }>;
+      }>;
+      expect(candidate?.genotype).toEqual([
+        { gene_id: "domain.settings", state_id: "request_boundary" },
+      ]);
+
+      const commandLog = readCommandLog(logPath);
+      const sessionInit = commandLog.find(
+        (entry) =>
+          Array.isArray(entry.argv) &&
+          entry.argv[0] === "session" &&
+          entry.argv[1] === "init",
+      );
+      expect(sessionInit?.argv).toEqual(expect.arrayContaining(["--beliefs-input"]));
     });
   },
 );

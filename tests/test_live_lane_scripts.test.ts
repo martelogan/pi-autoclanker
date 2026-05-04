@@ -25,7 +25,9 @@ function writeLiveEvidence(payload: object, requirementId: string): LiveEvidence
   execFileSync(
     "bash",
     [
-      "-lc",
+      "--noprofile",
+      "--norc",
+      "-c",
       `source "${resolve(root, "scripts/dev/common.sh")}"; dev_write_live_evidence "${requirementId}" "tests/test_live_lane_scripts.test.ts" "${tempDir}"`,
     ],
     {

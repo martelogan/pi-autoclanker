@@ -12,6 +12,7 @@
     "autoclanker.eval.sh": true,
     "autoclanker.frontier.json": false,
     "autoclanker.proposals.json": false,
+    "autoclanker.progress.json": false,
     "autoclanker.history.jsonl": true
   },
   "ideasInputPath": null,

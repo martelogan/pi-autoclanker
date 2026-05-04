@@ -20,12 +20,14 @@ type CliPayload = JsonObject & {
   autoclankerBinary?: string;
   autoclankerRepo?: string;
   canonicalizationModel?: string;
+  baselineCandidateId?: string;
   candidatesInputPath?: string;
   constraints?: string[];
   defaultIdeasMode?: IdeasMode;
   evalCommand?: string;
   goal?: string;
   ideasInputPath?: string;
+  maxIterations?: number;
   mode?: IdeasMode;
   outputPath?: string;
   roughIdeas?: string[];
@@ -139,9 +141,21 @@ function parseCommonFlags(tokens: string[], payload: CliPayload): string[] {
         index = nextIndex;
         break;
       }
+      case "--baseline-candidate-id": {
+        const [value, nextIndex] = readFlagValue(tokens, index, token);
+        payload.baselineCandidateId = value;
+        index = nextIndex;
+        break;
+      }
       case "--candidates-file": {
         const [value, nextIndex] = readFlagValue(tokens, index, token);
         payload.candidatesInputPath = value;
+        index = nextIndex;
+        break;
+      }
+      case "--max-iterations": {
+        const [value, nextIndex] = readFlagValue(tokens, index, token);
+        payload.maxIterations = Number(value);
         index = nextIndex;
         break;
       }

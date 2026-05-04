@@ -71,6 +71,7 @@ type JsonRecord = {
   scale?: unknown;
   sessionRoot?: unknown;
   suggestion?: unknown;
+  surface_overlay?: unknown;
   surfaceOverlay?: unknown;
   target_members?: unknown;
   tool?: unknown;
@@ -623,7 +624,7 @@ coveredTest(
 
 coveredTest(
   ["M1-002", "M2-008"],
-  "eval target resolution covers family selectors and unselected multi-candidate frontiers",
+  "eval target resolution requires bound lanes for multi-candidate frontiers",
   () => {
     const runner = (argv: string[], cwd: string): InvocationResult => {
       void cwd;
@@ -731,14 +732,13 @@ coveredTest(
       prefix: "pi-autoclanker-ts-target-unselected-frontier-",
       runner,
     });
-    const unselectedResult = asRecord(
+    expect(() =>
       dispatchTool(
         "autoclanker_ingest_eval",
         { candidates: candidatePool },
         { workspace: unselectedWorkspace, runner },
       ),
-    );
-    expect(unselectedResult.candidateId).toBeNull();
+    ).toThrowError(/multi-candidate frontier/u);
 
     const emptyCandidateIdsWorkspace = initEvalWorkspace({
       evalCommand: JSON_EVAL_COMMAND,
@@ -746,14 +746,49 @@ coveredTest(
       prefix: "pi-autoclanker-ts-target-empty-candidate-ids-",
       runner,
     });
-    const emptyCandidateIdsResult = asRecord(
+    expect(() =>
       dispatchTool(
         "autoclanker_ingest_eval",
         { candidates: candidatePool, candidateIds: [] },
         { workspace: emptyCandidateIdsWorkspace, runner },
       ),
-    );
-    expect(emptyCandidateIdsResult.candidateId).toBeNull();
+    ).toThrowError(/multi-candidate frontier/u);
+
+    const sameBaselineWorkspace = initEvalWorkspace({
+      evalCommand: JSON_EVAL_COMMAND,
+      goal: "Reject paired evals that use the target as its own baseline.",
+      prefix: "pi-autoclanker-ts-target-same-baseline-",
+      runner,
+    });
+    expect(() =>
+      dispatchTool(
+        "autoclanker_ingest_eval",
+        {
+          baselineCandidateId: "cand_alpha",
+          candidates: candidatePool,
+          candidateId: "cand_alpha",
+        },
+        { workspace: sameBaselineWorkspace, runner },
+      ),
+    ).toThrowError(/baselineCandidateId must differ/u);
+
+    const missingBaselineWorkspace = initEvalWorkspace({
+      evalCommand: JSON_EVAL_COMMAND,
+      goal: "Reject paired evals with missing baseline lanes.",
+      prefix: "pi-autoclanker-ts-target-missing-baseline-",
+      runner,
+    });
+    expect(() =>
+      dispatchTool(
+        "autoclanker_ingest_eval",
+        {
+          baselineCandidateId: "cand_missing",
+          candidates: candidatePool,
+          candidateId: "cand_alpha",
+        },
+        { workspace: missingBaselineWorkspace, runner },
+      ),
+    ).toThrowError(/Baseline candidate cand_missing is not present/u);
   },
 );
 
@@ -858,6 +893,59 @@ coveredTest(["M1-002"], "eval ingest rejects empty stdout", () => {
     }),
   ).toThrowError(/must emit exactly one JSON object/u);
 });
+
+coveredTest(
+  ["M2-003"],
+  "maxIterations stops eval ingestion after the configured budget",
+  () => {
+    const runner = (argv: string[], cwd: string): InvocationResult => {
+      void cwd;
+      if (argv.includes("session") && argv.includes("init")) {
+        return {
+          returncode: 0,
+          stdout: '{"preview_digest":"digest-max-iterations"}',
+          stderr: "",
+        };
+      }
+      if (argv.includes("session") && argv.includes("status")) {
+        return {
+          returncode: 0,
+          stdout: hardenedStatusPayload(),
+          stderr: "",
+        };
+      }
+      if (argv.includes("ingest-eval")) {
+        return {
+          returncode: 0,
+          stdout: '{"ingested":true}',
+          stderr: "",
+        };
+      }
+      return { returncode: 0, stdout: "{}", stderr: "" };
+    };
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-max-iterations-"),
+    );
+    const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
+    dispatchTool(
+      "autoclanker_init_session",
+      {
+        autoclankerBinary: fakeBinary,
+        evalCommand: JSON_EVAL_COMMAND,
+        goal: "Stop after one eval.",
+        maxIterations: 1,
+        roughIdeas: [],
+        workspace,
+      },
+      { runner },
+    );
+
+    dispatchTool("autoclanker_ingest_eval", undefined, { workspace, runner });
+    expect(() =>
+      dispatchTool("autoclanker_ingest_eval", undefined, { workspace, runner }),
+    ).toThrowError(/maxIterations=1/u);
+  },
+);
 
 coveredTest(
   ["M1-002", "M2-008"],
@@ -1060,7 +1148,7 @@ coveredTest(
         expect(envVar("PI_AUTOCLANKER_ALLOW_BILLED_LIVE")).toBe("keep-live");
         expect(envVar("AUTOCLANKER_ENABLE_LLM_LIVE")).toBe("keep-llm");
 
-        const capturedBeliefsInput = beliefsInput ?? { beliefs: [] };
+        const capturedBeliefsInput: JsonRecord = beliefsInput ?? { beliefs: [] };
         const sessionBeliefs = (capturedBeliefsInput.beliefs as unknown[]) ?? [];
         const expertPrior = asRecord(sessionBeliefs[0]);
         const graphDirective = asRecord(sessionBeliefs[1]);
@@ -1071,6 +1159,7 @@ coveredTest(
         expect(expertPrior.context).toBeUndefined();
         expect(graphDirective.directive).toBe("screen_exclude");
         expect(graphDirective.target_members).toBeUndefined();
+        expect(asRecord(capturedBeliefsInput.surface_overlay).overlay).toBe(true);
 
         const beliefsDocument = asRecord(
           JSON.parse(

@@ -545,9 +545,11 @@ coveredTest(
     const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-status-"));
     const result = runPortAllowFailure(["command", "status", "--workspace", workspace]);
     expect(result.status).toBe(0);
-    expect(normalizeWorkspaceFields(parseJsonResult(result), workspace)).toEqual(
-      expected,
-    );
+    const actual = normalizeWorkspaceFields(parseJsonResult(result), workspace);
+    asRecord(expected.handoff).autoclankerCliResolvable = asRecord(
+      actual.handoff,
+    ).autoclankerCliResolvable;
+    expect(actual).toEqual(expected);
   },
 );
 

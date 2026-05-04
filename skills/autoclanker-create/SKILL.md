@@ -31,6 +31,10 @@ wrapper.
   body into the generated belief surface
 - use `pathways` only when the user already wants explicit seeded lanes before
   the first compare
+- for domain-specific production work, prefer a checked-in `surface_overlay`
+  plus explicit pathway `genotype` entries or a checked-in
+  `autoclanker.frontier.json`; do not let rough production ideas canonicalize
+  against the package demo surface
 - if stronger risk, confidence, or pairwise-preference hints matter, prefer the
   later advanced-beliefs step over expanding the starter intake file
 - only ask follow-up questions when the answer would materially improve the
@@ -49,6 +53,7 @@ session can start immediately.
 - `autoclanker.beliefs.json`
 - `autoclanker.eval.sh`
 - optionally `autoclanker.frontier.json` when explicit pathways matter
+- optionally `autoclanker.progress.json` while long-running commands are active
 - leave behind a readable `Prior Brief` in `autoclanker.md` without making the
   startup flow heavier
 - treat `autoclanker.proposals.json` as a later mirror that appears only after

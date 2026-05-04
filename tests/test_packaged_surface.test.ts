@@ -37,8 +37,36 @@ function packEnv(): NodeJS.ProcessEnv {
   };
 }
 
+function npmBin(env: NodeJS.ProcessEnv): string {
+  const candidates = execFileSync(
+    "bash",
+    ["--noprofile", "--norc", "-c", "type -P -a npm"],
+    {
+      cwd: repoRoot(),
+      encoding: "utf-8",
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  )
+    .split(/\r?\n/u)
+    .map((candidate) => candidate.trim())
+    .filter(Boolean);
+  for (const candidate of [...new Set([...candidates, "npm"])]) {
+    try {
+      execFileSync(candidate, ["exec", "--", "tsc", "--version"], {
+        cwd: repoRoot(),
+        encoding: "utf-8",
+        env,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      return candidate;
+    } catch {}
+  }
+  throw new Error("Unable to find a working npm binary for package tests.");
+}
+
 function ensureBuilt(env: NodeJS.ProcessEnv): void {
-  execFileSync("npm", ["run", "build"], {
+  execFileSync(npmBin(env), ["run", "build"], {
     cwd: repoRoot(),
     encoding: "utf-8",
     env,
@@ -48,8 +76,9 @@ function ensureBuilt(env: NodeJS.ProcessEnv): void {
 
 function dryRunPack(): Set<string> {
   const env = packEnv();
+  const npm = npmBin(env);
   ensureBuilt(env);
-  const raw = execFileSync("npm", ["pack", "--json", "--dry-run"], {
+  const raw = execFileSync(npm, ["pack", "--json", "--dry-run"], {
     cwd: repoRoot(),
     encoding: "utf-8",
     env,
@@ -61,10 +90,11 @@ function dryRunPack(): Set<string> {
 
 function packAndExtract(): string {
   const env = packEnv();
+  const npm = npmBin(env);
   ensureBuilt(env);
   const packDir = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-pack-"));
   const unpackDir = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-unpack-"));
-  const raw = execFileSync("npm", ["pack", "--json", "--pack-destination", packDir], {
+  const raw = execFileSync(npm, ["pack", "--json", "--pack-destination", packDir], {
     cwd: repoRoot(),
     encoding: "utf-8",
     env,

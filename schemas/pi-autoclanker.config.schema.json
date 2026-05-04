@@ -43,6 +43,10 @@
         "minLength": 1
       }
     },
+    "maxIterations": {
+      "type": ["integer", "null"],
+      "minimum": 1
+    },
     "enabled": {
       "type": "boolean"
     }
