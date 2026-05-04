@@ -126,11 +126,11 @@ function portCliCommand(): { command: string; args: string[] } {
   const builtCli = resolve(root, "dist/cli.js");
   const localTsx = resolve(root, "node_modules/.bin/tsx");
   const sourceCli = resolve(root, "src/cli.ts");
-  if (existsSync(builtCli)) {
-    return { command: process.execPath, args: [builtCli] };
-  }
   if (existsSync(localTsx)) {
     return { command: localTsx, args: [sourceCli] };
+  }
+  if (existsSync(builtCli)) {
+    return { command: process.execPath, args: [builtCli] };
   }
   return { command: "npx", args: ["tsx", sourceCli] };
 }

@@ -753,6 +753,42 @@ coveredTest(
         { workspace: emptyCandidateIdsWorkspace, runner },
       ),
     ).toThrowError(/multi-candidate frontier/u);
+
+    const sameBaselineWorkspace = initEvalWorkspace({
+      evalCommand: JSON_EVAL_COMMAND,
+      goal: "Reject paired evals that use the target as its own baseline.",
+      prefix: "pi-autoclanker-ts-target-same-baseline-",
+      runner,
+    });
+    expect(() =>
+      dispatchTool(
+        "autoclanker_ingest_eval",
+        {
+          baselineCandidateId: "cand_alpha",
+          candidates: candidatePool,
+          candidateId: "cand_alpha",
+        },
+        { workspace: sameBaselineWorkspace, runner },
+      ),
+    ).toThrowError(/baselineCandidateId must differ/u);
+
+    const missingBaselineWorkspace = initEvalWorkspace({
+      evalCommand: JSON_EVAL_COMMAND,
+      goal: "Reject paired evals with missing baseline lanes.",
+      prefix: "pi-autoclanker-ts-target-missing-baseline-",
+      runner,
+    });
+    expect(() =>
+      dispatchTool(
+        "autoclanker_ingest_eval",
+        {
+          baselineCandidateId: "cand_missing",
+          candidates: candidatePool,
+          candidateId: "cand_alpha",
+        },
+        { workspace: missingBaselineWorkspace, runner },
+      ),
+    ).toThrowError(/Baseline candidate cand_missing is not present/u);
   },
 );
 
@@ -890,9 +926,11 @@ coveredTest(
     const workspace = mkdtempSync(
       resolve(tmpdir(), "pi-autoclanker-ts-max-iterations-"),
     );
+    const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
     dispatchTool(
       "autoclanker_init_session",
       {
+        autoclankerBinary: fakeBinary,
         evalCommand: JSON_EVAL_COMMAND,
         goal: "Stop after one eval.",
         maxIterations: 1,

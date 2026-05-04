@@ -1395,22 +1395,25 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
         if (currentContext) {
           updateWidget(currentContext);
         }
-        const result = await handleAutoclankerToolCall(
-          tool.name,
-          payload,
-          (message) => {
-            widgetState.running = `${tool.name}: ${message}`;
-            if (currentContext) {
-              updateWidget(currentContext);
-            }
-          },
-        );
-        widgetState.running = null;
-        if (currentContext) {
-          await refreshDashboardFromWorkspace(payload.workspace);
-          updateWidget(currentContext);
+        try {
+          const result = await handleAutoclankerToolCall(
+            tool.name,
+            payload,
+            (message) => {
+              widgetState.running = `${tool.name}: ${message}`;
+              if (currentContext) {
+                updateWidget(currentContext);
+              }
+            },
+          );
+          return toolResultPayload(result);
+        } finally {
+          widgetState.running = null;
+          if (currentContext) {
+            await refreshDashboardFromWorkspace(payload.workspace);
+            updateWidget(currentContext);
+          }
         }
-        return toolResultPayload(result);
       },
     });
   }
@@ -1421,18 +1424,23 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
     handler: async (args, ctx) => {
       widgetState.running = "command";
       updateWidget(ctx);
-      const result = await handleAutoclankerSlashInput(
-        `/autoclanker ${args || "status"}`,
-        {
-          workspace: defaultWorkspace(),
-        },
-        (message) => {
-          widgetState.running = `command: ${message}`;
-          updateWidget(ctx);
-        },
-      );
-      widgetState.running = null;
       currentContext = ctx;
+      let result: unknown;
+      try {
+        result = await handleAutoclankerSlashInput(
+          `/autoclanker ${args || "status"}`,
+          {
+            workspace: defaultWorkspace(),
+          },
+          (message) => {
+            widgetState.running = `command: ${message}`;
+            updateWidget(ctx);
+          },
+        );
+      } finally {
+        widgetState.running = null;
+        updateWidget(ctx);
+      }
       const payload = ensureJsonObject<AutoclankerPayload>(result);
       const command =
         typeof payload.command === "string" &&
