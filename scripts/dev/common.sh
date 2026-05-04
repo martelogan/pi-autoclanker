@@ -33,6 +33,28 @@ dev_node_modules_bin_dir() {
     echo "$(dev_repo_root)/node_modules/.bin"
 }
 
+dev_find_npm() {
+    if [[ -n "${PI_AUTOCLANKER_DEV_NPM_BIN:-}" && -x "${PI_AUTOCLANKER_DEV_NPM_BIN}" ]]; then
+        echo "${PI_AUTOCLANKER_DEV_NPM_BIN}"
+        return 0
+    fi
+
+    local seen=":"
+    local candidate
+    while IFS= read -r candidate; do
+        if [[ -z "${candidate}" || "${seen}" == *":${candidate}:"* ]]; then
+            continue
+        fi
+        seen="${seen}${candidate}:"
+        if "${candidate}" --version >/dev/null 2>&1; then
+            echo "${candidate}"
+            return 0
+        fi
+    done < <(type -P -a npm 2>/dev/null || true)
+
+    return 1
+}
+
 dev_ensure_dirs() {
     mkdir -p "$(dev_install_root)" "$(dev_local_bin_dir)"
 }
@@ -65,6 +87,10 @@ dev_prepare_node_env() {
     dev_ensure_dirs
     export npm_config_cache="${npm_config_cache:-$(dev_install_root)/npm-cache}"
     export PATH="$(dev_local_bin_dir):$(dev_node_modules_bin_dir):${PATH}"
+    local npm_bin
+    if npm_bin="$(dev_find_npm)"; then
+        export PATH="$(dirname "${npm_bin}"):${PATH}"
+    fi
 }
 
 dev_prepare_coverage_dir() {
@@ -89,11 +115,12 @@ dev_prepare_coverage_dir() {
 
 dev_run_npm() {
     dev_prepare_node_env
-    if ! command -v npm >/dev/null 2>&1; then
+    local npm_bin
+    if ! npm_bin="$(dev_find_npm)"; then
         echo "error: npm is required to run node-backed tasks" >&2
         return 1
     fi
-    npm "$@"
+    "${npm_bin}" "$@"
 }
 
 dev_run_tool() {

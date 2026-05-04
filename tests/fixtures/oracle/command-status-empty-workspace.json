@@ -206,12 +206,18 @@
     "session": {
       "workspace": "<workspace>",
       "sessionId": "status_workspace",
-      "eraId": "era_status_workspace_v1"
+      "eraId": "era_status_workspace_v1",
+      "active": null
     },
     "cards": [
       {
         "label": "Leader lane",
         "value": "none",
+        "tone": "muted"
+      },
+      {
+        "label": "Active",
+        "value": "idle",
         "tone": "muted"
       },
       {
@@ -223,6 +229,11 @@
         "label": "Pending queries",
         "value": "0",
         "tone": "success"
+      },
+      {
+        "label": "Iterations",
+        "value": "0",
+        "tone": "muted"
       },
       {
         "label": "Top proposal",
@@ -448,8 +459,10 @@
     "autoclanker.eval.sh": false,
     "autoclanker.frontier.json": false,
     "autoclanker.proposals.json": false,
+    "autoclanker.progress.json": false,
     "autoclanker.history.jsonl": false
   },
+  "progress": null,
   "historyCount": 0,
   "exists": false,
   "handoff": {

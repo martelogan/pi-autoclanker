@@ -129,6 +129,46 @@ If you already want explicit early lanes, keep that as a later-stage
 [`examples/parser-demo-expanded/autoclanker.ideas.json`](examples/parser-demo-expanded/autoclanker.ideas.json)
 for the explicit-lane form and the expanded demo.
 
+For domain work, do not rely on the package demo surface. Put the domain-local
+typed surface and explicit candidate lanes directly in `autoclanker.ideas.json`
+or `autoclanker.frontier.json`. A compact domain intake can carry:
+
+```json
+{
+  "goal": "Improve a domain-specific hot path.",
+  "surface_overlay": {
+    "registry": {
+      "domain.request_boundary": {
+        "states": ["baseline", "precompute_settings"],
+        "default_state": "baseline",
+        "description": "Move repeated request setup work earlier.",
+        "surface_kind": "mutation_family",
+        "semantic_level": "strategy",
+        "materializable": false,
+        "origin": "idea_file"
+      }
+    }
+  },
+  "ideas": [{ "id": "settings_boundary", "text": "Precompute settings once." }],
+  "pathways": [
+    {
+      "id": "settings_boundary",
+      "idea_ids": ["settings_boundary"],
+      "genotype": [
+        {
+          "gene_id": "domain.request_boundary",
+          "state_id": "precompute_settings"
+        }
+      ]
+    }
+  ]
+}
+```
+
+When a frontier has more than one lane, `ingest-eval` now requires an explicit
+`--candidate-id` or unambiguous `--family-id`; this prevents measurements from
+being attributed to a generic current workspace lane.
+
 If you want a guided setup instead of typing everything into a slash command,
 start with:
 

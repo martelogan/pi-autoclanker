@@ -10,11 +10,11 @@
     },
     {
       "path": "schemas/pi-autoclanker.config.schema.json",
-      "sha256": "a448b672226a40d06ac5d9ff6462c35c466264eddf1a5370e2b583367eee33ef"
+      "sha256": "1cb2a01d5f2ddff9e2bc4ec8936bdec40bb405821cd7d23f69e5d223229ad1e1"
     },
     {
       "path": "skills/autoclanker-create/SKILL.md",
-      "sha256": "a9189e52beab34ae9193be3dbe94d61ff60d9509d94ee1e43aef73defced4528"
+      "sha256": "c7ec793269af517d615c1f062aa39deba25e2e1b5202dc2814168addd6e3389f"
     },
     {
       "path": "skills/autoclanker-advanced-beliefs/SKILL.md",

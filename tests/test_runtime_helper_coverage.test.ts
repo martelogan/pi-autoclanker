@@ -43,6 +43,7 @@ function sessionPaths(workspace: string): SessionPaths {
     frontierPath: resolve(workspace, "autoclanker.frontier.json"),
     ideasPath: resolve(workspace, "autoclanker.ideas.json"),
     proposalsPath: resolve(workspace, "autoclanker.proposals.json"),
+    progressPath: resolve(workspace, "autoclanker.progress.json"),
     historyPath: resolve(workspace, "autoclanker.history.jsonl"),
     upstreamSessionDir: resolve(workspace, ".autoclanker"),
   };
@@ -637,6 +638,7 @@ test("ideas helpers cover explicit intake loading pathway resolution and seeded 
   ).toEqual({
     id: "A",
     ideaIds: ["idea_cache"],
+    genotype: [],
     notes: "Primary cache lane.",
   });
 
@@ -737,6 +739,7 @@ test("ideas helpers cover explicit intake loading pathway resolution and seeded 
       {
         id: "Mixed",
         ideaIds: ["idea_cache", "Use context-pair planning."],
+        genotype: [],
         notes: null,
       },
       ideasInput,
@@ -744,7 +747,7 @@ test("ideas helpers cover explicit intake loading pathway resolution and seeded 
   ).toEqual(["idea_cache", "idea_plan"]);
   expect(() =>
     __testHooks.resolvePathwayIdeaIds(
-      { id: "Missing", ideaIds: ["not-present"], notes: null },
+      { id: "Missing", ideaIds: ["not-present"], genotype: [], notes: null },
       ideasInput,
     ),
   ).toThrow(/references an unknown idea/u);
@@ -763,6 +766,7 @@ test("ideas helpers cover explicit intake loading pathway resolution and seeded 
         {
           id: "Fast Path",
           ideaIds: ["idea_cache", "idea_plan"],
+          genotype: [],
           notes: "Cache plus context pair.",
         },
       ],
@@ -787,6 +791,7 @@ test("ideas helpers cover explicit intake loading pathway resolution and seeded 
         {
           id: "Conflict",
           ideaIds: ["idea_cache", "idea_conflict"],
+          genotype: [],
           notes: null,
         },
       ],
@@ -799,7 +804,9 @@ test("ideas helpers cover explicit intake loading pathway resolution and seeded 
   const unresolved = __testHooks.seedFrontierFromIdeasInput(
     {
       ...ideasInput,
-      pathways: [{ id: "Unmapped", ideaIds: ["idea_unmapped"], notes: null }],
+      pathways: [
+        { id: "Unmapped", ideaIds: ["idea_unmapped"], genotype: [], notes: null },
+      ],
     },
     beliefsDocument,
   );

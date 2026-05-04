@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { type Server, type ServerResponse, createServer } from "node:http";
 import { tmpdir } from "node:os";
@@ -69,6 +69,7 @@ type AutoclankerPayload = JsonObject & {
   autoclankerRepo?: string;
   bundle?: unknown;
   canonicalizationModel?: string;
+  baselineCandidateId?: string;
   candidateIds?: string[];
   command?: string;
   constraints?: string[];
@@ -82,6 +83,7 @@ type AutoclankerPayload = JsonObject & {
   budgetWeight?: number;
   mergedCandidateId?: string;
   mergedGenotype?: unknown;
+  maxIterations?: number;
   mode?: string;
   name?: string;
   notes?: string;
@@ -133,6 +135,11 @@ const COMMON_PROPERTIES = {
     items: {
       type: "string",
     },
+  },
+  baselineCandidateId: {
+    type: "string",
+    description:
+      "Optional baseline candidate id for paired eval scripts that compare target vs baseline under one locked eval surface.",
   },
   candidates: {
     type: "object",
@@ -194,6 +201,11 @@ const COMMON_PROPERTIES = {
     type: "object",
     description:
       "Optional explicit merged genotype when the merge cannot be inferred safely.",
+  },
+  maxIterations: {
+    type: "number",
+    description:
+      "Optional maximum number of eval ingestions before the wrapper asks the agent to stop and summarize.",
   },
   mode: {
     type: "string",
@@ -370,6 +382,7 @@ export const runtimeNotes = {
     "autoclanker.eval.sh",
     "autoclanker.frontier.json",
     "autoclanker.proposals.json",
+    "autoclanker.progress.json",
     "autoclanker.history.jsonl",
     "autoclanker.hooks/",
   ],
@@ -723,31 +736,58 @@ function cliInvocation(
   };
 }
 
-function invokeRuntime(
+async function invokeRuntime(
   mode: "command" | "tool",
   name: string,
   payload: AutoclankerPayload,
-): unknown {
+  onProgress?: (message: string) => void,
+): Promise<unknown> {
   const invocation = cliInvocation(mode, name, payload);
   const workspace = payload.workspace;
-  const result = spawnSync(invocation.command, invocation.args, {
-    cwd: typeof workspace === "string" ? workspace : defaultWorkspace(),
-    encoding: "utf-8",
-    env: process.env,
-  });
-
-  const stdout = result.stdout.trim();
-  if (stdout) {
-    try {
-      return JSON.parse(stdout);
-    } catch {
-      if (result.status === 0) {
-        throw new Error(`pi-autoclanker ${mode} produced non-JSON stdout`);
+  return await new Promise<unknown>((resolvePromise, reject) => {
+    const child = spawn(invocation.command, invocation.args, {
+      cwd: typeof workspace === "string" ? workspace : defaultWorkspace(),
+      env: process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdoutChunks.push(chunk);
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderrChunks.push(chunk);
+      const lines = chunk
+        .toString("utf-8")
+        .split(/\r?\n/u)
+        .map((line) => line.trim())
+        .filter(Boolean);
+      const lastLine = lines.at(-1);
+      if (lastLine) {
+        onProgress?.(lastLine);
       }
-    }
-  }
-
-  throw new Error(result.stderr || result.stdout || `pi-autoclanker ${mode} failed`);
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      const stdout = Buffer.concat(stdoutChunks).toString("utf-8").trim();
+      const stderr = Buffer.concat(stderrChunks).toString("utf-8").trim();
+      if (stdout) {
+        try {
+          const parsed = JSON.parse(stdout) as unknown;
+          if (code === 0) {
+            resolvePromise(parsed);
+            return;
+          }
+        } catch {
+          if (code === 0) {
+            reject(new Error(`pi-autoclanker ${mode} produced non-JSON stdout`));
+            return;
+          }
+        }
+      }
+      reject(new Error(stderr || stdout || `pi-autoclanker ${mode} failed`));
+    });
+  });
 }
 
 function ensureJsonObject<T extends JsonObject>(value: unknown): T {
@@ -890,6 +930,12 @@ export function parseAutoclankerCommandArgs(raw: string): {
         index = nextIndex;
         break;
       }
+      case "--baseline-candidate-id": {
+        const [value, nextIndex] = consumeFlagValue(rest, index, token);
+        payload.baselineCandidateId = value;
+        index = nextIndex;
+        break;
+      }
       case "--candidates-input":
       case "--frontier-input": {
         const [value, nextIndex] = consumeFlagValue(rest, index, token);
@@ -942,6 +988,12 @@ export function parseAutoclankerCommandArgs(raw: string): {
       case "--merged-candidate-id": {
         const [value, nextIndex] = consumeFlagValue(rest, index, token);
         payload.mergedCandidateId = value;
+        index = nextIndex;
+        break;
+      }
+      case "--max-iterations": {
+        const [value, nextIndex] = consumeFlagValue(rest, index, token);
+        payload.maxIterations = Number(value);
         index = nextIndex;
         break;
       }
@@ -1046,33 +1098,40 @@ function toolResultPayload(result: unknown): {
   };
 }
 
-function handleAutoclankerToolCall(
+async function handleAutoclankerToolCall(
   name: ToolName,
   payload: AutoclankerPayload,
-): unknown {
-  return invokeRuntime("tool", name, payload);
+  onProgress?: (message: string) => void,
+): Promise<unknown> {
+  return await invokeRuntime("tool", name, payload, onProgress);
 }
 
-function handleAutoclankerCommand(
+async function handleAutoclankerCommand(
   name: CommandName,
   payload: AutoclankerPayload,
-): unknown {
-  return invokeRuntime("command", name, payload);
+  onProgress?: (message: string) => void,
+): Promise<unknown> {
+  return await invokeRuntime("command", name, payload, onProgress);
 }
 
-function handleAutoclankerSlashInput(
+async function handleAutoclankerSlashInput(
   raw: string,
   payload: AutoclankerPayload,
-): unknown {
+  onProgress?: (message: string) => void,
+): Promise<unknown> {
   const trimmed = raw.trim();
   if (!trimmed.startsWith("/autoclanker")) {
     throw new Error("Expected a /autoclanker command.");
   }
   const parsed = parseAutoclankerCommandArgs(trimmed.slice("/autoclanker".length));
-  return handleAutoclankerCommand(parsed.command, {
-    ...payload,
-    ...parsed.payload,
-  });
+  return await handleAutoclankerCommand(
+    parsed.command,
+    {
+      ...payload,
+      ...parsed.payload,
+    },
+    onProgress,
+  );
 }
 
 export default function registerPiAutoclanker(pi: ExtensionAPI): void {
@@ -1126,10 +1185,12 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
     ctx.ui.setWidget("pi-autoclanker", lines);
   }
 
-  function refreshDashboardFromWorkspace(workspace: string): StatusPayload | null {
+  async function refreshDashboardFromWorkspace(
+    workspace: string,
+  ): Promise<StatusPayload | null> {
     try {
       const status = statusFromResult(
-        handleAutoclankerCommand("status", { workspace }),
+        await handleAutoclankerCommand("status", { workspace }),
       );
       widgetState.workspace = workspace;
       widgetState.dashboard = dashboardFromPayload(status.dashboard);
@@ -1142,7 +1203,7 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
 
   async function syncWidget(ctx: ExtensionContext): Promise<void> {
     currentContext = ctx;
-    refreshDashboardFromWorkspace(ctx.cwd);
+    await refreshDashboardFromWorkspace(ctx.cwd);
     updateWidget(ctx);
   }
 
@@ -1334,10 +1395,19 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
         if (currentContext) {
           updateWidget(currentContext);
         }
-        const result = handleAutoclankerToolCall(tool.name, payload);
+        const result = await handleAutoclankerToolCall(
+          tool.name,
+          payload,
+          (message) => {
+            widgetState.running = `${tool.name}: ${message}`;
+            if (currentContext) {
+              updateWidget(currentContext);
+            }
+          },
+        );
         widgetState.running = null;
         if (currentContext) {
-          refreshDashboardFromWorkspace(payload.workspace);
+          await refreshDashboardFromWorkspace(payload.workspace);
           updateWidget(currentContext);
         }
         return toolResultPayload(result);
@@ -1351,9 +1421,16 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
     handler: async (args, ctx) => {
       widgetState.running = "command";
       updateWidget(ctx);
-      const result = handleAutoclankerSlashInput(`/autoclanker ${args || "status"}`, {
-        workspace: defaultWorkspace(),
-      });
+      const result = await handleAutoclankerSlashInput(
+        `/autoclanker ${args || "status"}`,
+        {
+          workspace: defaultWorkspace(),
+        },
+        (message) => {
+          widgetState.running = `command: ${message}`;
+          updateWidget(ctx);
+        },
+      );
       widgetState.running = null;
       currentContext = ctx;
       const payload = ensureJsonObject<AutoclankerPayload>(result);
@@ -1370,11 +1447,11 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
         if (bundle) {
           widgetState.dashboard = dashboardFromPayload(bundle.dashboard);
         } else {
-          refreshDashboardFromWorkspace(defaultWorkspace());
+          await refreshDashboardFromWorkspace(defaultWorkspace());
         }
         await ensureBrowserDashboard(ctx);
       } else {
-        refreshDashboardFromWorkspace(defaultWorkspace());
+        await refreshDashboardFromWorkspace(defaultWorkspace());
       }
       updateWidget(ctx);
       const level = payload.ok === false ? "error" : "info";

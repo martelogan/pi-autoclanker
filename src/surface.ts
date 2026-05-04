@@ -103,6 +103,7 @@ export const surfaceManifest = {
     "autoclanker.eval.sh",
     "autoclanker.frontier.json",
     "autoclanker.proposals.json",
+    "autoclanker.progress.json",
     "autoclanker.history.jsonl",
     "autoclanker.hooks/",
   ],
