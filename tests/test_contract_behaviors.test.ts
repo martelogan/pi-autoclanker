@@ -517,7 +517,7 @@ coveredTest(
     expect(binDev).toContain("test-parity");
     expect(binDev).toContain("check-parity");
     expect(binDev).toContain("check-live");
-    expect(workflow).toContain("actions/setup-node@v4");
+    expect(workflow).toContain("actions/setup-node@v6");
     expect(workflow).toContain('node-version: "22"');
     expect(workflow).toContain("PI_AUTOCLANKER_DEV_DISABLE_BOOTSTRAP");
     expect(workflow).not.toContain("STARTER_TS_DEV_DISABLE_BOOTSTRAP");
