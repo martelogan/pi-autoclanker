@@ -7,6 +7,8 @@ import {
   type CommandName,
   IDEAS_MODES,
   type IdeasMode,
+  RUN_INTENSITIES,
+  type RunIntensity,
   TOOL_NAMES,
   type ToolName,
   dispatchCommand,
@@ -22,6 +24,7 @@ type CliPayload = JsonObject & {
   canonicalizationModel?: string;
   baselineCandidateId?: string;
   candidatesInputPath?: string;
+  clankerbenchManifestPath?: string;
   constraints?: string[];
   defaultIdeasMode?: IdeasMode;
   evalCommand?: string;
@@ -31,6 +34,7 @@ type CliPayload = JsonObject & {
   mode?: IdeasMode;
   outputPath?: string;
   roughIdeas?: string[];
+  runIntensity?: RunIntensity;
   sessionRoot?: string;
   workspace?: string;
 };
@@ -159,6 +163,19 @@ function parseCommonFlags(tokens: string[], payload: CliPayload): string[] {
         index = nextIndex;
         break;
       }
+      case "--run-intensity": {
+        const [value, nextIndex] = readFlagValue(tokens, index, token);
+        if (!(RUN_INTENSITIES as readonly string[]).includes(value)) {
+          throw new Error(`Unsupported --run-intensity ${value}.`);
+        }
+        payload.runIntensity = value as RunIntensity;
+        index = nextIndex;
+        break;
+      }
+      case "--mega":
+        payload.runIntensity = "mega";
+        index += 1;
+        break;
       case "--allow-billed-live":
         payload.allowBilledLive = true;
         index += 1;
@@ -275,6 +292,12 @@ function parseCommandInvocation(argv: string[]): {
         index = nextIndex;
         break;
       }
+      case "--clankerbench-manifest": {
+        const [value, nextIndex] = readFlagValue(flags, index, token);
+        payload.clankerbenchManifestPath = value;
+        index = nextIndex;
+        break;
+      }
       case "--constraint": {
         const [value, nextIndex] = readFlagValue(flags, index, token);
         appendString(payload, "constraints", value);
@@ -319,16 +342,28 @@ function printHelp(): void {
       "pi-autoclanker",
       "",
       "Usage:",
+      "  pi-autoclanker --help",
       "  pi-autoclanker --version",
       "  pi-autoclanker surface",
       "  pi-autoclanker tool <name> [flags]",
       "  pi-autoclanker command <name> [flags]",
+      "",
+      "Common command flags:",
+      "  --workspace <path>",
+      "  --ideas-file <path>",
+      "  --clankerbench-manifest <path>",
+      "  --run-intensity standard|deep|mega",
+      "  --mega",
     ].join("\n")}\n`,
   );
 }
 
 function main(argv: string[]): number {
   if (argv.length === 0) {
+    printHelp();
+    return 0;
+  }
+  if (argv[0] === "--help" || argv[0] === "-h" || argv[0] === "help") {
     printHelp();
     return 0;
   }

@@ -1,6 +1,25 @@
 export { VERSION, surfaceManifest } from "./surface.js";
 export {
+  CLANKERBENCH_METRIC_DIRECTIONS,
+  CLANKERBENCH_SCHEMA_VERSION,
+  CLANKERBENCH_STAGE_NAMES,
+  CLANKERBENCH_STAGE_STATUSES,
+  validateClankerbenchManifest,
+  type ClankerbenchArtifact,
+  type ClankerbenchCommandSpec,
+  type ClankerbenchMetric,
+  type ClankerbenchMetricDirection,
+  type ClankerbenchOuterLoop,
+  type ClankerbenchProvider,
+  type ClankerbenchResearchSource,
+  type ClankerbenchRunManifest,
+  type ClankerbenchStage,
+  type ClankerbenchStageName,
+  type ClankerbenchStageStatus,
+} from "./clankerbench.js";
+export {
   BELIEFS_FILENAME,
+  CLANKERBENCH_MANIFEST_FILENAME,
   COMMAND_NAMES,
   CONFIG_FILENAME,
   DEFAULT_EVAL_COMMAND,
@@ -11,6 +30,7 @@ export {
   IDEAS_MODES,
   PROGRESS_FILENAME,
   PROPOSALS_FILENAME,
+  RUN_INTENSITIES,
   SESSION_FILENAMES,
   SLASH_COMMAND_PREFIX,
   SUMMARY_FILENAME,
@@ -23,5 +43,6 @@ export {
   validateConfigDocument,
   type InvocationResult,
   type RuntimeConfig,
+  type RunIntensity,
   type Runner,
 } from "./runtime.js";

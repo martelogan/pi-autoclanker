@@ -78,6 +78,9 @@ tests/fixtures/oracle/
 - live or billed provider lanes must be separate from the required deterministic
   gate
 - keep `autoclanker` as the Bayesian source of truth
+- benchmark-framework support should be expressed as generic `clankerbench`
+  manifests, stage constants, schemas, and provider commands rather than as
+  project-specific code inside this repo
 
 ## Search framing
 
@@ -146,6 +149,11 @@ four-brief vocabulary:
 - `Posterior Brief`: what changed after fit and suggest
 - `Proposal Brief`: what is ready, blocked, deferred, or awaiting approval
 
+The run dashboard should also make the configured run intensity visible. A
+standard run may stop at `maxIterations` and summarize. A mega run is an
+explicit supervised mode: it keeps all eval-surface and candidate-binding
+guards, but it does not stop only because a small iteration budget was reached.
+
 Those same briefs should be visible through:
 
 - the compact always-visible widget
@@ -198,3 +206,37 @@ project-local files, CLI orchestration, and a shared dashboard model. Its
 value proposition is structured optimization workflow: explicit belief batches,
 explicit candidate pools and frontier files, durable proposal state, and
 inspectable upstream suggestions rather than a single loose planning thread.
+
+## Clankerbench Extension Point
+
+`clankerbench` is the contract-level extension point for full benchmark
+frameworks that need more than one eval shell. It keeps the benchmark pipeline
+generic:
+
+```text
+bootstrap -> cohort -> materialize -> analyze -> spec
+                                      |         |
+                                      v         v
+                                   context -> eval -> compare
+                                      |
+                                      v
+                            distill -> session
+                                      |
+                                      v
+                         package-runtime / hydrate
+```
+
+The TypeScript runtime owns only the stable contract:
+
+- stage-name constants and exported types in `src/clankerbench.ts`
+- a JSON schema in `schemas/clankerbench.pipeline.schema.json`
+- a contract example in `examples/clankerbench-mini`
+- docs in `docs/CLANKERBENCH.md`
+- a start-time bridge that can auto-detect `clankerbench.manifest.json` or load
+  `--clankerbench-manifest <path>` as session context
+
+Project providers own the concrete commands, data sources, profilers,
+recording systems, fixture materialization, runtime packaging, and acceptance
+checks. The provider exposes those capabilities through the manifest; any
+compatible outer-loop engine decides how to consume the resulting eval command,
+artifacts, and handoff bundle.

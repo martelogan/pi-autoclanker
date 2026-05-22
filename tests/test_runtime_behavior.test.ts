@@ -16,6 +16,7 @@ import { expect } from "vitest";
 
 import {
   BELIEFS_FILENAME,
+  CLANKERBENCH_MANIFEST_FILENAME,
   CONFIG_FILENAME,
   DEFAULT_EVAL_COMMAND,
   EVAL_FILENAME,
@@ -54,6 +55,7 @@ type JsonRecord = {
   canonicalization?: unknown;
   canonicalization_summary?: unknown;
   canonicalizationModel?: unknown;
+  clankerbenchManifestSource?: unknown;
   command?: unknown;
   commitSummary?: unknown;
   context?: unknown;
@@ -110,6 +112,8 @@ type JsonRecord = {
   parent_candidate_ids?: unknown;
   pendingMergeSuggestionCount?: unknown;
   pendingQueryCount?: unknown;
+  path?: unknown;
+  primaryMetric?: unknown;
   preview?: unknown;
   queries?: unknown;
   query_type?: unknown;
@@ -139,6 +143,8 @@ type JsonRecord = {
   result?: unknown;
   session?: unknown;
   stdout?: unknown;
+  researchSources?: unknown;
+  stages?: unknown;
 };
 
 type IdeasPlanBeliefsRecord = {
@@ -2015,6 +2021,7 @@ coveredTest(
               text: "Use a checked-in candidate frontier as the initial lane set.",
             },
           ],
+          run_intensity: "mega",
           convergence: {
             max_stale_iterations: 2,
             stop_when_noise_multiple_below: 1,
@@ -2051,6 +2058,130 @@ coveredTest(
       ) as { default_family_id?: unknown; frontier_id?: unknown };
       expect(frontierDocument.frontier_id).toBe("frontier_from_ideas_file");
       expect(frontierDocument.default_family_id).toBe("family_context_pair");
+
+      const configDocument = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, CONFIG_FILENAME), "utf-8")),
+      ) as { runIntensity?: unknown };
+      expect(configDocument.runIntensity).toBe("mega");
+    });
+  },
+);
+
+coveredTest(
+  ["M0-002", "M1-003", "M2-008"],
+  "clankerbench manifest seeds goal eval contract and research context",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-clankerbench-manifest-"),
+    );
+    const manifestEvalCommand = String.raw`cat <<EOF
+{"era_id":"\${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"cand_clankerbench","intended_genotype":[],"realized_genotype":[],"patch_hash":"sha256:clankerbench","status":"valid","seed":3,"runtime_sec":1.0,"peak_vram_mb":8.0,"raw_metrics":{"weighted_latency_ms":42.0},"delta_perf":0.03,"utility":0.02,"replication_index":0,"stdout_digest":"stdout:clankerbench","stderr_digest":"stderr:clean","artifact_paths":[],"failure_metadata":{}}
+EOF`;
+    writeFileSync(
+      resolve(workspace, CLANKERBENCH_MANIFEST_FILENAME),
+      `${JSON.stringify(
+        {
+          schema_version: "clankerbench.pipeline.v1",
+          goal: "Improve a generic benchmark without changing its proof surface.",
+          primary_metric: "weighted_latency_ms",
+          metrics: [
+            {
+              name: "weighted_latency_ms",
+              direction: "minimize",
+              primary: true,
+            },
+          ],
+          providers: [
+            {
+              id: "generic-command-provider",
+              kind: "command",
+              capabilities: ["context", "eval", "compare", "session"],
+            },
+          ],
+          stages: [
+            { name: "context", required: true },
+            { name: "eval", required: true, depends_on: ["context"] },
+            { name: "compare", required: true, depends_on: ["eval"] },
+            { name: "session", required: true, depends_on: ["compare"] },
+          ],
+          research_sources: [
+            {
+              id: "local_analysis",
+              kind: "local",
+              path: "tmp/bench/analysis.md",
+            },
+            {
+              id: "external_prior_art",
+              kind: "web",
+              query: "prior art for the selected generic benchmark lane",
+              optional: true,
+            },
+          ],
+          outer_loop: {
+            context_path: "tmp/bench/context_brief.md",
+            evidence_path: "tmp/bench/session/evidence.md",
+            eval_command: manifestEvalCommand,
+            guardrails: [
+              "Keep the locked eval surface fixed.",
+              "Treat external research as hypothesis input, not proof.",
+            ],
+            hooks_dir: "clankerbench.hooks",
+            max_iterations: 7,
+            stop_conditions: ["candidate confirmed", "all active lanes rejected"],
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      const initResult = asRecord(
+        dispatchTool("autoclanker_init_session", {
+          autoclankerBinary: binaryPath,
+          workspace,
+        }),
+      );
+      expect(initResult.clankerbenchManifestSource).toBe("auto");
+
+      const configDocument = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, CONFIG_FILENAME), "utf-8")),
+      ) as { constraints?: unknown; evalCommand?: unknown; maxIterations?: unknown };
+      expect(configDocument.evalCommand).toBe(manifestEvalCommand);
+      expect(configDocument.maxIterations).toBe(7);
+      expect(configDocument.constraints).toEqual([
+        "Keep the locked eval surface fixed.",
+        "Treat external research as hypothesis input, not proof.",
+        expect.stringContaining(
+          "Before candidate edits, complete the clankerbench context pass",
+        ),
+      ]);
+
+      const beliefsDocument = asRecord(
+        JSON.parse(readFileSync(resolve(workspace, BELIEFS_FILENAME), "utf-8")),
+      ) as { clankerbenchManifest?: unknown };
+      const clankerbench = asRecord(beliefsDocument.clankerbenchManifest);
+      expect(clankerbench.primaryMetric).toBe("weighted_latency_ms");
+      expect(clankerbench.path).toBe(CLANKERBENCH_MANIFEST_FILENAME);
+      expect(clankerbench.stages as string[]).toEqual([
+        "context",
+        "eval",
+        "compare",
+        "session",
+      ]);
+      expect(clankerbench.researchSources as unknown[]).toHaveLength(2);
+
+      const summary = readFileSync(resolve(workspace, SUMMARY_FILENAME), "utf-8");
+      expect(summary).toContain("## Clankerbench");
+      expect(summary).toContain("- research sources: `2`");
+      expect(summary).toContain(
+        "- `local_analysis` (local, required): tmp/bench/analysis.md",
+      );
+      expect(summary).toContain(
+        "- `external_prior_art` (web, optional): prior art for the selected generic benchmark lane",
+      );
+      expect(summary).toContain("- context path: `tmp/bench/context_brief.md`");
     });
   },
 );

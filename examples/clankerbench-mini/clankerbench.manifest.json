@@ -1,0 +1,352 @@
+{
+  "schema_version": "clankerbench.pipeline.v1",
+  "run_id": "mini-contract-example",
+  "goal": "Improve request throughput while preserving response correctness.",
+  "benchmark_root": ".",
+  "artifact_root": "tmp/clankerbench",
+  "primary_metric": "weighted_latency_ms",
+  "metrics": [
+    {
+      "name": "weighted_latency_ms",
+      "direction": "minimize",
+      "primary": true,
+      "unit": "ms",
+      "noise_floor": 0.02,
+      "description": "Weighted latency over the locked workload."
+    },
+    {
+      "name": "correctness_failures",
+      "direction": "minimize",
+      "unit": "count",
+      "threshold": 0,
+      "description": "Acceptance checks that failed for the candidate."
+    }
+  ],
+  "providers": [
+    {
+      "id": "mini-command-provider",
+      "display_name": "Mini command provider",
+      "kind": "command",
+      "entrypoint": "./bench",
+      "description": "Placeholder command provider for the generic contract example.",
+      "capabilities": [
+        "bootstrap",
+        "cohort",
+        "materialize",
+        "analyze",
+        "spec",
+        "context",
+        "eval",
+        "scout",
+        "compare",
+        "distill",
+        "session",
+        "package-runtime",
+        "hydrate"
+      ]
+    }
+  ],
+  "stages": [
+    {
+      "name": "bootstrap",
+      "description": "Check provider tools and credentials.",
+      "status": "ready",
+      "required": true,
+      "command": {
+        "argv": ["./bench", "bootstrap", "--json"],
+        "writes_json": true
+      },
+      "outputs": [
+        {
+          "id": "bootstrap",
+          "path": "tmp/clankerbench/bootstrap.json",
+          "kind": "readiness",
+          "role": "output"
+        }
+      ]
+    },
+    {
+      "name": "cohort",
+      "description": "Select a representative benchmark workload.",
+      "depends_on": ["bootstrap"],
+      "required": true,
+      "command": {
+        "argv": ["./bench", "cohort", "--json"],
+        "writes_json": true
+      },
+      "outputs": [
+        {
+          "id": "cohort_manifest",
+          "path": "tmp/clankerbench/cohort.json",
+          "kind": "workload",
+          "role": "output"
+        }
+      ]
+    },
+    {
+      "name": "materialize",
+      "description": "Build deterministic fixtures for the selected workload.",
+      "depends_on": ["cohort"],
+      "required": true,
+      "command": {
+        "argv": ["./bench", "materialize", "--json"],
+        "writes_json": true
+      },
+      "outputs": [
+        {
+          "id": "fixture_manifest",
+          "path": "tmp/clankerbench/fixtures/manifest.json",
+          "kind": "fixtures",
+          "role": "output"
+        }
+      ]
+    },
+    {
+      "name": "analyze",
+      "description": "Summarize performance, memory, and correctness leverage points.",
+      "depends_on": ["materialize"],
+      "required": true,
+      "command": {
+        "argv": ["./bench", "analyze", "--json"],
+        "writes_json": true
+      },
+      "outputs": [
+        {
+          "id": "analysis",
+          "path": "tmp/clankerbench/analysis.md",
+          "kind": "summary",
+          "role": "output"
+        }
+      ]
+    },
+    {
+      "name": "spec",
+      "description": "Generate replay-backed acceptance checks.",
+      "depends_on": ["materialize"],
+      "required": true,
+      "command": {
+        "argv": ["./bench", "spec", "--json"],
+        "writes_json": true
+      },
+      "outputs": [
+        {
+          "id": "spec_manifest",
+          "path": "tmp/clankerbench/spec_manifest.json",
+          "kind": "acceptance",
+          "role": "output"
+        }
+      ]
+    },
+    {
+      "name": "context",
+      "description": "Create a bounded local-first context brief before candidate work starts.",
+      "depends_on": ["analyze", "spec"],
+      "required": true,
+      "command": {
+        "argv": ["./bench", "context", "--json"],
+        "writes_json": true
+      },
+      "inputs": [
+        {
+          "id": "analysis",
+          "path": "tmp/clankerbench/analysis.md",
+          "kind": "summary",
+          "role": "input"
+        },
+        {
+          "id": "spec_manifest",
+          "path": "tmp/clankerbench/spec_manifest.json",
+          "kind": "acceptance",
+          "role": "input"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "context_brief",
+          "path": "tmp/clankerbench/context_brief.md",
+          "kind": "context_brief",
+          "role": "output"
+        }
+      ]
+    },
+    {
+      "name": "eval",
+      "description": "Run the canonical locked benchmark and emit eval JSON.",
+      "depends_on": ["context"],
+      "required": true,
+      "command": {
+        "argv": ["./bench", "eval", "--json"],
+        "writes_json": true
+      },
+      "outputs": [
+        {
+          "id": "eval_result",
+          "path": "tmp/clankerbench/eval.json",
+          "kind": "eval_result",
+          "role": "output"
+        }
+      ]
+    },
+    {
+      "name": "scout",
+      "description": "Run a cheaper screen before paying for canonical evals.",
+      "depends_on": ["materialize"],
+      "required": false,
+      "command": {
+        "argv": ["./bench", "scout", "--json"],
+        "writes_json": true
+      },
+      "outputs": [
+        {
+          "id": "scout_result",
+          "path": "tmp/clankerbench/scout.json",
+          "kind": "eval_result",
+          "role": "output"
+        }
+      ]
+    },
+    {
+      "name": "compare",
+      "description": "Classify candidate deltas against noise thresholds.",
+      "depends_on": ["eval"],
+      "required": true,
+      "command": {
+        "argv": ["./bench", "compare", "--json"],
+        "writes_json": true
+      },
+      "outputs": [
+        {
+          "id": "comparison",
+          "path": "tmp/clankerbench/compare.json",
+          "kind": "comparison",
+          "role": "output"
+        }
+      ]
+    },
+    {
+      "name": "distill",
+      "description": "Package the benchmark context for an outer-loop agent.",
+      "depends_on": ["context", "eval"],
+      "required": true,
+      "command": {
+        "argv": ["./bench", "distill", "--json"],
+        "writes_json": true
+      },
+      "outputs": [
+        {
+          "id": "research_bundle",
+          "path": "tmp/clankerbench/research",
+          "kind": "bundle",
+          "role": "output"
+        }
+      ]
+    },
+    {
+      "name": "session",
+      "description": "Create an engine-neutral optimization workspace from the bundle.",
+      "depends_on": ["distill"],
+      "required": true,
+      "command": {
+        "argv": ["./bench", "session", "--json"],
+        "writes_json": true
+      },
+      "outputs": [
+        {
+          "id": "session",
+          "path": "tmp/clankerbench/session",
+          "kind": "outer_loop_session",
+          "role": "output"
+        }
+      ]
+    },
+    {
+      "name": "package-runtime",
+      "description": "Export reusable runtime artifacts for remote or repeated runs.",
+      "depends_on": ["materialize"],
+      "required": false,
+      "command": {
+        "argv": ["./bench", "package-runtime", "--json"],
+        "writes_json": true
+      },
+      "outputs": [
+        {
+          "id": "runtime_package",
+          "path": "tmp/clankerbench/runtime.tar.zst",
+          "kind": "runtime_package",
+          "role": "output"
+        }
+      ]
+    },
+    {
+      "name": "hydrate",
+      "description": "Restore packaged runtime artifacts in a fresh workspace.",
+      "depends_on": ["package-runtime"],
+      "required": false,
+      "command": {
+        "argv": ["./bench", "hydrate", "--json"],
+        "writes_json": true
+      },
+      "outputs": [
+        {
+          "id": "hydration",
+          "path": "tmp/clankerbench/hydrate.json",
+          "kind": "readiness",
+          "role": "output"
+        }
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "manifest",
+      "path": "clankerbench.manifest.json",
+      "kind": "contract",
+      "role": "input"
+    }
+  ],
+  "research_sources": [
+    {
+      "id": "local_analysis",
+      "kind": "local",
+      "path": "tmp/clankerbench/analysis.md",
+      "description": "Provider-produced local diagnostic evidence. Read before outside research."
+    },
+    {
+      "id": "operator_notes",
+      "kind": "operator_note",
+      "path": "optimization.ideas.json",
+      "optional": true,
+      "description": "Human-provided hypotheses or rough ideas to preserve during context distillation."
+    },
+    {
+      "id": "external_prior_art",
+      "kind": "web",
+      "query": "relevant benchmark or implementation prior art",
+      "optional": true,
+      "description": "Optional external context only when it can materially change the plan."
+    }
+  ],
+  "outer_loop": {
+    "context_path": "tmp/clankerbench/context_brief.md",
+    "evidence_path": "tmp/clankerbench/session/evidence.md",
+    "eval_command": "./bench eval --json",
+    "guardrails": [
+      "Do not rewrite the locked eval contract inside a candidate loop.",
+      "Treat external research as hypothesis input, not proof."
+    ],
+    "hooks_dir": "clankerbench.hooks",
+    "ideas_path": "optimization.ideas.json",
+    "max_iterations": 50,
+    "max_wall_time_sec": 28800,
+    "session_path": "tmp/clankerbench/session",
+    "status_path": "tmp/clankerbench/session/progress.json",
+    "stop_conditions": [
+      "candidate confirmed",
+      "all active lanes rejected",
+      "blocked by missing proof surface"
+    ]
+  },
+  "metadata": {
+    "example": true
+  }
+}

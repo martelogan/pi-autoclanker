@@ -28,15 +28,18 @@ import { runPortAllowFailure } from "./oracle.js";
 type JsonRecord = {
   [key: string]: unknown;
   bundle?: unknown;
+  clankerbenchManifestSource?: unknown;
   command?: unknown;
   enabled?: unknown;
   evalSurfaceSha256?: unknown;
   exportPath?: unknown;
   files?: unknown;
   fit?: unknown;
+  goal?: unknown;
   handoff?: unknown;
   mode?: unknown;
   present?: unknown;
+  primaryMetric?: unknown;
   preview?: unknown;
   previewSummary?: unknown;
   raw?: unknown;
@@ -47,6 +50,8 @@ type JsonRecord = {
   upstreamArtifactsIncluded?: unknown;
   value?: unknown;
   workspace?: unknown;
+  clankerbenchManifest?: unknown;
+  outerLoop?: unknown;
 };
 
 function asRecord(value: unknown): JsonRecord {
@@ -274,6 +279,7 @@ coveredTest(["M2-004"], "repo fallback and preview overrides are supported", () 
       sessionRoot: ".autoclanker",
       defaultIdeasMode: "canonicalize",
       allowBilledLive: false,
+      runIntensity: "standard",
       goal: null,
       evalCommand: null,
       constraints: [],
@@ -807,6 +813,74 @@ coveredTest(["M1-003"], "command mode rejects invalid ideas-file payloads", () =
   expect(result.stderr).toContain(
     "--ideas-file/--ideas-input must contain a JSON object",
   );
+});
+
+coveredTest(
+  ["M0-002", "M1-002"],
+  "explicit clankerbench manifest can seed a deferred session",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-clankerbench-explicit-"),
+    );
+    const manifestPath = resolve(workspace, "benchmark.contract.json");
+    writeFileSync(
+      manifestPath,
+      `${JSON.stringify(
+        {
+          schema_version: "clankerbench.pipeline.v1",
+          goal: "Improve a generic benchmark through a declared contract.",
+          primary_metric: "latency_ms",
+          metrics: [
+            {
+              name: "latency_ms",
+              direction: "minimize",
+              primary: true,
+            },
+          ],
+          stages: [{ name: "eval", required: true }],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+
+    const result = asRecord(
+      dispatchTool("autoclanker_init_session", {
+        autoclankerBinary: "missing-autoclanker",
+        clankerbenchManifestPath: manifestPath,
+        workspace,
+      }),
+    );
+    expect(result.clankerbenchManifestSource).toBe("explicit");
+
+    const config = asRecord(
+      JSON.parse(readFileSync(resolve(workspace, CONFIG_FILENAME), "utf-8")),
+    );
+    expect(config.goal).toBe(
+      "Improve a generic benchmark through a declared contract.",
+    );
+
+    const beliefs = asRecord(
+      JSON.parse(readFileSync(resolve(workspace, BELIEFS_FILENAME), "utf-8")),
+    );
+    const clankerbench = asRecord(beliefs.clankerbenchManifest);
+    expect(clankerbench.primaryMetric).toBe("latency_ms");
+    expect(clankerbench.outerLoop).toBeNull();
+  },
+);
+
+coveredTest(["M0-002", "M1-002"], "missing clankerbench manifest fails clearly", () => {
+  const workspace = mkdtempSync(
+    resolve(tmpdir(), "pi-autoclanker-ts-clankerbench-missing-"),
+  );
+  expect(() =>
+    dispatchTool("autoclanker_init_session", {
+      autoclankerBinary: "missing-autoclanker",
+      clankerbenchManifestPath: "missing-manifest.json",
+      workspace,
+    }),
+  ).toThrowError(/clankerbench manifest does not exist/u);
 });
 
 coveredTest(["M1-002", "M1-003"], "unknown mode returns a clear non-JSON error", () => {

@@ -28,6 +28,7 @@
     "budget_allocations": {}
   },
   "frontierSeedWarnings": [],
+  "runIntensity": "standard",
   "canonicalization": {
     "mode": "deferred",
     "reason": "autoclanker CLI unavailable"

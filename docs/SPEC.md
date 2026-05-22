@@ -31,6 +31,7 @@ shape in a checked-in JSON form:
 - `ideas` as plain strings, `{ "id": "...", "text": "..." }`, or
   `{ "id": "...", "path": "plans/idea.md" }` for larger checked-in markdown or text plans
 - `constraints`
+- optional `run_intensity`: `standard`, `deep`, or `mega`
 - optional `pathways`
 
 That file is only an intake convenience surface. The generated working surfaces
@@ -49,6 +50,10 @@ surface so a user can inspect and edit the session setup quickly, then
 replace it later with a real project eval command when ready.
 `pathways` is optional and should stay reserved for cases where the user really
 does want explicit early lane seeding; it is not the default intake shape.
+`run_intensity` is also optional. `standard` keeps the normal convergence and
+iteration-budget guardrails, `deep` is a visible label for intentionally larger
+runs, and `mega` explicitly disables the max-iteration stop so a supervised
+run can keep exploring until each useful lane has a measured decision.
 Once a session is initialized, that checked-in eval surface should be treated as
 fixed for the life of the session: the wrapper should snapshot it, surface the
 snapshot in status, and refuse eval ingest if the local `autoclanker.eval.sh`
@@ -153,6 +158,61 @@ evolution-session bundle:
   `belief_graph_posterior.png`, refreshed after `fit`, `suggest`, or
   `recommend-commit`, and refreshable explicitly with
   `autoclanker session render-report`
+
+## Clankerbench benchmark contract
+
+Project-local benchmark harnesses may expose their capabilities through the
+generic `clankerbench` contract. This contract is deliberately broader than a
+single eval shell but still thin enough to keep project-specific logic outside
+the contract.
+
+The required public vocabulary is:
+
+- `bootstrap`
+- `cohort`
+- `materialize`
+- `analyze`
+- `spec`
+- `context`
+- `eval`
+- `scout`
+- `compare`
+- `distill`
+- `session`
+- `package-runtime`
+- `hydrate`
+
+Those stages describe what a harness can do, not how it does it. A provider may
+bind stages to command-line tools, host-language modules, or manual artifacts.
+The provider boundary must keep implementation details out of the benchmark contract;
+a consumer should only need a manifest, stage commands, artifact paths, research
+sources, metrics, and outer-loop handoff fields.
+
+The `context` stage is the generic pre-execution research boundary. It should
+produce a bounded local-first context brief from declared artifacts and optional
+external sources such as papers, docs, prior art, repos, web lookups, or operator
+notes. Those sources can influence candidate hypotheses, but they must not
+rewrite the locked eval contract or replace acceptance proof.
+
+The first supported contract files are:
+
+- `schemas/clankerbench.pipeline.schema.json`
+- `examples/clankerbench-mini/clankerbench.manifest.json`
+- `src/clankerbench.ts`
+
+This is contract-first support with a thin runtime bridge: `command start`
+auto-detects `clankerbench.manifest.json` in the workspace, or accepts
+`--clankerbench-manifest <path>`, and uses it to seed the session goal, fixed
+eval command, guardrails, research sources, hook/status/evidence paths, and
+iteration budget. It should make future benchmark providers easy to add without
+changing any specific optimizer or agent session model.
+
+Declared research sources are not proof by themselves. The runtime surfaces them
+as a pre-candidate context instruction so a model-backed supervisor can crawl
+papers, docs, web results, repos, or prior art when that would materially change
+the frontier. If the active supervisor has no external-search capability, those
+sources remain visible queued context rather than silently becoming assumed
+evidence.
 
 ## Required public surfaces
 

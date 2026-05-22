@@ -14,6 +14,11 @@ import {
 import { basename, delimiter, dirname, isAbsolute, relative, resolve } from "node:path";
 import { TextDecoder } from "node:util";
 
+import {
+  type ClankerbenchRunManifest,
+  validateClankerbenchManifest,
+} from "./clankerbench.js";
+
 const VERSION = "0.1.0";
 export const SLASH_COMMAND_PREFIX = "/autoclanker";
 export const CONFIG_FILENAME = "autoclanker.config.json";
@@ -22,6 +27,7 @@ export const BELIEFS_FILENAME = "autoclanker.beliefs.json";
 export const EVAL_FILENAME = "autoclanker.eval.sh";
 export const FRONTIER_FILENAME = "autoclanker.frontier.json";
 export const IDEAS_FILENAME = "autoclanker.ideas.json";
+export const CLANKERBENCH_MANIFEST_FILENAME = "clankerbench.manifest.json";
 export const PROPOSALS_FILENAME = "autoclanker.proposals.json";
 export const HISTORY_FILENAME = "autoclanker.history.jsonl";
 export const PROGRESS_FILENAME = "autoclanker.progress.json";
@@ -59,6 +65,7 @@ export const COMMAND_NAMES = [
   "clear",
   "export",
 ] as const;
+export const RUN_INTENSITIES = ["standard", "deep", "mega"] as const;
 
 const CONFIG_OVERRIDE_KEYS = [
   "autoclankerBinary",
@@ -67,6 +74,7 @@ const CONFIG_OVERRIDE_KEYS = [
   "autoclankerRepo",
   "allowBilledLive",
   "maxIterations",
+  "runIntensity",
 ] as const;
 const BILLED_LIVE_ENV_KEY = "PI_AUTOCLANKER_ALLOW_BILLED_LIVE";
 const UPSTREAM_LLM_LIVE_ENV_KEY = "AUTOCLANKER_ENABLE_LLM_LIVE";
@@ -125,6 +133,7 @@ type EvalContractJson = JsonObject & {
 export type ToolName = (typeof TOOL_NAMES)[number];
 export type CommandName = (typeof COMMAND_NAMES)[number];
 export type IdeasMode = (typeof IDEAS_MODES)[number];
+export type RunIntensity = (typeof RUN_INTENSITIES)[number];
 export type InvocationResult = {
   returncode: number;
   stdout: string;
@@ -139,6 +148,7 @@ export type RuntimeConfig = {
   autoclankerRepo: string | null;
   allowBilledLive: boolean;
   maxIterations?: number | null;
+  runIntensity: RunIntensity;
   goal: string | null;
   evalCommand: string | null;
   constraints: string[];
@@ -155,6 +165,7 @@ type ConfigDocument = {
   evalCommand?: unknown;
   goal?: unknown;
   maxIterations?: unknown;
+  runIntensity?: unknown;
   [key: string]: unknown;
   sessionRoot?: unknown;
 };
@@ -167,6 +178,7 @@ type BeliefsDocument = {
   canonicalIdeaInputs?: unknown;
   canonicalizationModel?: unknown;
   canonicalizationSummary?: unknown;
+  clankerbenchManifest?: unknown;
   constraints?: unknown;
   evalSurfaceSha256?: unknown;
   ideasInputPath?: unknown;
@@ -181,6 +193,20 @@ type BeliefsDocument = {
   upstreamPreviewInputMode?: unknown;
   upstreamSessionId?: unknown;
   [key: string]: unknown;
+};
+
+type ClankerbenchSummaryRecord = JsonObject & {
+  outerLoop?: unknown;
+  path?: unknown;
+  primaryMetric?: unknown;
+  researchSources?: unknown;
+  stages?: unknown;
+};
+
+type ClankerbenchOuterLoopSummaryRecord = JsonObject & {
+  contextPath?: unknown;
+  evidencePath?: unknown;
+  hooksDir?: unknown;
 };
 
 type SummaryHistoryEntry = {
@@ -507,6 +533,8 @@ type IdeasFileDocument = {
   candidate_lanes?: unknown;
   max_iterations?: unknown;
   maxIterations?: unknown;
+  run_intensity?: unknown;
+  runIntensity?: unknown;
   convergence?: unknown;
 };
 
@@ -847,7 +875,28 @@ type LoadedIdeasInput = {
   surfaceOverlay: JsonObject | null;
   frontier: CandidatePoolDocument | null;
   maxIterations: number | null;
+  runIntensity: RunIntensity | null;
   convergence: JsonObject | null;
+};
+
+type LoadedClankerbenchManifest = {
+  path: string;
+  source: "auto" | "explicit";
+  manifest: ClankerbenchRunManifest;
+  goal: string | null;
+  evalCommand: string | null;
+  constraints: string[];
+  maxIterations: number | null;
+};
+
+type ClankerbenchResearchSourceSummaryRecord = JsonObject & {
+  description?: unknown;
+  id?: unknown;
+  kind?: unknown;
+  optional?: unknown;
+  path?: unknown;
+  query?: unknown;
+  url?: unknown;
 };
 
 type CanonicalIdeaBeliefMapping = {
@@ -882,11 +931,13 @@ type RuntimePayload = {
   familyIds?: string[];
   goal?: string;
   ideasInputPath?: string;
+  clankerbenchManifestPath?: string;
   mergedCandidateId?: string;
   mergedGenotype?: unknown;
   mode?: IdeasMode;
   notes?: string;
   maxIterations?: number;
+  runIntensity?: RunIntensity;
   outputPath?: string;
   roughIdeas?: string[];
   sessionRoot?: string;
@@ -1020,6 +1071,7 @@ export function validateConfigDocument(payload: ConfigDocument): ConfigDocument 
     "evalCommand",
     "goal",
     "maxIterations",
+    "runIntensity",
   ]);
 
   const unexpected = Object.keys(normalized)
@@ -1070,6 +1122,9 @@ export function validateConfigDocument(payload: ConfigDocument): ConfigDocument 
   if ("maxIterations" in normalized && normalized.maxIterations !== null) {
     positiveIntegerValue(normalized.maxIterations, "maxIterations");
   }
+  if ("runIntensity" in normalized && normalized.runIntensity !== null) {
+    runIntensityValue(normalized.runIntensity);
+  }
   return normalized;
 }
 
@@ -1083,6 +1138,7 @@ function defaultConfigDocument(options?: {
     autoclankerRepo: "../autoclanker",
     allowBilledLive: false,
     maxIterations: null,
+    runIntensity: "standard",
     enabled: true,
   };
 }
@@ -1108,6 +1164,10 @@ function runtimeConfigFromDocument(payload: ConfigDocument): RuntimeConfig {
       payload.maxIterations === undefined || payload.maxIterations === null
         ? null
         : positiveIntegerValue(payload.maxIterations, "maxIterations"),
+    runIntensity:
+      payload.runIntensity === undefined || payload.runIntensity === null
+        ? "standard"
+        : runIntensityValue(payload.runIntensity),
     goal: optionalString(payload.goal, "goal"),
     evalCommand: optionalString(payload.evalCommand, "evalCommand"),
     constraints: stringList(payload.constraints ?? [], "constraints"),
@@ -1125,6 +1185,9 @@ function runtimeConfigToDocument(config: RuntimeConfig): ConfigDocument {
   };
   if (config.maxIterations !== null) {
     payload.maxIterations = config.maxIterations;
+  }
+  if (config.runIntensity !== "standard") {
+    payload.runIntensity = config.runIntensity;
   }
   if (config.autoclankerRepo !== null) {
     payload.autoclankerRepo = config.autoclankerRepo;
@@ -1290,6 +1353,11 @@ function runtimeContext(
       config = {
         ...config,
         maxIterations: positiveIntegerValue(payload.maxIterations, "maxIterations"),
+      };
+    } else if (key === "runIntensity") {
+      config = {
+        ...config,
+        runIntensity: runIntensityValue(payload.runIntensity),
       };
     }
   }
@@ -2462,6 +2530,12 @@ function summaryStringList(value: unknown): string[] {
     .filter((item): item is string => item !== null);
 }
 
+function displayInlineList(values: string[]): string {
+  return values.length > 0
+    ? values.map((value) => `\`${value}\``).join(", ")
+    : "`none`";
+}
+
 function briefFromBundle(
   title: string,
   bundleBrief: UpstreamReviewBriefRecord | null,
@@ -3336,18 +3410,27 @@ function buildDerivedWorkspaceView(
       tone: options.pendingQueryCount > 0 ? "warning" : "success",
     },
     {
+      label: "Run intensity",
+      value: options.config.runIntensity,
+      tone: options.config.runIntensity === "mega" ? "warning" : "muted",
+    },
+    {
       label: "Iterations",
       value:
-        options.config.maxIterations === null ||
-        options.config.maxIterations === undefined
-          ? String(evalCount)
-          : `${evalCount}/${options.config.maxIterations}`,
+        options.config.runIntensity === "mega"
+          ? `${evalCount} (mega)`
+          : options.config.maxIterations === null ||
+              options.config.maxIterations === undefined
+            ? String(evalCount)
+            : `${evalCount}/${options.config.maxIterations}`,
       tone:
-        options.config.maxIterations !== null &&
-        options.config.maxIterations !== undefined &&
-        evalCount >= options.config.maxIterations
+        options.config.runIntensity === "mega"
           ? "warning"
-          : "muted",
+          : options.config.maxIterations !== null &&
+              options.config.maxIterations !== undefined &&
+              evalCount >= options.config.maxIterations
+            ? "warning"
+            : "muted",
     },
     {
       label: "Top proposal",
@@ -3647,6 +3730,32 @@ function writeSummary(
     summaryObject<UpstreamReviewTrustRecord>(view.dashboard.trust) ?? {};
   const reviewEvidenceRecord =
     summaryObject<UpstreamReviewEvidenceRecord>(reviewBundleRecord.evidence) ?? {};
+  const clankerbenchRecord =
+    summaryObject<ClankerbenchSummaryRecord>(beliefsDocument.clankerbenchManifest) ??
+    null;
+  const clankerbenchOuterLoop =
+    summaryObject<ClankerbenchOuterLoopSummaryRecord>(clankerbenchRecord?.outerLoop) ??
+    {};
+  const clankerbenchResearchSources =
+    summaryArray(clankerbenchRecord?.researchSources) ?? [];
+  const clankerbenchResearchSourceLines = clankerbenchResearchSources.flatMap(
+    (source) => {
+      const record = summaryObject<ClankerbenchResearchSourceSummaryRecord>(source);
+      if (record === null) {
+        return [];
+      }
+      const id = summaryString(record.id) ?? "unnamed";
+      const kind = summaryString(record.kind) ?? "unknown";
+      const optional = record.optional === true ? "optional" : "required";
+      const locator =
+        summaryString(record.path) ??
+        summaryString(record.query) ??
+        summaryString(record.url) ??
+        summaryString(record.description) ??
+        "no locator";
+      return [`  - \`${id}\` (${kind}, ${optional}): ${locator}`];
+    },
+  );
   const hooksDirPresent = existsSync(resolve(paths.workspace, HOOKS_DIRNAME));
   const latestBeforeEvalHook = latestHookEvent(history, "before-eval");
   const latestAfterEvalHook = latestHookEvent(history, "after-eval");
@@ -3712,6 +3821,20 @@ function writeSummary(
     `- eval contract matches current: ${String(trustRecord.evalContractMatchesCurrent ?? trustRecord.eval_contract_matches_current ?? false).toLowerCase()}`,
     ...summaryStringList(reviewEvidenceRecord.notes).map((item) => `- ${item}`),
     "",
+    ...(clankerbenchRecord === null
+      ? []
+      : [
+          "## Clankerbench",
+          `- manifest: \`${summaryString(clankerbenchRecord.path) ?? "Not recorded"}\``,
+          `- primary metric: \`${summaryString(clankerbenchRecord.primaryMetric) ?? "Not recorded"}\``,
+          `- stages: ${displayInlineList(summaryStringList(clankerbenchRecord.stages))}`,
+          `- research sources: \`${clankerbenchResearchSources.length}\``,
+          ...clankerbenchResearchSourceLines,
+          `- context path: \`${summaryString(clankerbenchOuterLoop.contextPath) ?? "Not recorded"}\``,
+          `- evidence path: \`${summaryString(clankerbenchOuterLoop.evidencePath) ?? "Not recorded"}\``,
+          `- declared hooks: \`${summaryString(clankerbenchOuterLoop.hooksDir) ?? "Not recorded"}\``,
+          "",
+        ]),
     "## Hooks",
     `- directory: \`${HOOKS_DIRNAME}/\` (${hooksDirPresent ? "present" : "absent"})`,
     `- before-eval.sh: \`${hookScriptState(paths.workspace, "before-eval")}\``,
@@ -4640,8 +4763,29 @@ function positiveIntegerValue(value: unknown, fieldName: string): number {
   return parsed;
 }
 
+function runIntensityValue(value: unknown, fieldName = "runIntensity"): RunIntensity {
+  const parsed = requireNonEmptyString(value, fieldName);
+  if (!RUN_INTENSITIES.includes(parsed as RunIntensity)) {
+    throw new Error(`${fieldName} must be one of ${RUN_INTENSITIES.join(", ")}.`);
+  }
+  return parsed as RunIntensity;
+}
+
 function stringArray(value: unknown, fieldName: string): string[] {
   return stringList(value, fieldName);
+}
+
+function dedupeStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const value of values) {
+    if (seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    deduped.push(value);
+  }
+  return deduped;
 }
 
 function locateIdeasInput(
@@ -4661,6 +4805,113 @@ function locateIdeasInput(
     return { path: paths.ideasPath, source: "auto" };
   }
   return null;
+}
+
+function locateClankerbenchManifest(
+  workspace: string,
+  payload: RuntimePayload,
+): { path: string; source: "auto" | "explicit" } | null {
+  const explicit = optionalString(
+    payload.clankerbenchManifestPath,
+    "clankerbenchManifestPath",
+  );
+  if (explicit !== null) {
+    const path = isAbsolute(explicit) ? explicit : resolve(workspace, explicit);
+    if (!existsSync(path)) {
+      throw new Error(`clankerbench manifest does not exist: ${path}`);
+    }
+    return { path, source: "explicit" };
+  }
+
+  const autoPath = resolve(workspace, CLANKERBENCH_MANIFEST_FILENAME);
+  if (existsSync(autoPath)) {
+    return { path: autoPath, source: "auto" };
+  }
+  return null;
+}
+
+function loadClankerbenchManifest(
+  workspace: string,
+  payload: RuntimePayload,
+): LoadedClankerbenchManifest | null {
+  const located = locateClankerbenchManifest(workspace, payload);
+  if (located === null) {
+    return null;
+  }
+  const raw = JSON.parse(readFileSync(located.path, "utf-8")) as unknown;
+  const manifest = validateClankerbenchManifest(raw);
+  const outerLoop = manifest.outer_loop;
+  return {
+    path: located.path,
+    source: located.source,
+    manifest,
+    goal: manifest.goal ?? null,
+    evalCommand: outerLoop?.eval_command ?? null,
+    constraints: [
+      ...(outerLoop?.guardrails ?? []),
+      ...clankerbenchResearchGuidance(manifest),
+    ],
+    maxIterations: outerLoop?.max_iterations ?? null,
+  };
+}
+
+function clankerbenchResearchGuidance(manifest: ClankerbenchRunManifest): string[] {
+  const researchSources = manifest.research_sources ?? [];
+  if (researchSources.length === 0) {
+    return [];
+  }
+
+  const kinds = [...new Set(researchSources.map((source) => source.kind))].join(", ");
+  const optionalCount = researchSources.filter((source) => source.optional).length;
+  const requiredCount = researchSources.length - optionalCount;
+  return [
+    `Before candidate edits, complete the clankerbench context pass from declared research sources (${kinds}; ${requiredCount} required, ${optionalCount} optional): start with local/repo artifacts, use papers/docs/web/prior art only when they materially improve the frontier, and keep eval/acceptance proof authoritative.`,
+  ];
+}
+
+function clankerbenchManifestSummary(
+  workspace: string,
+  loaded: LoadedClankerbenchManifest,
+): JsonObject {
+  const manifest = loaded.manifest;
+  const outerLoop = manifest.outer_loop;
+  return {
+    schemaVersion: manifest.schema_version,
+    path: shortWorkspacePath(workspace, loaded.path),
+    source: loaded.source,
+    goal: manifest.goal ?? null,
+    primaryMetric: manifest.primary_metric ?? null,
+    stages: manifest.stages.map((stage) => stage.name),
+    providers: (manifest.providers ?? []).map((provider) => ({
+      id: provider.id,
+      kind: provider.kind ?? null,
+      capabilities: provider.capabilities,
+    })),
+    researchSources: (manifest.research_sources ?? []).map((source) => ({
+      id: source.id,
+      kind: source.kind,
+      path: source.path ?? null,
+      query: source.query ?? null,
+      optional: source.optional ?? false,
+      description: source.description ?? null,
+    })),
+    outerLoop:
+      outerLoop === undefined
+        ? null
+        : {
+            contextPath: outerLoop.context_path ?? null,
+            evidencePath: outerLoop.evidence_path ?? null,
+            evalCommand: outerLoop.eval_command ?? null,
+            guardrails: outerLoop.guardrails ?? [],
+            hooksDir: outerLoop.hooks_dir ?? null,
+            ideasPath: outerLoop.ideas_path ?? null,
+            maxIterations: outerLoop.max_iterations ?? null,
+            maxWallTimeSec: outerLoop.max_wall_time_sec ?? null,
+            sessionPath: outerLoop.session_path ?? null,
+            statusPath: outerLoop.status_path ?? null,
+            stopConditions: outerLoop.stop_conditions ?? [],
+          },
+  };
 }
 
 function parseIdeasFileIdea(
@@ -4920,13 +5171,16 @@ function loadIdeasInput(
     document.surface_overlay ?? document.surfaceOverlay,
     "surface_overlay",
   );
+  const rawMaxIterations = document.max_iterations ?? document.maxIterations;
   const maxIterations =
-    document.max_iterations === undefined && document.maxIterations === undefined
+    rawMaxIterations === undefined || rawMaxIterations === null
       ? null
-      : positiveIntegerValue(
-          document.max_iterations ?? document.maxIterations,
-          "max_iterations",
-        );
+      : positiveIntegerValue(rawMaxIterations, "max_iterations");
+  const rawRunIntensity = document.run_intensity ?? document.runIntensity;
+  const runIntensity =
+    rawRunIntensity === undefined || rawRunIntensity === null
+      ? null
+      : runIntensityValue(rawRunIntensity, "run_intensity");
   return {
     path: located.path,
     source: located.source,
@@ -4937,6 +5191,7 @@ function loadIdeasInput(
     surfaceOverlay,
     frontier: frontierFromIdeasDocument(document),
     maxIterations,
+    runIntensity,
     convergence: convergenceDocument(document.convergence),
   };
 }
@@ -4952,11 +5207,14 @@ function resolvedInitInput(
   roughIdeas: string[];
   constraints: string[];
   ideasInput: LoadedIdeasInput | null;
+  clankerbenchManifest: LoadedClankerbenchManifest | null;
 } {
   const ideasInput = loadIdeasInput(workspace, payload, paths);
+  const clankerbenchManifest = loadClankerbenchManifest(workspace, payload);
   const goal =
     optionalString(payload.goal, "goal") ??
     ideasInput?.goal ??
+    clankerbenchManifest?.goal ??
     (() => {
       throw new Error("start requires goal when no session exists.");
     })();
@@ -4971,7 +5229,10 @@ function resolvedInitInput(
   const constraints =
     payload.constraints !== undefined
       ? stringList(payload.constraints, "constraints")
-      : (ideasInput?.constraints ?? []);
+      : dedupeStrings([
+          ...(ideasInput?.constraints ?? []),
+          ...(clankerbenchManifest?.constraints ?? []),
+        ]);
   const roughIdeaSources =
     ideasInput?.ideas.map((idea) => ({
       canonicalViewCharCount: idea.canonicalViewCharCount,
@@ -4995,6 +5256,7 @@ function resolvedInitInput(
     roughIdeaSources,
     constraints,
     ideasInput,
+    clankerbenchManifest,
   };
 }
 
@@ -5725,13 +5987,16 @@ function requireIterationBudget(
   config: RuntimeConfig,
   history: SummaryHistoryEntry[],
 ): void {
+  if (config.runIntensity === "mega") {
+    return;
+  }
   if (config.maxIterations === null || config.maxIterations === undefined) {
     return;
   }
   const count = ingestedEvalCount(history);
   if (count >= config.maxIterations) {
     throw new Error(
-      `pi-autoclanker maxIterations=${config.maxIterations} has been reached; stop, summarize the evidence, or start a new session with a higher limit.`,
+      `pi-autoclanker maxIterations=${config.maxIterations} has been reached; stop and summarize the evidence, start a new session with a higher limit, or explicitly use runIntensity=mega for an exhaustive supervised run.`,
     );
   }
 }
@@ -6029,8 +6294,23 @@ function toolInitSession(
     roughIdeaSources,
     constraints,
     ideasInput,
+    clankerbenchManifest,
   } = resolvedInitInput(workspace, payload, paths);
-  const { evalCommand, usedDefaultEvalCommand } = resolveEvalCommand(payload, config);
+  let evalPayload: RuntimePayload = payload;
+  if (
+    payload.evalCommand === undefined &&
+    clankerbenchManifest !== null &&
+    clankerbenchManifest.evalCommand !== null
+  ) {
+    evalPayload = {
+      ...payload,
+      evalCommand: clankerbenchManifest.evalCommand,
+    };
+  }
+  const { evalCommand, usedDefaultEvalCommand } = resolveEvalCommand(
+    evalPayload,
+    config,
+  );
   assertEvalCommandDoesNotSelfReference(evalCommand, paths.evalPath);
   const ideasMode = (optionalString(payload.mode, "mode") ??
     config.defaultIdeasMode) as IdeasMode;
@@ -6048,7 +6328,15 @@ function toolInitSession(
     goal,
     evalCommand,
     constraints,
-    maxIterations: config.maxIterations ?? ideasInput?.maxIterations ?? null,
+    maxIterations:
+      config.maxIterations ??
+      ideasInput?.maxIterations ??
+      clankerbenchManifest?.maxIterations ??
+      null,
+    runIntensity:
+      config.runIntensity === "standard"
+        ? (ideasInput?.runIntensity ?? "standard")
+        : config.runIntensity,
     enabled: true,
     defaultIdeasMode: ideasMode,
   };
@@ -6062,6 +6350,12 @@ function toolInitSession(
   });
   beliefsDocument.ideasInputPath = ideasInput?.path;
   beliefsDocument.ideasInputSource = ideasInput?.source;
+  if (clankerbenchManifest !== null) {
+    beliefsDocument.clankerbenchManifest = clankerbenchManifestSummary(
+      workspace,
+      clankerbenchManifest,
+    );
+  }
   if (ideasInput?.surfaceOverlay !== null && ideasInput?.surfaceOverlay !== undefined) {
     beliefsDocument.surfaceOverlay = ideasInput.surfaceOverlay;
   }
@@ -6116,9 +6410,16 @@ function toolInitSession(
     constraints,
     billedLive,
     usedDefaultEvalCommand,
+    runIntensity: materializedConfig.runIntensity,
     evalSurfaceSha256: lockedEvalSurfaceSha256,
     ideasInputPath: ideasInput?.path,
     ideasInputSource: ideasInput?.source ?? "direct",
+    ...(clankerbenchManifest === null
+      ? {}
+      : {
+          clankerbenchManifestPath: clankerbenchManifest.path,
+          clankerbenchManifestSource: clankerbenchManifest.source,
+        }),
     frontierCandidateCount:
       localFrontier === null ? 0 : frontierCandidateItems(localFrontier).length,
     frontierFamilyCount:
@@ -6135,9 +6436,16 @@ function toolInitSession(
     sessionRoot: paths.upstreamSessionDir,
     billedLive,
     usedDefaultEvalCommand,
+    runIntensity: materializedConfig.runIntensity,
     files: sessionFileMap(paths),
     ideasInputPath: ideasInput?.path ?? null,
     ideasInputSource: ideasInput?.source ?? "direct",
+    ...(clankerbenchManifest === null
+      ? {}
+      : {
+          clankerbenchManifestPath: clankerbenchManifest.path,
+          clankerbenchManifestSource: clankerbenchManifest.source,
+        }),
     frontier: inferLocalFrontierSummary(localFrontier),
     frontierSeedWarnings,
     canonicalization,
@@ -7016,6 +7324,7 @@ function commandStart(
     const ignoredInitFields = [
       "candidates",
       "candidatesInputPath",
+      "clankerbenchManifestPath",
       "constraints",
       "evalCommand",
       "frontierInputPath",

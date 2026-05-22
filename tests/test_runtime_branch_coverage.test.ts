@@ -187,6 +187,7 @@ function baseConfig(
     sessionRoot: ".autoclanker",
     defaultIdeasMode: "canonicalize",
     allowBilledLive: false,
+    runIntensity: "standard",
     goal: null,
     evalCommand: null,
     constraints: [],
@@ -304,6 +305,14 @@ coveredTest(
         constraints: ["", "keep quality stable"],
       }),
     ).toThrowError();
+    expect(() =>
+      validateConfigDocument({
+        autoclankerBinary: "autoclanker",
+        sessionRoot: ".autoclanker",
+        defaultIdeasMode: "canonicalize",
+        runIntensity: "forever",
+      }),
+    ).toThrowError(/runIntensity/u);
 
     const absoluteBinary = touchExecutable(resolve(workspace, "absolute-autoclanker"));
     expect(resolveAutoclankerCommand(baseConfig(absoluteBinary), workspace)).toEqual([
@@ -944,6 +953,61 @@ coveredTest(
     expect(() =>
       dispatchTool("autoclanker_ingest_eval", undefined, { workspace, runner }),
     ).toThrowError(/maxIterations=1/u);
+  },
+);
+
+coveredTest(
+  ["M2-003"],
+  "mega run intensity keeps eval ingestion open past maxIterations",
+  () => {
+    const runner = (argv: string[], cwd: string): InvocationResult => {
+      void cwd;
+      if (argv.includes("session") && argv.includes("init")) {
+        return {
+          returncode: 0,
+          stdout: '{"preview_digest":"digest-mega-iterations"}',
+          stderr: "",
+        };
+      }
+      if (argv.includes("session") && argv.includes("status")) {
+        return {
+          returncode: 0,
+          stdout: hardenedStatusPayload(),
+          stderr: "",
+        };
+      }
+      if (argv.includes("ingest-eval")) {
+        return {
+          returncode: 0,
+          stdout: '{"ingested":true}',
+          stderr: "",
+        };
+      }
+      return { returncode: 0, stdout: "{}", stderr: "" };
+    };
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-mega-iterations-"),
+    );
+    const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
+    const startResult = asRecord(
+      dispatchTool(
+        "autoclanker_init_session",
+        {
+          autoclankerBinary: fakeBinary,
+          evalCommand: JSON_EVAL_COMMAND,
+          goal: "Keep exploring every lane.",
+          maxIterations: 1,
+          roughIdeas: [],
+          runIntensity: "mega",
+          workspace,
+        },
+        { runner },
+      ),
+    ) as { runIntensity?: unknown };
+
+    expect(startResult.runIntensity).toBe("mega");
+    dispatchTool("autoclanker_ingest_eval", undefined, { workspace, runner });
+    dispatchTool("autoclanker_ingest_eval", undefined, { workspace, runner });
   },
 );
 

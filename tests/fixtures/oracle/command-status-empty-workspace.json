@@ -231,6 +231,11 @@
         "tone": "success"
       },
       {
+        "label": "Run intensity",
+        "value": "standard",
+        "tone": "muted"
+      },
+      {
         "label": "Iterations",
         "value": "0",
         "tone": "muted"

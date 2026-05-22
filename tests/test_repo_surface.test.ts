@@ -116,6 +116,14 @@ coveredTest(["M0-001"], "CLI entrypoint exposes project identity", () => {
   expect(runPortStrict(["--version"]).trim()).toBe("pi-autoclanker 0.1.0");
 });
 
+coveredTest(["M0-001", "M1-003"], "CLI entrypoint exposes root help", () => {
+  const help = runPortStrict(["--help"]);
+  expect(help).toContain("Usage:");
+  expect(help).toContain("pi-autoclanker command <name> [flags]");
+  expect(help).toContain("--clankerbench-manifest <path>");
+  expect(help).toContain("--run-intensity standard|deep|mega");
+});
+
 coveredTest(["M0-001"], "TypeScript index exports the public versioned surface", () => {
   expect(VERSION).toBe("0.1.0");
   expect(surfaceManifest.version).toBe("0.1.0");

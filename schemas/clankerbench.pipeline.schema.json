@@ -1,0 +1,376 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clankerbench.dev/schemas/clankerbench.pipeline.schema.json",
+  "title": "clankerbench pipeline manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "stages"],
+  "properties": {
+    "schema_version": {
+      "const": "clankerbench.pipeline.v1"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "goal": {
+      "type": "string",
+      "minLength": 1
+    },
+    "benchmark_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifact_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "primary_metric": {
+      "type": "string",
+      "minLength": 1
+    },
+    "metrics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/metric"
+      }
+    },
+    "providers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/provider"
+      }
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/stage"
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    },
+    "outer_loop": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "context_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "eval_command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "guardrails": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "hooks_dir": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ideas_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "max_iterations": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_wall_time_sec": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "session_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stop_conditions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "research_sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/research_source"
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "path"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "type": "string",
+          "minLength": 1
+        },
+        "optional": {
+          "type": "boolean"
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["argv"],
+      "properties": {
+        "argv": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "cwd": {
+          "type": "string",
+          "minLength": 1
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "stdin_json_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timeout_sec": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "writes_json": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "direction"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["minimize", "maximize"]
+        },
+        "primary": {
+          "type": "boolean"
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "noise_floor": {
+          "type": "number",
+          "minimum": 0
+        },
+        "threshold": {
+          "type": "number",
+          "minimum": 0
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "capabilities"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["command", "module", "manual"]
+        },
+        "entrypoint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stage_name"
+          }
+        }
+      }
+    },
+    "research_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "local",
+            "paper",
+            "docs",
+            "web",
+            "repo",
+            "prior_art",
+            "operator_note"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "optional": {
+          "type": "boolean"
+        }
+      }
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/stage_name"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "not_started",
+            "ready",
+            "running",
+            "succeeded",
+            "failed",
+            "skipped",
+            "blocked"
+          ]
+        },
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stage_name"
+          }
+        },
+        "command": {
+          "$ref": "#/$defs/command"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        }
+      }
+    },
+    "stage_name": {
+      "type": "string",
+      "enum": [
+        "bootstrap",
+        "cohort",
+        "materialize",
+        "analyze",
+        "spec",
+        "context",
+        "eval",
+        "scout",
+        "compare",
+        "distill",
+        "session",
+        "package-runtime",
+        "hydrate"
+      ]
+    }
+  }
+}

@@ -12,6 +12,7 @@
 
 **[Install](#install)** ·
 **[Quick start](#quick-start)** ·
+**[Clankerbench](#clankerbench)** ·
 **[Mental model](#mental-model)** ·
 **[Live surfaces](#live-surfaces)** ·
 **[Commands](#commands)** ·
@@ -205,6 +206,15 @@ widget, `/autoclanker status`, and `autoclanker.progress.json` to see the active
 command, current lane, iteration count, trust/eval state, and latest measured
 summary.
 
+Most runs should keep a finite `maxIterations` so weak searches converge and
+summarize instead of spinning. When the intent is a supervised "go as far as
+possible" run, make that explicit with `runIntensity: "mega"` in
+`autoclanker.config.json` or `autoclanker.ideas.json`, or start with
+`--run-intensity mega` / `--mega`. Mega mode keeps the locked eval surface and
+candidate binding rules, but disables the wrapper's max-iteration stop so the
+LLM or human supervisor can continue until all valuable lanes have a measured
+keep/reject/blocker result.
+
 For a preseeded benchmark workspace, start from the directory that contains the
 session files and point at the existing intake file:
 
@@ -259,6 +269,7 @@ can safely ignore.
 | Hooks | optional executable before/after eval sidecars for context refresh, notifications, and learnings |
 | Local files | resumable checked-in session files plus an optional `autoclanker.ideas.json` intake file |
 | Status surface | trust digest, backend choice, and next concrete comparison without digging through raw JSON |
+| Clankerbench contracts | generic staged benchmark manifest, schema, TypeScript types, and provider example |
 | Upstream artifacts | `.autoclanker/<session>/` JSON, reports, and charts from `autoclanker` |
 
 The fastest way to understand the repo now is:
@@ -268,6 +279,46 @@ The fastest way to understand the repo now is:
 - [`examples/minimal`](examples/minimal) for the smallest kickoff shape
 - [`examples/parser-demo-expanded`](examples/parser-demo-expanded) for a fuller
   worked session after the extension has already materialized local files
+
+## Clankerbench
+
+`clankerbench` is the generic benchmark framework contract that lets a project
+describe a staged benchmark harness without putting project-specific logic into
+the benchmark contract. It defines the stage vocabulary, manifest schema, and
+provider boundary for flows like:
+
+```text
+bootstrap -> cohort -> materialize -> analyze -> spec
+                                      |         |
+                                      v         v
+                                   context -> eval -> compare
+                                      |
+                                      v
+                            distill -> session
+```
+
+The current support is intentionally additive and contract-first:
+
+- [`docs/CLANKERBENCH.md`](docs/CLANKERBENCH.md) describes the methodology and
+  provider boundary.
+- [`schemas/clankerbench.pipeline.schema.json`](schemas/clankerbench.pipeline.schema.json)
+  defines the JSON manifest.
+- [`src/clankerbench.ts`](src/clankerbench.ts) exports the stage constants,
+  TypeScript types, and lightweight validation helper.
+- [`examples/clankerbench-mini`](examples/clankerbench-mini) shows the manifest
+  shape for a command-backed provider.
+
+Project-specific harnesses should plug in behind provider commands or modules.
+Any compatible outer-loop engine can then consume the declared artifacts,
+context brief, guardrails, hooks, stop conditions, and eval command;
+`clankerbench` explains how the benchmark surface was selected, prepared,
+packaged, researched, and checked.
+
+`pi-autoclanker command start` auto-detects `clankerbench.manifest.json` in the
+workspace, or accepts `--clankerbench-manifest <path>`. When present, the
+manifest can seed the session goal, fixed eval command, guardrails,
+max-iteration budget, research sources, and status/evidence paths while
+project-specific benchmark logic remains behind provider commands.
 
 ## Live surfaces
 

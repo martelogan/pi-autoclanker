@@ -47,6 +47,10 @@
       "type": ["integer", "null"],
       "minimum": 1
     },
+    "runIntensity": {
+      "type": "string",
+      "enum": ["standard", "deep", "mega"]
+    },
     "enabled": {
       "type": "boolean"
     }
