@@ -67,7 +67,15 @@ export type ClankerbenchMetric = {
 
 export type ClankerbenchResearchSource = {
   id: string;
-  kind: "local" | "paper" | "docs" | "web" | "repo" | "prior_art" | "operator_note";
+  kind:
+    | "local"
+    | "paper"
+    | "docs"
+    | "web"
+    | "repo"
+    | "prior_art"
+    | "codebase_patterns"
+    | "operator_note";
   description?: string | undefined;
   optional?: boolean | undefined;
   path?: string | undefined;
@@ -420,12 +428,19 @@ function researchSource(value: unknown, label: string): ClankerbenchResearchSour
     throw new Error(`${label} must include kind.`);
   }
   if (
-    !["local", "paper", "docs", "web", "repo", "prior_art", "operator_note"].includes(
-      kind,
-    )
+    ![
+      "local",
+      "paper",
+      "docs",
+      "web",
+      "repo",
+      "prior_art",
+      "codebase_patterns",
+      "operator_note",
+    ].includes(kind)
   ) {
     throw new Error(
-      `${label}.kind must be local, paper, docs, web, repo, prior_art, or operator_note.`,
+      `${label}.kind must be local, paper, docs, web, repo, prior_art, codebase_patterns, or operator_note.`,
     );
   }
   return {

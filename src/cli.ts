@@ -19,6 +19,7 @@ import { VERSION, surfaceManifest } from "./surface.js";
 type JsonObject = Record<string, unknown>;
 type CliPayload = JsonObject & {
   allowBilledLive?: boolean;
+  allowPriorArtHardGate?: boolean;
   autoclankerBinary?: string;
   autoclankerRepo?: string;
   canonicalizationModel?: string;
@@ -28,6 +29,7 @@ type CliPayload = JsonObject & {
   constraints?: string[];
   defaultIdeasMode?: IdeasMode;
   evalCommand?: string;
+  force?: boolean;
   goal?: string;
   ideasInputPath?: string;
   maxIterations?: number;
@@ -180,6 +182,10 @@ function parseCommonFlags(tokens: string[], payload: CliPayload): string[] {
         payload.allowBilledLive = true;
         index += 1;
         break;
+      case "--allow-prior-art-hard-gate":
+        payload.allowPriorArtHardGate = true;
+        index += 1;
+        break;
       default:
         remaining.push(token);
         index += 1;
@@ -319,6 +325,10 @@ function parseCommandInvocation(argv: string[]): {
         index = nextIndex;
         break;
       }
+      case "--force":
+        payload.force = true;
+        index += 1;
+        break;
       default:
         throw new Error(`Unexpected argument for command ${name}: ${token}`);
     }
@@ -352,6 +362,7 @@ function printHelp(): void {
       "  --workspace <path>",
       "  --ideas-file <path>",
       "  --clankerbench-manifest <path>",
+      "  --allow-prior-art-hard-gate",
       "  --run-intensity standard|deep|mega",
       "  --mega",
     ].join("\n")}\n`,

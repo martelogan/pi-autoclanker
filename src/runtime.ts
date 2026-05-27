@@ -28,6 +28,8 @@ export const EVAL_FILENAME = "autoclanker.eval.sh";
 export const FRONTIER_FILENAME = "autoclanker.frontier.json";
 export const IDEAS_FILENAME = "autoclanker.ideas.json";
 export const CLANKERBENCH_MANIFEST_FILENAME = "clankerbench.manifest.json";
+export const PRIOR_ART_FILENAME = "prior_art.md";
+export const CODEBASE_PATTERNS_FILENAME = "codebase_patterns.md";
 export const PROPOSALS_FILENAME = "autoclanker.proposals.json";
 export const HISTORY_FILENAME = "autoclanker.history.jsonl";
 export const PROGRESS_FILENAME = "autoclanker.progress.json";
@@ -178,13 +180,16 @@ type BeliefsDocument = {
   canonicalIdeaInputs?: unknown;
   canonicalizationModel?: unknown;
   canonicalizationSummary?: unknown;
+  codebasePatternsBelief?: unknown;
   clankerbenchManifest?: unknown;
+  codebasePatterns?: unknown;
   constraints?: unknown;
   evalSurfaceSha256?: unknown;
   ideasInputPath?: unknown;
   ideasInputSource?: unknown;
   mode?: unknown;
   preview?: unknown;
+  priorArt?: unknown;
   roughIdeaSources?: unknown;
   roughIdeas?: unknown;
   surfaceOverlay?: unknown;
@@ -899,6 +904,30 @@ type ClankerbenchResearchSourceSummaryRecord = JsonObject & {
   url?: unknown;
 };
 
+type ContextArtifactKind = "prior_art" | "codebase_patterns";
+
+type ContextArtifact = {
+  byteCount: number;
+  excerpt: string;
+  hardGate: boolean;
+  kind: ContextArtifactKind;
+  path: string;
+  relativePath: string;
+  sha256: string;
+  status: "present" | "hard_gate";
+  text: string;
+};
+
+type ContextArtifactSummaryRecord = JsonObject & {
+  path?: unknown;
+  status?: unknown;
+};
+
+type LoadedContextArtifacts = {
+  codebasePatterns: ContextArtifact | null;
+  priorArt: ContextArtifact | null;
+};
+
 type CanonicalIdeaBeliefMapping = {
   kind?: unknown;
   gene?: unknown;
@@ -917,6 +946,7 @@ type BeliefMetadataMapping = {
 
 type RuntimePayload = {
   allowBilledLive?: boolean;
+  allowPriorArtHardGate?: boolean;
   autoclankerBinary?: string;
   autoclankerRepo?: string | null;
   canonicalizationModel?: string;
@@ -942,6 +972,7 @@ type RuntimePayload = {
   roughIdeas?: string[];
   sessionRoot?: string;
   frontierInputPath?: string;
+  force?: boolean;
   candidateIds?: string[];
   budgetWeight?: number;
   workspace?: string;
@@ -1731,6 +1762,34 @@ function sessionInputCompatibleBelief(belief: Record<string, unknown>): JsonObje
   return normalized;
 }
 
+function codebasePatternBeliefsFromDocument(
+  beliefsDocument: BeliefsDocument,
+): JsonObject[] {
+  const belief = summaryObject<JsonObject>(beliefsDocument.codebasePatternsBelief);
+  return belief === null ? [] : [belief];
+}
+
+function canonicalBeliefsWithCodebasePatterns(
+  beliefsDocument: BeliefsDocument,
+): JsonObject[] {
+  const merged = [
+    ...(Array.isArray(beliefsDocument.canonicalBeliefs)
+      ? beliefsDocument.canonicalBeliefs.map((belief) => beliefMapping(belief))
+      : []),
+    ...codebasePatternBeliefsFromDocument(beliefsDocument),
+  ];
+  const seen = new Set<string>();
+  return merged.filter((belief) => {
+    const beliefWithId = belief as JsonObject & { id?: unknown };
+    const id = optionalString(beliefWithId.id, "belief.id") ?? JSON.stringify(belief);
+    if (seen.has(id)) {
+      return false;
+    }
+    seen.add(id);
+    return true;
+  });
+}
+
 function beliefMapping(rawBelief: unknown): JsonObject {
   return ensureJsonObject(rawBelief, "Canonical beliefs must be JSON objects.");
 }
@@ -1741,11 +1800,12 @@ function sessionInitBeliefsInputPayload(
   canonicalization: unknown,
 ): JsonObject | null {
   const mode = optionalString(beliefsDocument.mode, "mode");
-  if (mode !== "advanced_json") {
+  const codebasePatternBeliefs = codebasePatternBeliefsFromDocument(beliefsDocument);
+  if (mode !== "advanced_json" && codebasePatternBeliefs.length === 0) {
     return null;
   }
-  const canonicalBeliefs = beliefsDocument.canonicalBeliefs;
-  if (!Array.isArray(canonicalBeliefs) || canonicalBeliefs.length === 0) {
+  const canonicalBeliefs = canonicalBeliefsWithCodebasePatterns(beliefsDocument);
+  if (canonicalBeliefs.length === 0) {
     return null;
   }
   const { sessionId, eraId } = upstreamSessionIdentity(workspace, beliefsDocument);
@@ -1972,6 +2032,9 @@ function canonicalizeIdeasPayload(options: {
     };
     if (Array.isArray(payload.beliefs)) {
       options.beliefsDocument.canonicalBeliefs = payload.beliefs;
+      options.beliefsDocument.canonicalBeliefs = canonicalBeliefsWithCodebasePatterns(
+        options.beliefsDocument,
+      );
     }
     if (payload.canonicalization_summary !== undefined) {
       options.beliefsDocument.canonicalizationSummary =
@@ -2477,6 +2540,168 @@ function resolveEvalCommand(
 
 function shortWorkspacePath(workspace: string, path: string): string {
   return isRelativeTo(workspace, path) ? relative(workspace, path) : path;
+}
+
+function markdownExcerpt(text: string): string {
+  return text
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .slice(0, 18)
+    .join("\n")
+    .slice(0, 1800);
+}
+
+function markdownBulletLines(text: string): string[] {
+  return text
+    .split(/\r?\n/u)
+    .map((line) => line.trim().replace(/^[-*]\s+/u, ""))
+    .filter((line) => line.length > 0)
+    .filter((line) => !line.startsWith("#"))
+    .filter((line) => !line.startsWith("```"))
+    .slice(0, 16);
+}
+
+function contextArtifactSummary(
+  workspace: string,
+  artifact: ContextArtifact,
+): JsonObject {
+  return {
+    byteCount: artifact.byteCount,
+    excerpt: artifact.excerpt,
+    hardGate: artifact.hardGate,
+    kind: artifact.kind,
+    path: shortWorkspacePath(workspace, artifact.path),
+    sha256: artifact.sha256,
+    status: artifact.status,
+  };
+}
+
+function readContextArtifact(
+  workspace: string,
+  path: string,
+  kind: ContextArtifactKind,
+): ContextArtifact | null {
+  if (!existsSync(path) || !statSync(path).isFile()) {
+    return null;
+  }
+  const text = readFileSync(path, "utf-8");
+  const hardGate = kind === "prior_art" && /\bHARD\s+GATE\b/iu.test(text);
+  return {
+    byteCount: Buffer.byteLength(text, "utf-8"),
+    excerpt: markdownExcerpt(text),
+    hardGate,
+    kind,
+    path,
+    relativePath: shortWorkspacePath(workspace, path),
+    sha256: textSha256(text),
+    status: hardGate ? "hard_gate" : "present",
+    text,
+  };
+}
+
+function candidateContextArtifactPaths(
+  workspace: string,
+  clankerbenchManifest: LoadedClankerbenchManifest | null,
+  kind: ContextArtifactKind,
+  defaultFilename: string,
+): string[] {
+  const paths = [resolve(workspace, defaultFilename)];
+  const manifest = clankerbenchManifest?.manifest;
+  for (const source of manifest?.research_sources ?? []) {
+    if (source.kind === kind && source.path !== undefined) {
+      paths.push(
+        isAbsolute(source.path) ? source.path : resolve(workspace, source.path),
+      );
+    }
+  }
+  for (const artifact of manifest?.artifacts ?? []) {
+    const marker = `${artifact.id} ${artifact.kind ?? ""} ${artifact.role ?? ""}`;
+    if (marker.includes(kind)) {
+      paths.push(
+        isAbsolute(artifact.path) ? artifact.path : resolve(workspace, artifact.path),
+      );
+    }
+  }
+  return [...new Set(paths)];
+}
+
+function loadFirstContextArtifact(
+  workspace: string,
+  clankerbenchManifest: LoadedClankerbenchManifest | null,
+  kind: ContextArtifactKind,
+  defaultFilename: string,
+): ContextArtifact | null {
+  for (const path of candidateContextArtifactPaths(
+    workspace,
+    clankerbenchManifest,
+    kind,
+    defaultFilename,
+  )) {
+    const artifact = readContextArtifact(workspace, path, kind);
+    if (artifact !== null) {
+      return artifact;
+    }
+  }
+  return null;
+}
+
+function loadContextArtifacts(
+  workspace: string,
+  clankerbenchManifest: LoadedClankerbenchManifest | null,
+): LoadedContextArtifacts {
+  return {
+    codebasePatterns: loadFirstContextArtifact(
+      workspace,
+      clankerbenchManifest,
+      "codebase_patterns",
+      CODEBASE_PATTERNS_FILENAME,
+    ),
+    priorArt: loadFirstContextArtifact(
+      workspace,
+      clankerbenchManifest,
+      "prior_art",
+      PRIOR_ART_FILENAME,
+    ),
+  };
+}
+
+function contextArtifactConstraints(artifacts: LoadedContextArtifacts): string[] {
+  const constraints: string[] = [];
+  if (artifacts.priorArt !== null) {
+    constraints.push(
+      artifacts.priorArt.hardGate
+        ? `Read ${artifacts.priorArt.relativePath} before candidate edits; it contains a HARD GATE, so stop or coordinate unless an operator explicitly overrides the gate.`
+        : `Read ${artifacts.priorArt.relativePath} before candidate edits and treat duplicate, in-flight, or recently shipped work as a stop-or-coordinate gate.`,
+    );
+  }
+  if (artifacts.codebasePatterns !== null) {
+    constraints.push(
+      `Read ${artifacts.codebasePatterns.relativePath} before design scoring and pre-PR review; prefer repo-native plumb points, memoization idioms, and test conventions over a merely passing patch.`,
+    );
+  }
+  return constraints;
+}
+
+function codebasePatternsBeliefFromArtifact(artifact: ContextArtifact): JsonObject {
+  const bullets = markdownBulletLines(artifact.text);
+  return {
+    id: "codebase_patterns_artifact",
+    kind: "codebase_patterns",
+    confidence_level: 3,
+    evidence_sources: ["code_inspection"],
+    rationale: `Preserve codebase-fit priors documented in ${artifact.relativePath}.`,
+    preferred_patterns:
+      bullets.length > 0
+        ? bullets
+        : [`Read ${artifact.relativePath} before candidate design.`],
+    review_checklist: [
+      "Score candidate designs for fit with the documented codebase idioms before selecting a plumb point.",
+      "Before PR, compare implementation and tests against the documented conventions.",
+    ],
+    artifact_paths: [artifact.relativePath],
+    source_digest: artifact.sha256,
+  };
 }
 
 function candidateDescriptor(candidate: FrontierCandidateRecord | null): string {
@@ -3756,6 +3981,20 @@ function writeSummary(
       return [`  - \`${id}\` (${kind}, ${optional}): ${locator}`];
     },
   );
+  const priorArtRecord = summaryObject<ContextArtifactSummaryRecord>(
+    beliefsDocument.priorArt,
+  );
+  const codebasePatternsRecord = summaryObject<ContextArtifactSummaryRecord>(
+    beliefsDocument.codebasePatterns,
+  );
+  const contextArtifactLines = [
+    priorArtRecord === null
+      ? null
+      : `- prior art: \`${summaryString(priorArtRecord.path) ?? "Not recorded"}\` (${summaryString(priorArtRecord.status) ?? "present"})`,
+    codebasePatternsRecord === null
+      ? null
+      : `- codebase patterns: \`${summaryString(codebasePatternsRecord.path) ?? "Not recorded"}\` (${summaryString(codebasePatternsRecord.status) ?? "present"})`,
+  ].filter((line): line is string => line !== null);
   const hooksDirPresent = existsSync(resolve(paths.workspace, HOOKS_DIRNAME));
   const latestBeforeEvalHook = latestHookEvent(history, "before-eval");
   const latestAfterEvalHook = latestHookEvent(history, "after-eval");
@@ -3811,6 +4050,9 @@ function writeSummary(
         `- ${item.label}: \`${shortWorkspacePath(paths.workspace, item.path)}\` (${item.exists ? "present" : "missing"})`,
     ),
     "",
+    ...(contextArtifactLines.length === 0
+      ? []
+      : ["## Context Artifacts", ...contextArtifactLines, ""]),
     "## Lineage",
     ...summaryStringList(lineageRecord.chain).map((item) => `- ${item}`),
     "",
@@ -5208,9 +5450,11 @@ function resolvedInitInput(
   constraints: string[];
   ideasInput: LoadedIdeasInput | null;
   clankerbenchManifest: LoadedClankerbenchManifest | null;
+  contextArtifacts: LoadedContextArtifacts;
 } {
   const ideasInput = loadIdeasInput(workspace, payload, paths);
   const clankerbenchManifest = loadClankerbenchManifest(workspace, payload);
+  const contextArtifacts = loadContextArtifacts(workspace, clankerbenchManifest);
   const goal =
     optionalString(payload.goal, "goal") ??
     ideasInput?.goal ??
@@ -5232,6 +5476,7 @@ function resolvedInitInput(
       : dedupeStrings([
           ...(ideasInput?.constraints ?? []),
           ...(clankerbenchManifest?.constraints ?? []),
+          ...contextArtifactConstraints(contextArtifacts),
         ]);
   const roughIdeaSources =
     ideasInput?.ideas.map((idea) => ({
@@ -5257,6 +5502,7 @@ function resolvedInitInput(
     constraints,
     ideasInput,
     clankerbenchManifest,
+    contextArtifacts,
   };
 }
 
@@ -6295,7 +6541,13 @@ function toolInitSession(
     constraints,
     ideasInput,
     clankerbenchManifest,
+    contextArtifacts,
   } = resolvedInitInput(workspace, payload, paths);
+  if (contextArtifacts.priorArt?.hardGate && payload.allowPriorArtHardGate !== true) {
+    throw new Error(
+      `${contextArtifacts.priorArt.relativePath} contains a HARD GATE. Stop or coordinate before spending candidate-search compute, or pass allowPriorArtHardGate=true / --allow-prior-art-hard-gate when an operator intentionally overrides it.`,
+    );
+  }
   let evalPayload: RuntimePayload = payload;
   if (
     payload.evalCommand === undefined &&
@@ -6350,6 +6602,23 @@ function toolInitSession(
   });
   beliefsDocument.ideasInputPath = ideasInput?.path;
   beliefsDocument.ideasInputSource = ideasInput?.source;
+  if (contextArtifacts.priorArt !== null) {
+    beliefsDocument.priorArt = contextArtifactSummary(
+      workspace,
+      contextArtifacts.priorArt,
+    );
+  }
+  if (contextArtifacts.codebasePatterns !== null) {
+    beliefsDocument.codebasePatterns = contextArtifactSummary(
+      workspace,
+      contextArtifacts.codebasePatterns,
+    );
+    beliefsDocument.codebasePatternsBelief = codebasePatternsBeliefFromArtifact(
+      contextArtifacts.codebasePatterns,
+    );
+    beliefsDocument.canonicalBeliefs =
+      canonicalBeliefsWithCodebasePatterns(beliefsDocument);
+  }
   if (clankerbenchManifest !== null) {
     beliefsDocument.clankerbenchManifest = clankerbenchManifestSummary(
       workspace,
@@ -6414,6 +6683,12 @@ function toolInitSession(
     evalSurfaceSha256: lockedEvalSurfaceSha256,
     ideasInputPath: ideasInput?.path,
     ideasInputSource: ideasInput?.source ?? "direct",
+    priorArt: contextArtifacts.priorArt
+      ? contextArtifactSummary(workspace, contextArtifacts.priorArt)
+      : null,
+    codebasePatterns: contextArtifacts.codebasePatterns
+      ? contextArtifactSummary(workspace, contextArtifacts.codebasePatterns)
+      : null,
     ...(clankerbenchManifest === null
       ? {}
       : {
@@ -6440,6 +6715,8 @@ function toolInitSession(
     files: sessionFileMap(paths),
     ideasInputPath: ideasInput?.path ?? null,
     ideasInputSource: ideasInput?.source ?? "direct",
+    priorArtStatus: contextArtifacts.priorArt?.status ?? "absent",
+    codebasePatternsStatus: contextArtifacts.codebasePatterns?.status ?? "absent",
     ...(clankerbenchManifest === null
       ? {}
       : {
@@ -7432,6 +7709,19 @@ function commandOff(
 
 function commandClear(workspace: string, payload: RuntimePayload): JsonObject {
   const { paths } = runtimeContext(workspace, payload);
+  const configBackedByClankerbench = existsSync(
+    resolve(workspace, CLANKERBENCH_MANIFEST_FILENAME),
+  );
+  const beliefsDocument = loadJsonIfPresent<BeliefsDocument>(paths.beliefsPath);
+  if (
+    (configBackedByClankerbench ||
+      beliefsDocument?.clankerbenchManifest !== undefined) &&
+    payload.force !== true
+  ) {
+    throw new Error(
+      "clear would remove a clankerbench-backed fixed eval surface. Pass force=true / --force only when intentionally discarding the generated session artifacts.",
+    );
+  }
   const removed: string[] = [];
   for (const path of [
     paths.summaryPath,

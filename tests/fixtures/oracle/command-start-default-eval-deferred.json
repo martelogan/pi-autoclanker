@@ -17,6 +17,8 @@
   },
   "ideasInputPath": null,
   "ideasInputSource": "direct",
+  "priorArtStatus": "absent",
+  "codebasePatternsStatus": "absent",
   "frontier": {
     "frontier_id": "frontier_default",
     "candidate_count": 0,

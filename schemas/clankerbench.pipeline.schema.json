@@ -280,6 +280,7 @@
             "web",
             "repo",
             "prior_art",
+            "codebase_patterns",
             "operator_note"
           ]
         },

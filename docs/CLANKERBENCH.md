@@ -63,7 +63,7 @@ A project can write a `clankerbench.manifest.json` with:
 - `goal`: human-readable optimization target
 - `providers`: command, module, or manual stage providers
 - `stages`: stage definitions with commands, dependencies, inputs, and outputs
-- `research_sources`: local artifacts, papers, docs, repos, web queries, prior art, or operator notes that the context stage may consult
+- `research_sources`: local artifacts, papers, docs, repos, web queries, prior art, codebase-pattern briefs, or operator notes that the context stage may consult
 - `metrics`: primary and supporting metric definitions
 - `outer_loop`: paths, commands, guardrails, hooks, and stop conditions that let a compatible engine start the measured loop
 - `artifacts`: top-level bundle artifacts that reviewers or agents should know
@@ -185,8 +185,15 @@ inputs to the plan, not proof: the locked eval command, acceptance specs, and
 promotion gates remain authoritative.
 
 When `pi-autoclanker` loads a manifest, declared `research_sources` are promoted
-into explicit pre-candidate guidance and listed in the session summary. A
-model-backed supervisor may use browser, paper-search, or repo-search tools to
+into explicit pre-candidate guidance and listed in the session summary. If
+`prior_art.md` is present, the session treats a `HARD GATE` marker as a
+stop-or-coordinate gate before candidate search starts unless an operator
+explicitly overrides it. If `codebase_patterns.md` is present, the session turns
+that brief into a generic `codebase_patterns` belief so design scoring and
+pre-PR review prefer repo-native plumb points, idioms, and tests over a merely
+passing patch.
+
+A model-backed supervisor may use browser, paper-search, or repo-search tools to
 fill that context pass when the sources are relevant. A deterministic or offline
 supervisor should leave those sources as queued context work rather than
 pretending they were read.

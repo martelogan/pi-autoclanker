@@ -139,7 +139,9 @@ type JsonRecord = {
   candidate_id?: unknown;
   candidate_count?: unknown;
   comparedLaneCount?: unknown;
+  codebasePatternsStatus?: unknown;
   constraints?: unknown;
+  priorArtStatus?: unknown;
   result?: unknown;
   session?: unknown;
   stdout?: unknown;
@@ -2078,6 +2080,21 @@ coveredTest(
 {"era_id":"\${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"cand_clankerbench","intended_genotype":[],"realized_genotype":[],"patch_hash":"sha256:clankerbench","status":"valid","seed":3,"runtime_sec":1.0,"peak_vram_mb":8.0,"raw_metrics":{"weighted_latency_ms":42.0},"delta_perf":0.03,"utility":0.02,"replication_index":0,"stdout_digest":"stdout:clankerbench","stderr_digest":"stderr:clean","artifact_paths":[],"failure_metadata":{}}
 EOF`;
     writeFileSync(
+      resolve(workspace, "prior_art.md"),
+      "# Prior Art\n\nNo duplicate work found for this generic lane.\n",
+      "utf-8",
+    );
+    writeFileSync(
+      resolve(workspace, "codebase_patterns.md"),
+      [
+        "# Codebase Patterns",
+        "",
+        "- Prefer the existing benchmark provider seam.",
+        "- Keep proof scripts self-locating and portable across worktrees.",
+      ].join("\n"),
+      "utf-8",
+    );
+    writeFileSync(
       resolve(workspace, CLANKERBENCH_MANIFEST_FILENAME),
       `${JSON.stringify(
         {
@@ -2112,9 +2129,14 @@ EOF`;
             },
             {
               id: "external_prior_art",
-              kind: "web",
-              query: "prior art for the selected generic benchmark lane",
+              kind: "prior_art",
+              path: "prior_art.md",
               optional: true,
+            },
+            {
+              id: "local_codebase_patterns",
+              kind: "codebase_patterns",
+              path: "codebase_patterns.md",
             },
           ],
           outer_loop: {
@@ -2144,6 +2166,9 @@ EOF`;
         }),
       );
       expect(initResult.clankerbenchManifestSource).toBe("auto");
+      expect(initResult.usedDefaultEvalCommand).toBe(false);
+      expect(initResult.priorArtStatus).toBe("present");
+      expect(initResult.codebasePatternsStatus).toBe("present");
 
       const configDocument = asRecord(
         JSON.parse(readFileSync(resolve(workspace, CONFIG_FILENAME), "utf-8")),
@@ -2156,11 +2181,19 @@ EOF`;
         expect.stringContaining(
           "Before candidate edits, complete the clankerbench context pass",
         ),
+        expect.stringContaining("Read prior_art.md before candidate edits"),
+        expect.stringContaining("Read codebase_patterns.md before design scoring"),
       ]);
 
       const beliefsDocument = asRecord(
         JSON.parse(readFileSync(resolve(workspace, BELIEFS_FILENAME), "utf-8")),
-      ) as { clankerbenchManifest?: unknown };
+      ) as {
+        canonicalBeliefs?: unknown;
+        clankerbenchManifest?: unknown;
+        codebasePatterns?: unknown;
+        priorArt?: unknown;
+        preview?: unknown;
+      };
       const clankerbench = asRecord(beliefsDocument.clankerbenchManifest);
       expect(clankerbench.primaryMetric).toBe("weighted_latency_ms");
       expect(clankerbench.path).toBe(CLANKERBENCH_MANIFEST_FILENAME);
@@ -2170,18 +2203,78 @@ EOF`;
         "compare",
         "session",
       ]);
-      expect(clankerbench.researchSources as unknown[]).toHaveLength(2);
+      expect(clankerbench.researchSources as unknown[]).toHaveLength(3);
+      expect(asRecord(beliefsDocument.priorArt).path).toBe("prior_art.md");
+      expect(asRecord(beliefsDocument.codebasePatterns).path).toBe(
+        "codebase_patterns.md",
+      );
+      const canonicalBeliefs = beliefsDocument.canonicalBeliefs as unknown[];
+      expect(
+        canonicalBeliefs.some(
+          (belief) => asRecord(belief).kind === "codebase_patterns",
+        ),
+      ).toBe(true);
+      const preview = asRecord(beliefsDocument.preview);
+      const beliefsInput = asRecord(preview.beliefs_input);
+      expect(
+        (beliefsInput.beliefs as unknown[]).some(
+          (belief) => asRecord(belief).kind === "codebase_patterns",
+        ),
+      ).toBe(true);
 
       const summary = readFileSync(resolve(workspace, SUMMARY_FILENAME), "utf-8");
       expect(summary).toContain("## Clankerbench");
-      expect(summary).toContain("- research sources: `2`");
+      expect(summary).toContain("- research sources: `3`");
       expect(summary).toContain(
         "- `local_analysis` (local, required): tmp/bench/analysis.md",
       );
       expect(summary).toContain(
-        "- `external_prior_art` (web, optional): prior art for the selected generic benchmark lane",
+        "- `external_prior_art` (prior_art, optional): prior_art.md",
+      );
+      expect(summary).toContain(
+        "- `local_codebase_patterns` (codebase_patterns, required): codebase_patterns.md",
       );
       expect(summary).toContain("- context path: `tmp/bench/context_brief.md`");
+      expect(summary).toContain("## Context Artifacts");
+      expect(summary).toContain("- prior art: `prior_art.md` (present)");
+      expect(summary).toContain(
+        "- codebase patterns: `codebase_patterns.md` (present)",
+      );
+    });
+  },
+);
+
+coveredTest(
+  ["M1-003", "M2-003", "M2-008"],
+  "prior_art hard gates stop session start unless an operator overrides",
+  () => {
+    const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-prior-art-"));
+    writeFileSync(
+      resolve(workspace, "prior_art.md"),
+      "# Prior Art\n\n### HARD GATE\n\nMerged work already covers this lane.\n",
+      "utf-8",
+    );
+
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      expect(() =>
+        dispatchCommand("start", {
+          autoclankerBinary: binaryPath,
+          goal: "Improve a generic benchmark.",
+          workspace,
+        }),
+      ).toThrow("contains a HARD GATE");
+
+      const startResult = asRecord(
+        dispatchCommand("start", {
+          allowPriorArtHardGate: true,
+          autoclankerBinary: binaryPath,
+          goal: "Improve a generic benchmark.",
+          workspace,
+        }),
+      );
+      expect(startResult.command).toBe("start");
+      expect(startResult.priorArtStatus).toBe("hard_gate");
+      expect(asRecord(startResult.upstream).beliefs_status).toBe("preview_pending");
     });
   },
 );
@@ -2783,6 +2876,48 @@ coveredTest(
       expect(clearResult.command).toBe("clear");
       expect(clearResult.removed as unknown[]).toContain(absoluteSessionRoot);
       expect(existsSync(absoluteSessionRoot)).toBe(false);
+    });
+  },
+);
+
+coveredTest(
+  ["M1-003", "M2-003"],
+  "clear refuses clankerbench-backed eval surfaces without force",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-clear-clankerbench-"),
+    );
+    writeFileSync(
+      resolve(workspace, CLANKERBENCH_MANIFEST_FILENAME),
+      `${JSON.stringify(
+        {
+          schema_version: "clankerbench.pipeline.v1",
+          goal: "Protect a generated benchmark surface.",
+          stages: [{ name: "eval" }],
+          outer_loop: {
+            eval_command: "printf '{}\\n'",
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+
+    withFakeAutoclanker(workspace, ({ binaryPath }) => {
+      dispatchCommand("start", {
+        autoclankerBinary: binaryPath,
+        workspace,
+      });
+
+      expect(() => dispatchCommand("clear", { workspace })).toThrow(
+        "clankerbench-backed fixed eval surface",
+      );
+      const clearResult = asRecord(
+        dispatchCommand("clear", { force: true, workspace }),
+      );
+      expect(clearResult.command).toBe("clear");
+      expect(clearResult.removed as unknown[]).toContain(EVAL_FILENAME);
     });
   },
 );
