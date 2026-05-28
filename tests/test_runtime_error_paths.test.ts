@@ -12,6 +12,7 @@ import { expect } from "vitest";
 
 import {
   BELIEFS_FILENAME,
+  CLANKERBENCH_MANIFEST_FILENAME,
   CONFIG_FILENAME,
   EVAL_FILENAME,
   type InvocationResult,
@@ -889,6 +890,45 @@ coveredTest(["M0-002", "M1-002"], "missing clankerbench manifest fails clearly",
     }),
   ).toThrowError(/clankerbench manifest does not exist/u);
 });
+
+coveredTest(
+  ["M0-002", "M1-002"],
+  "required clankerbench clankergraph sources fail clearly when missing",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-clankerbench-missing-graph-"),
+    );
+    writeFileSync(
+      resolve(workspace, CLANKERBENCH_MANIFEST_FILENAME),
+      `${JSON.stringify(
+        {
+          schema_version: "clankerbench.pipeline.v1",
+          stages: [{ name: "eval", required: true }],
+          research_sources: [
+            {
+              id: "investigation_evidence",
+              kind: "clankergraph",
+              graph_role: "evidence",
+              path: "graphs/missing.clankergraph.json",
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+
+    expect(() =>
+      dispatchTool("autoclanker_init_session", {
+        autoclankerBinary: "missing-autoclanker",
+        workspace,
+      }),
+    ).toThrowError(
+      /clankerbench clankergraph source does not exist: graphs\/missing\.clankergraph\.json/u,
+    );
+  },
+);
 
 coveredTest(["M1-002", "M1-003"], "unknown mode returns a clear non-JSON error", () => {
   const result = runPortAllowFailure(["opaque"]);

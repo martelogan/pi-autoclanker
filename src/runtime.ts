@@ -18,6 +18,7 @@ import {
   type ClankerbenchRunManifest,
   validateClankerbenchManifest,
 } from "./clankerbench.js";
+import { validateClankergraphDocument } from "./clankergraph.js";
 
 const VERSION = "0.1.0";
 export const SLASH_COMMAND_PREFIX = "/autoclanker";
@@ -249,6 +250,7 @@ type BeliefsDocument = {
 };
 
 type ClankerbenchSummaryRecord = JsonObject & {
+  graphSources?: unknown;
   outerLoop?: unknown;
   path?: unknown;
   primaryMetric?: unknown;
@@ -946,6 +948,16 @@ type LoadedClankerbenchManifest = {
   evalCommand: string | null;
   constraints: string[];
   maxIterations: number | null;
+  graphSummaries: ClankerbenchGraphSourceSummary[];
+};
+
+type ClankerbenchGraphSourceSummary = {
+  graphId: string;
+  graphRole: string;
+  nodeCount: number;
+  path: string;
+  sourceId: string;
+  title: string;
 };
 
 type ClankerbenchResearchSourceSummaryRecord = JsonObject & {
@@ -957,6 +969,15 @@ type ClankerbenchResearchSourceSummaryRecord = JsonObject & {
   path?: unknown;
   query?: unknown;
   url?: unknown;
+};
+
+type ClankerbenchGraphSourceSummaryRecord = JsonObject & {
+  graphId?: unknown;
+  graphRole?: unknown;
+  nodeCount?: unknown;
+  path?: unknown;
+  sourceId?: unknown;
+  title?: unknown;
 };
 
 type ContextArtifactKind = "prior_art" | "codebase_patterns";
@@ -4147,6 +4168,7 @@ function writeSummary(
     {};
   const clankerbenchResearchSources =
     summaryArray(clankerbenchRecord?.researchSources) ?? [];
+  const clankerbenchGraphSources = summaryArray(clankerbenchRecord?.graphSources) ?? [];
   const clankerbenchResearchSourceLines = clankerbenchResearchSources.flatMap(
     (source) => {
       const record = summaryObject<ClankerbenchResearchSourceSummaryRecord>(source);
@@ -4167,6 +4189,18 @@ function writeSummary(
       return [`  - \`${id}\` (${kindLabel}, ${optional}): ${locator}`];
     },
   );
+  const clankerbenchGraphSourceLines = clankerbenchGraphSources.flatMap((source) => {
+    const record = summaryObject<ClankerbenchGraphSourceSummaryRecord>(source);
+    if (record === null) {
+      return [];
+    }
+    const id = summaryString(record.sourceId) ?? "unnamed";
+    const graphId = summaryString(record.graphId) ?? "unknown";
+    const role = summaryString(record.graphRole) ?? "unknown";
+    const path = summaryString(record.path) ?? "no path";
+    const nodeCount = summaryNumber(record.nodeCount) ?? 0;
+    return [`  - \`${id}\` -> \`${graphId}\` (${role}, ${nodeCount} nodes): ${path}`];
+  });
   const priorArtRecord = summaryObject<ContextArtifactSummaryRecord>(
     beliefsDocument.priorArt,
   );
@@ -4278,6 +4312,9 @@ function writeSummary(
           `- stages: ${displayInlineList(summaryStringList(clankerbenchRecord.stages))}`,
           `- research sources: \`${clankerbenchResearchSources.length}\``,
           ...clankerbenchResearchSourceLines,
+          ...(clankerbenchGraphSourceLines.length === 0
+            ? []
+            : ["- validated clankergraph sources:", ...clankerbenchGraphSourceLines]),
           `- context path: \`${summaryString(clankerbenchOuterLoop.contextPath) ?? "Not recorded"}\``,
           `- evidence path: \`${summaryString(clankerbenchOuterLoop.evidencePath) ?? "Not recorded"}\``,
           `- declared hooks: \`${summaryString(clankerbenchOuterLoop.hooksDir) ?? "Not recorded"}\``,
@@ -5577,6 +5614,7 @@ function loadClankerbenchManifest(
   const raw = JSON.parse(readFileSync(located.path, "utf-8")) as unknown;
   const manifest = validateClankerbenchManifest(raw);
   const outerLoop = manifest.outer_loop;
+  const graphSummaries = validateClankerbenchGraphSources(workspace, manifest);
   return {
     path: located.path,
     source: located.source,
@@ -5588,7 +5626,48 @@ function loadClankerbenchManifest(
       ...clankerbenchResearchGuidance(manifest),
     ],
     maxIterations: outerLoop?.max_iterations ?? null,
+    graphSummaries,
   };
+}
+
+function validateClankerbenchGraphSources(
+  workspace: string,
+  manifest: ClankerbenchRunManifest,
+): ClankerbenchGraphSourceSummary[] {
+  const summaries: ClankerbenchGraphSourceSummary[] = [];
+  for (const source of manifest.research_sources ?? []) {
+    if (source.kind !== "clankergraph" || source.path === undefined) {
+      continue;
+    }
+    const path = isAbsolute(source.path)
+      ? source.path
+      : resolve(workspace, source.path);
+    if (!existsSync(path)) {
+      if (source.optional === true) {
+        continue;
+      }
+      throw new Error(
+        `clankerbench clankergraph source does not exist: ${source.path}`,
+      );
+    }
+    const graph = validateClankergraphDocument(
+      JSON.parse(readFileSync(path, "utf-8")) as unknown,
+    );
+    if (graph.graph_role !== source.graph_role) {
+      throw new Error(
+        `clankerbench clankergraph source ${source.id} declares graph_role=${source.graph_role} but ${source.path} has graph_role=${graph.graph_role}.`,
+      );
+    }
+    summaries.push({
+      graphId: graph.graph_id,
+      graphRole: graph.graph_role,
+      nodeCount: graph.nodes.length,
+      path: shortWorkspacePath(workspace, path),
+      sourceId: source.id,
+      title: graph.title,
+    });
+  }
+  return summaries;
 }
 
 function clankerbenchResearchGuidance(manifest: ClankerbenchRunManifest): string[] {
@@ -5642,6 +5721,7 @@ function clankerbenchManifestSummary(
       optional: source.optional ?? false,
       description: source.description ?? null,
     })),
+    graphSources: loaded.graphSummaries,
     outerLoop:
       outerLoop === undefined
         ? null

@@ -92,6 +92,7 @@ export const surfaceManifest = {
     "examples/clankerbench-mini/README.md",
     "examples/clankerbench-mini/clankerbench.manifest.json",
     "examples/clankerbench-mini/graphs/evidence.clankergraph.json",
+    "examples/clankerbench-mini/graphs/investigation-evidence.clankergraph.json",
     "examples/minimal/README.md",
     "examples/minimal/autoclanker.ideas.json",
     "examples/minimal/rough-ideas.json",

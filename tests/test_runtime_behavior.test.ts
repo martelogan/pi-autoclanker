@@ -2094,6 +2094,18 @@ EOF`;
       ].join("\n"),
       "utf-8",
     );
+    mkdirSync(resolve(workspace, "graphs"), { recursive: true });
+    writeFileSync(
+      resolve(workspace, "graphs/investigation-evidence.clankergraph.json"),
+      readFileSync(
+        resolve(
+          REPO_ROOT,
+          "examples/clankerbench-mini/graphs/investigation-evidence.clankergraph.json",
+        ),
+        "utf-8",
+      ),
+      "utf-8",
+    );
     writeFileSync(
       resolve(workspace, CLANKERBENCH_MANIFEST_FILENAME),
       `${JSON.stringify(
@@ -2138,6 +2150,12 @@ EOF`;
               kind: "codebase_patterns",
               path: "codebase_patterns.md",
             },
+            {
+              id: "investigation_evidence",
+              kind: "clankergraph",
+              graph_role: "evidence",
+              path: "graphs/investigation-evidence.clankergraph.json",
+            },
           ],
           outer_loop: {
             context_path: "tmp/bench/context_brief.md",
@@ -2172,7 +2190,11 @@ EOF`;
 
       const configDocument = asRecord(
         JSON.parse(readFileSync(resolve(workspace, CONFIG_FILENAME), "utf-8")),
-      ) as { constraints?: unknown; evalCommand?: unknown; maxIterations?: unknown };
+      ) as {
+        constraints?: unknown;
+        evalCommand?: unknown;
+        maxIterations?: unknown;
+      };
       expect(configDocument.evalCommand).toBe(manifestEvalCommand);
       expect(configDocument.maxIterations).toBe(7);
       expect(configDocument.constraints).toEqual([
@@ -2203,7 +2225,15 @@ EOF`;
         "compare",
         "session",
       ]);
-      expect(clankerbench.researchSources as unknown[]).toHaveLength(3);
+      expect(clankerbench.researchSources as unknown[]).toHaveLength(4);
+      const clankerbenchGraphSummary = clankerbench as JsonRecord & {
+        graphSources?: unknown[];
+      };
+      const graphSources = clankerbenchGraphSummary.graphSources ?? [];
+      expect(graphSources).toHaveLength(1);
+      expect((asRecord(graphSources[0]) as { graphId?: unknown }).graphId).toBe(
+        "external-investigation-sample-root-cause",
+      );
       expect(asRecord(beliefsDocument.priorArt).path).toBe("prior_art.md");
       expect(asRecord(beliefsDocument.codebasePatterns).path).toBe(
         "codebase_patterns.md",
@@ -2224,7 +2254,7 @@ EOF`;
 
       const summary = readFileSync(resolve(workspace, SUMMARY_FILENAME), "utf-8");
       expect(summary).toContain("## Clankerbench");
-      expect(summary).toContain("- research sources: `3`");
+      expect(summary).toContain("- research sources: `4`");
       expect(summary).toContain(
         "- `local_analysis` (local, required): tmp/bench/analysis.md",
       );
@@ -2233,6 +2263,13 @@ EOF`;
       );
       expect(summary).toContain(
         "- `local_codebase_patterns` (codebase_patterns, required): codebase_patterns.md",
+      );
+      expect(summary).toContain(
+        "- `investigation_evidence` (clankergraph/evidence, required): graphs/investigation-evidence.clankergraph.json",
+      );
+      expect(summary).toContain("- validated clankergraph sources:");
+      expect(summary).toContain(
+        "- `investigation_evidence` -> `external-investigation-sample-root-cause` (evidence, 4 nodes): graphs/investigation-evidence.clankergraph.json",
       );
       expect(summary).toContain("- context path: `tmp/bench/context_brief.md`");
       expect(summary).toContain("## Context Artifacts");

@@ -22,6 +22,7 @@ const clankerbenchPaths = [
   "examples/clankerbench-mini/README.md",
   "examples/clankerbench-mini/clankerbench.manifest.json",
   "examples/clankerbench-mini/graphs/evidence.clankergraph.json",
+  "examples/clankerbench-mini/graphs/investigation-evidence.clankergraph.json",
 ] as const;
 
 function read(relativePath: string): string {
@@ -158,7 +159,10 @@ coveredTest(
       ],
       [manifest({ stages: [validStage], metrics: {} }), "metrics"],
       [
-        manifest({ stages: [validStage], metrics: [{ direction: "minimize" }] }),
+        manifest({
+          stages: [validStage],
+          metrics: [{ direction: "minimize" }],
+        }),
         "name",
       ],
       [
@@ -177,7 +181,10 @@ coveredTest(
         "command, module, manual, or ci",
       ],
       [
-        manifest({ stages: [validStage], providers: [{ capabilities: ["eval"] }] }),
+        manifest({
+          stages: [validStage],
+          providers: [{ capabilities: ["eval"] }],
+        }),
         "include id",
       ],
       [manifest({ stages: [validStage], outer_loop: [] }), "outer_loop"],
@@ -190,12 +197,18 @@ coveredTest(
         "positive integer",
       ],
       [
-        manifest({ stages: [validStage], outer_loop: { max_wall_time_sec: -1 } }),
+        manifest({
+          stages: [validStage],
+          outer_loop: { max_wall_time_sec: -1 },
+        }),
         "positive",
       ],
       [manifest({ stages: [validStage], research_sources: {} }), "research_sources"],
       [
-        manifest({ stages: [validStage], research_sources: [{ kind: "local" }] }),
+        manifest({
+          stages: [validStage],
+          research_sources: [{ kind: "local" }],
+        }),
         "include id",
       ],
       [
@@ -225,7 +238,10 @@ coveredTest(
       ],
       [manifest({ stages: [{ name: "eval", artifacts: [1] }] }), "non-empty string"],
       [
-        manifest({ stages: [validStage], outer_loop: { runners: [{ id: "local" }] } }),
+        manifest({
+          stages: [validStage],
+          outer_loop: { runners: [{ id: "local" }] },
+        }),
         "include id and kind",
       ],
       [manifest({ stages: [validStage], metadata: [] }), "metadata"],
@@ -260,6 +276,38 @@ coveredTest(
       nodes_by_kind: {
         artifact: 1,
         observation: 1,
+      },
+    });
+  },
+);
+
+coveredTest(
+  ["M0-002", "M1-002"],
+  "external investigation-style evidence graph validates through exported helpers",
+  () => {
+    const graph = validateClankergraphDocument(
+      JSON.parse(
+        read(
+          "examples/clankerbench-mini/graphs/investigation-evidence.clankergraph.json",
+        ),
+      ) as unknown,
+    );
+
+    expect(graph.graph_role).toBe("evidence");
+    const producedBy = graph.produced_by as { tool?: unknown } | undefined;
+    expect(producedBy?.tool).toBe("investigation-bridge");
+    expect(graph.derivations?.[0]?.review_required).toBe(true);
+    expect(summarizeClankergraph(graph)).toEqual({
+      derivation_count: 1,
+      edge_count: 3,
+      graph_id: "external-investigation-sample-root-cause",
+      graph_role: "evidence",
+      node_count: 4,
+      nodes_by_kind: {
+        case: 1,
+        explanation: 1,
+        observation: 1,
+        "x.investigation.work_log": 1,
       },
     });
   },
