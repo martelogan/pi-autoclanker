@@ -28,8 +28,8 @@ export const EVAL_FILENAME = "autoclanker.eval.sh";
 export const FRONTIER_FILENAME = "autoclanker.frontier.json";
 export const IDEAS_FILENAME = "autoclanker.ideas.json";
 export const CLANKERBENCH_MANIFEST_FILENAME = "clankerbench.manifest.json";
-export const PRIOR_ART_FILENAME = "prior_art.md";
-export const CODEBASE_PATTERNS_FILENAME = "codebase_patterns.md";
+const PRIOR_ART_FILENAME = "prior_art.md";
+const CODEBASE_PATTERNS_FILENAME = "codebase_patterns.md";
 export const PROPOSALS_FILENAME = "autoclanker.proposals.json";
 export const HISTORY_FILENAME = "autoclanker.history.jsonl";
 export const PROGRESS_FILENAME = "autoclanker.progress.json";
@@ -896,6 +896,7 @@ type LoadedClankerbenchManifest = {
 
 type ClankerbenchResearchSourceSummaryRecord = JsonObject & {
   description?: unknown;
+  graphRole?: unknown;
   id?: unknown;
   kind?: unknown;
   optional?: unknown;
@@ -3971,6 +3972,7 @@ function writeSummary(
       }
       const id = summaryString(record.id) ?? "unnamed";
       const kind = summaryString(record.kind) ?? "unknown";
+      const graphRole = summaryString(record.graphRole);
       const optional = record.optional === true ? "optional" : "required";
       const locator =
         summaryString(record.path) ??
@@ -3978,7 +3980,8 @@ function writeSummary(
         summaryString(record.url) ??
         summaryString(record.description) ??
         "no locator";
-      return [`  - \`${id}\` (${kind}, ${optional}): ${locator}`];
+      const kindLabel = graphRole === null ? kind : `${kind}/${graphRole}`;
+      return [`  - \`${id}\` (${kindLabel}, ${optional}): ${locator}`];
     },
   );
   const priorArtRecord = summaryObject<ContextArtifactSummaryRecord>(
@@ -5104,10 +5107,20 @@ function clankerbenchResearchGuidance(manifest: ClankerbenchRunManifest): string
   }
 
   const kinds = [...new Set(researchSources.map((source) => source.kind))].join(", ");
+  const graphRoles = [
+    ...new Set(
+      researchSources
+        .filter((source) => source.kind === "clankergraph")
+        .map((source) => source.graph_role),
+    ),
+  ].join(", ");
   const optionalCount = researchSources.filter((source) => source.optional).length;
   const requiredCount = researchSources.length - optionalCount;
+  const graphClause = graphRoles
+    ? ` Clankergraph sources are typed as ${graphRoles}; keep evidence, beliefs, benchmark verdicts, and context separate unless a derivation explicitly records the loss.`
+    : "";
   return [
-    `Before candidate edits, complete the clankerbench context pass from declared research sources (${kinds}; ${requiredCount} required, ${optionalCount} optional): start with local/repo artifacts, use papers/docs/web/prior art only when they materially improve the frontier, and keep eval/acceptance proof authoritative.`,
+    `Before candidate edits, complete the clankerbench context pass from declared research sources (${kinds}; ${requiredCount} required, ${optionalCount} optional): start with local/repo artifacts, use papers/docs/web/prior art only when they materially improve the frontier, and keep eval/acceptance proof authoritative.${graphClause}`,
   ];
 }
 
@@ -5132,6 +5145,7 @@ function clankerbenchManifestSummary(
     researchSources: (manifest.research_sources ?? []).map((source) => ({
       id: source.id,
       kind: source.kind,
+      graphRole: source.graph_role ?? null,
       path: source.path ?? null,
       query: source.query ?? null,
       optional: source.optional ?? false,
@@ -5149,6 +5163,7 @@ function clankerbenchManifestSummary(
             ideasPath: outerLoop.ideas_path ?? null,
             maxIterations: outerLoop.max_iterations ?? null,
             maxWallTimeSec: outerLoop.max_wall_time_sec ?? null,
+            runners: outerLoop.runners ?? [],
             sessionPath: outerLoop.session_path ?? null,
             statusPath: outerLoop.status_path ?? null,
             stopConditions: outerLoop.stop_conditions ?? [],

@@ -107,6 +107,12 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "runners": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/outer_loop_runner"
+          }
         }
       }
     },
@@ -244,7 +250,7 @@
         },
         "kind": {
           "type": "string",
-          "enum": ["command", "module", "manual"]
+          "enum": ["command", "module", "manual", "ci"]
         },
         "entrypoint": {
           "type": "string",
@@ -259,6 +265,31 @@
           "items": {
             "$ref": "#/$defs/stage_name"
           }
+        },
+        "metadata": {
+          "type": "object"
+        }
+      }
+    },
+    "outer_loop_runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metadata": {
+          "type": "object"
         }
       }
     },
@@ -266,6 +297,26 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "kind"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "clankergraph"
+              }
+            },
+            "required": ["kind"]
+          },
+          "then": {
+            "required": ["graph_role"]
+          },
+          "else": {
+            "not": {
+              "required": ["graph_role"]
+            }
+          }
+        }
+      ],
       "properties": {
         "id": {
           "type": "string",
@@ -281,8 +332,13 @@
             "repo",
             "prior_art",
             "codebase_patterns",
-            "operator_note"
+            "operator_note",
+            "clankergraph"
           ]
+        },
+        "graph_role": {
+          "type": "string",
+          "enum": ["evidence", "belief", "benchmark", "context"]
         },
         "path": {
           "type": "string",
@@ -312,6 +368,14 @@
       "properties": {
         "name": {
           "$ref": "#/$defs/stage_name"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["command", "artifact", "manual"]
+        },
+        "phase": {
+          "type": "string",
+          "minLength": 1
         },
         "description": {
           "type": "string",
@@ -351,6 +415,13 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/artifact"
+          }
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
           }
         }
       }

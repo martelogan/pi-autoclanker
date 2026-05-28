@@ -324,6 +324,13 @@
       "query": "relevant benchmark or implementation prior art",
       "optional": true,
       "description": "Optional external context only when it can materially change the plan."
+    },
+    {
+      "id": "diagnostic_evidence_graph",
+      "kind": "clankergraph",
+      "graph_role": "evidence",
+      "path": "graphs/evidence.clankergraph.json",
+      "description": "Typed evidence graph that preserves investigation claims separately from optimizer beliefs."
     }
   ],
   "outer_loop": {
@@ -338,6 +345,13 @@
     "ideas_path": "optimization.ideas.json",
     "max_iterations": 50,
     "max_wall_time_sec": 28800,
+    "runners": [
+      {
+        "id": "local",
+        "kind": "shell",
+        "description": "Run the declared eval command in the current workspace."
+      }
+    ],
     "session_path": "tmp/clankerbench/session",
     "status_path": "tmp/clankerbench/session/progress.json",
     "stop_conditions": [

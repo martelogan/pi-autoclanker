@@ -54,6 +54,7 @@ export const surfaceManifest = {
   packagedSurfaceFiles: [
     "extensions/pi-autoclanker/index.ts",
     "extensions/pi-autoclanker/compaction.ts",
+    "schemas/clankergraph.schema.json",
     "schemas/clankerbench.pipeline.schema.json",
     "schemas/pi-autoclanker.config.schema.json",
     "schemas/pi-autoclanker.proposals.schema.json",
@@ -82,6 +83,7 @@ export const surfaceManifest = {
     "examples/targets/parser-quickstart/candidates.json",
     "examples/clankerbench-mini/README.md",
     "examples/clankerbench-mini/clankerbench.manifest.json",
+    "examples/clankerbench-mini/graphs/evidence.clankergraph.json",
     "examples/minimal/README.md",
     "examples/minimal/autoclanker.ideas.json",
     "examples/minimal/rough-ideas.json",

@@ -1,0 +1,54 @@
+{
+  "schema_version": "clankergraph.v1",
+  "graph_id": "mini-evidence",
+  "graph_role": "evidence",
+  "title": "Mini evidence graph",
+  "scope": {
+    "objective": "Explain why the mini workload may be slow."
+  },
+  "produced_by": {
+    "tool": "manual-example"
+  },
+  "nodes": [
+    {
+      "id": "artifact:profile",
+      "kind": "artifact",
+      "title": "Synthetic profile",
+      "properties": {
+        "path": "tmp/clankerbench/profile.txt"
+      },
+      "provenance": {
+        "source": "manual"
+      }
+    },
+    {
+      "id": "observation:repeated-parser-work",
+      "kind": "observation",
+      "title": "Repeated parser work dominates the sample",
+      "status": "likely",
+      "confidence": {
+        "level": "medium",
+        "basis": "inferred"
+      },
+      "provenance": {
+        "source": "manual",
+        "source_refs": ["artifact:profile"]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge:profile-observes-parser-work",
+      "from": "artifact:profile",
+      "to": "observation:repeated-parser-work",
+      "kind": "observed_in",
+      "strength": "medium",
+      "confidence": "medium",
+      "provenance": {
+        "source": "manual",
+        "source_refs": ["artifact:profile"]
+      }
+    }
+  ],
+  "derivations": []
+}

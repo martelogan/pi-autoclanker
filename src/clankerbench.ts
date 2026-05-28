@@ -28,10 +28,43 @@ export const CLANKERBENCH_STAGE_STATUSES = [
 
 export const CLANKERBENCH_METRIC_DIRECTIONS = ["minimize", "maximize"] as const;
 
+export const CLANKERBENCH_STAGE_KINDS = ["command", "artifact", "manual"] as const;
+
+export const CLANKERBENCH_PROVIDER_KINDS = [
+  "command",
+  "module",
+  "manual",
+  "ci",
+] as const;
+
+export const CLANKERBENCH_RESEARCH_SOURCE_KINDS = [
+  "local",
+  "paper",
+  "docs",
+  "web",
+  "repo",
+  "prior_art",
+  "codebase_patterns",
+  "operator_note",
+  "clankergraph",
+] as const;
+
+export const CLANKERBENCH_GRAPH_ROLES = [
+  "evidence",
+  "belief",
+  "benchmark",
+  "context",
+] as const;
+
 export type ClankerbenchStageName = (typeof CLANKERBENCH_STAGE_NAMES)[number];
 export type ClankerbenchStageStatus = (typeof CLANKERBENCH_STAGE_STATUSES)[number];
 export type ClankerbenchMetricDirection =
   (typeof CLANKERBENCH_METRIC_DIRECTIONS)[number];
+export type ClankerbenchStageKind = (typeof CLANKERBENCH_STAGE_KINDS)[number];
+export type ClankerbenchProviderKind = (typeof CLANKERBENCH_PROVIDER_KINDS)[number];
+export type ClankerbenchResearchSourceKind =
+  (typeof CLANKERBENCH_RESEARCH_SOURCE_KINDS)[number];
+export type ClankerbenchGraphRole = (typeof CLANKERBENCH_GRAPH_ROLES)[number];
 
 type ClankerbenchJsonObject = Record<string, unknown>;
 
@@ -67,16 +100,9 @@ export type ClankerbenchMetric = {
 
 export type ClankerbenchResearchSource = {
   id: string;
-  kind:
-    | "local"
-    | "paper"
-    | "docs"
-    | "web"
-    | "repo"
-    | "prior_art"
-    | "codebase_patterns"
-    | "operator_note";
+  kind: ClankerbenchResearchSourceKind;
   description?: string | undefined;
+  graph_role?: ClankerbenchGraphRole | undefined;
   optional?: boolean | undefined;
   path?: string | undefined;
   query?: string | undefined;
@@ -85,9 +111,12 @@ export type ClankerbenchResearchSource = {
 
 export type ClankerbenchStage = {
   name: ClankerbenchStageName;
+  artifacts?: string[] | undefined;
   command?: ClankerbenchCommandSpec | undefined;
   depends_on?: ClankerbenchStageName[] | undefined;
   description?: string | undefined;
+  kind?: ClankerbenchStageKind | undefined;
+  phase?: string | undefined;
   inputs?: ClankerbenchArtifact[] | undefined;
   outputs?: ClankerbenchArtifact[] | undefined;
   required?: boolean | undefined;
@@ -100,7 +129,15 @@ export type ClankerbenchProvider = {
   description?: string | undefined;
   display_name?: string | undefined;
   entrypoint?: string | undefined;
-  kind?: "command" | "module" | "manual" | undefined;
+  kind?: ClankerbenchProviderKind | undefined;
+  metadata?: ClankerbenchJsonObject | undefined;
+};
+
+export type ClankerbenchOuterLoopRunner = {
+  id: string;
+  kind: string;
+  description?: string | undefined;
+  metadata?: ClankerbenchJsonObject | undefined;
 };
 
 export type ClankerbenchOuterLoop = {
@@ -112,6 +149,7 @@ export type ClankerbenchOuterLoop = {
   ideas_path?: string | undefined;
   max_iterations?: number | undefined;
   max_wall_time_sec?: number | undefined;
+  runners?: ClankerbenchOuterLoopRunner[] | undefined;
   session_path?: string | undefined;
   status_path?: string | undefined;
   stop_conditions?: string[] | undefined;
@@ -136,6 +174,10 @@ export type ClankerbenchRunManifest = {
 const STAGE_NAME_SET = new Set<string>(CLANKERBENCH_STAGE_NAMES);
 const STAGE_STATUS_SET = new Set<string>(CLANKERBENCH_STAGE_STATUSES);
 const METRIC_DIRECTION_SET = new Set<string>(CLANKERBENCH_METRIC_DIRECTIONS);
+const STAGE_KIND_SET = new Set<string>(CLANKERBENCH_STAGE_KINDS);
+const PROVIDER_KIND_SET = new Set<string>(CLANKERBENCH_PROVIDER_KINDS);
+const RESEARCH_SOURCE_KIND_SET = new Set<string>(CLANKERBENCH_RESEARCH_SOURCE_KINDS);
+const GRAPH_ROLE_SET = new Set<string>(CLANKERBENCH_GRAPH_ROLES);
 
 type ClankerbenchCommandSpecDocument = {
   argv?: unknown;
@@ -171,6 +213,7 @@ type ClankerbenchResearchSourceDocument = {
   id?: unknown;
   kind?: unknown;
   description?: unknown;
+  graph_role?: unknown;
   optional?: unknown;
   path?: unknown;
   query?: unknown;
@@ -179,9 +222,12 @@ type ClankerbenchResearchSourceDocument = {
 
 type ClankerbenchStageDocument = {
   name?: unknown;
+  artifacts?: unknown;
   command?: unknown;
   depends_on?: unknown;
   description?: unknown;
+  kind?: unknown;
+  phase?: unknown;
   inputs?: unknown;
   outputs?: unknown;
   required?: unknown;
@@ -195,6 +241,14 @@ type ClankerbenchProviderDocument = {
   display_name?: unknown;
   entrypoint?: unknown;
   kind?: unknown;
+  metadata?: unknown;
+};
+
+type ClankerbenchOuterLoopRunnerDocument = {
+  id?: unknown;
+  kind?: unknown;
+  description?: unknown;
+  metadata?: unknown;
 };
 
 type ClankerbenchOuterLoopDocument = {
@@ -206,6 +260,7 @@ type ClankerbenchOuterLoopDocument = {
   ideas_path?: unknown;
   max_iterations?: unknown;
   max_wall_time_sec?: unknown;
+  runners?: unknown;
   session_path?: unknown;
   status_path?: unknown;
   stop_conditions?: unknown;
@@ -297,6 +352,16 @@ function optionalStringRecord(
   );
 }
 
+function optionalObject(
+  value: unknown,
+  label: string,
+): ClankerbenchJsonObject | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  return asRecord<ClankerbenchJsonObject>(value, label);
+}
+
 function stageName(value: unknown, label: string): ClankerbenchStageName {
   if (typeof value !== "string" || !STAGE_NAME_SET.has(value)) {
     throw new Error(`${label} must be one of ${CLANKERBENCH_STAGE_NAMES.join(", ")}.`);
@@ -326,6 +391,32 @@ function metricDirection(value: unknown, label: string): ClankerbenchMetricDirec
     );
   }
   return value as ClankerbenchMetricDirection;
+}
+
+function optionalGraphRole(
+  value: unknown,
+  label: string,
+): ClankerbenchGraphRole | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string" || !GRAPH_ROLE_SET.has(value)) {
+    throw new Error(`${label} must be one of ${CLANKERBENCH_GRAPH_ROLES.join(", ")}.`);
+  }
+  return value as ClankerbenchGraphRole;
+}
+
+function optionalStageKind(
+  value: unknown,
+  label: string,
+): ClankerbenchStageKind | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value !== "string" || !STAGE_KIND_SET.has(value)) {
+    throw new Error(`${label} must be command, artifact, or manual.`);
+  }
+  return value as ClankerbenchStageKind;
 }
 
 function optionalStageList(
@@ -427,26 +518,23 @@ function researchSource(value: unknown, label: string): ClankerbenchResearchSour
   if (kind === undefined) {
     throw new Error(`${label} must include kind.`);
   }
-  if (
-    ![
-      "local",
-      "paper",
-      "docs",
-      "web",
-      "repo",
-      "prior_art",
-      "codebase_patterns",
-      "operator_note",
-    ].includes(kind)
-  ) {
+  if (!RESEARCH_SOURCE_KIND_SET.has(kind)) {
     throw new Error(
-      `${label}.kind must be local, paper, docs, web, repo, prior_art, codebase_patterns, or operator_note.`,
+      `${label}.kind must be ${CLANKERBENCH_RESEARCH_SOURCE_KINDS.join(", ")}.`,
     );
+  }
+  const graphRole = optionalGraphRole(record.graph_role, `${label}.graph_role`);
+  if (kind === "clankergraph" && graphRole === undefined) {
+    throw new Error(`${label}.graph_role is required when kind is clankergraph.`);
+  }
+  if (kind !== "clankergraph" && graphRole !== undefined) {
+    throw new Error(`${label}.graph_role is only valid when kind is clankergraph.`);
   }
   return {
     id: optionalString(record.id, `${label}.id`) ?? "",
     kind: kind as ClankerbenchResearchSource["kind"],
     description: optionalString(record.description, `${label}.description`),
+    graph_role: graphRole,
     optional: optionalBoolean(record.optional, `${label}.optional`),
     path: optionalString(record.path, `${label}.path`),
     query: optionalString(record.query, `${label}.query`),
@@ -477,9 +565,12 @@ function stage(value: unknown, label: string): ClankerbenchStage {
   const record = asRecord<ClankerbenchStageDocument>(value, label);
   return {
     name: stageName(record.name, `${label}.name`),
+    artifacts: optionalStageAgnosticStringList(record.artifacts, `${label}.artifacts`),
     command: commandSpec(record.command, `${label}.command`),
     depends_on: optionalStageList(record.depends_on, `${label}.depends_on`),
     description: optionalString(record.description, `${label}.description`),
+    kind: optionalStageKind(record.kind, `${label}.kind`),
+    phase: optionalString(record.phase, `${label}.phase`),
     inputs: artifactList(record.inputs, `${label}.inputs`),
     outputs: artifactList(record.outputs, `${label}.outputs`),
     required: optionalBoolean(record.required, `${label}.required`),
@@ -490,8 +581,8 @@ function stage(value: unknown, label: string): ClankerbenchStage {
 function provider(value: unknown, label: string): ClankerbenchProvider {
   const record = asRecord<ClankerbenchProviderDocument>(value, label);
   const kind = optionalString(record.kind, `${label}.kind`);
-  if (kind !== undefined && !["command", "module", "manual"].includes(kind)) {
-    throw new Error(`${label}.kind must be command, module, or manual.`);
+  if (kind !== undefined && !PROVIDER_KIND_SET.has(kind)) {
+    throw new Error(`${label}.kind must be command, module, manual, or ci.`);
   }
   return {
     id: optionalString(record.id, `${label}.id`) ?? "",
@@ -500,6 +591,7 @@ function provider(value: unknown, label: string): ClankerbenchProvider {
     display_name: optionalString(record.display_name, `${label}.display_name`),
     entrypoint: optionalString(record.entrypoint, `${label}.entrypoint`),
     kind: kind as ClankerbenchProvider["kind"],
+    metadata: optionalObject(record.metadata, `${label}.metadata`),
   };
 }
 
@@ -514,6 +606,35 @@ function providers(value: unknown, label: string): ClankerbenchProvider[] | unde
     const parsed = provider(item, `${label}[${index + 1}]`);
     if (!parsed.id) {
       throw new Error(`${label}[${index + 1}] must include id.`);
+    }
+    return parsed;
+  });
+}
+
+function outerLoopRunner(value: unknown, label: string): ClankerbenchOuterLoopRunner {
+  const record = asRecord<ClankerbenchOuterLoopRunnerDocument>(value, label);
+  return {
+    id: optionalString(record.id, `${label}.id`) ?? "",
+    kind: optionalString(record.kind, `${label}.kind`) ?? "",
+    description: optionalString(record.description, `${label}.description`),
+    metadata: optionalObject(record.metadata, `${label}.metadata`),
+  };
+}
+
+function outerLoopRunners(
+  value: unknown,
+  label: string,
+): ClankerbenchOuterLoopRunner[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} must be an array when present.`);
+  }
+  return value.map((item, index) => {
+    const parsed = outerLoopRunner(item, `${label}[${index + 1}]`);
+    if (!parsed.id || !parsed.kind) {
+      throw new Error(`${label}[${index + 1}] must include id and kind.`);
     }
     return parsed;
   });
@@ -542,6 +663,7 @@ function outerLoop(value: unknown, label: string): ClankerbenchOuterLoop | undef
       record.max_wall_time_sec,
       `${label}.max_wall_time_sec`,
     ),
+    runners: outerLoopRunners(record.runners, `${label}.runners`),
     session_path: optionalString(record.session_path, `${label}.session_path`),
     status_path: optionalString(record.status_path, `${label}.status_path`),
     stop_conditions: optionalStageAgnosticStringList(

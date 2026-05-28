@@ -64,6 +64,7 @@ A project can write a `clankerbench.manifest.json` with:
 - `providers`: command, module, or manual stage providers
 - `stages`: stage definitions with commands, dependencies, inputs, and outputs
 - `research_sources`: local artifacts, papers, docs, repos, web queries, prior art, codebase-pattern briefs, or operator notes that the context stage may consult
+- `clankergraph` research sources: typed evidence, belief, benchmark, or context graphs declared with `graph_role`
 - `metrics`: primary and supporting metric definitions
 - `outer_loop`: paths, commands, guardrails, hooks, and stop conditions that let a compatible engine start the measured loop
 - `artifacts`: top-level bundle artifacts that reviewers or agents should know
@@ -76,6 +77,41 @@ can also consume a manifest during `command start`: it auto-detects
 uses the manifest as session context for the goal, eval command, guardrails,
 iteration budget, research sources, hooks, and evidence/status paths. The
 provider commands still own concrete stage execution.
+
+## Clankergraph Research Sources
+
+`clankergraph` is the portable graph artifact family carried by Clankerbench. It
+lets investigation, optimizer, benchmark, and codebase-memory tools exchange
+structured state without requiring any one tool to know about the others.
+
+The schema is
+[`schemas/clankergraph.schema.json`](../schemas/clankergraph.schema.json), and
+the TypeScript helpers live in
+[`src/clankergraph.ts`](../src/clankergraph.ts). A manifest declares graph
+artifacts as ordinary research sources:
+
+```json
+{
+  "id": "diagnostic_evidence_graph",
+  "kind": "clankergraph",
+  "graph_role": "evidence",
+  "path": "graphs/evidence.clankergraph.json",
+  "description": "Typed investigation evidence for this benchmark objective."
+}
+```
+
+The four graph roles intentionally keep different truth criteria separate:
+
+| Graph role | Owns | Must not pretend to be |
+| --- | --- | --- |
+| `evidence` | observations, explanations, caveats, and recommended actions | an optimizer prior |
+| `belief` | schema-valid optimizer influence and query guidance | benchmark proof |
+| `benchmark` | locked workload, measurements, comparisons, and promotion verdicts | a causal explanation |
+| `context` | codebase patterns, prior work, ownership, and docs | measured performance evidence |
+
+Transforms between roles should emit `derivations` with explicit `losses`.
+Consumers should treat a graph without derivations as source context, not as
+proof that another graph role has already been safely compiled.
 
 ## Provider Boundary
 
@@ -200,9 +236,11 @@ pretending they were read.
 
 Outer loops may also declare `hooks_dir`, `context_path`, `evidence_path`,
 `guardrails`, `max_iterations`, `max_wall_time_sec`, and explicit
-`stop_conditions`. These fields let an engine surface progress, avoid repeated
-dead-end loops, and stop cleanly when a candidate is confirmed, all active lanes
-are rejected, or the run is blocked by a missing proof surface.
+`stop_conditions`. They may also declare `runners`, which are generic execution
+surfaces such as a local shell runner or a remote CI runner. These fields let an
+engine surface progress, avoid repeated dead-end loops, and stop cleanly when a
+candidate is confirmed, all active lanes are rejected, or the run is blocked by
+a missing proof surface.
 
 That bundle should be self-contained enough that a local pi session, a remote
 agent, or a human reviewer can understand what was measured and why without
