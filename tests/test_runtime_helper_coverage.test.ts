@@ -49,6 +49,16 @@ function sessionPaths(workspace: string): SessionPaths {
   };
 }
 
+function defaultExecutionPolicy(): RuntimeConfig["executionPolicy"] {
+  return {
+    mode: "interactive",
+    clarificationPolicy: "allowed",
+    targetWallTimeHours: null,
+    minorRepairBudget: 3,
+    selfDebugMinorIssues: false,
+  };
+}
+
 function writeSessionArtifact(
   workspace: string,
   sessionId: string,
@@ -926,6 +936,7 @@ test("review-bundle helper covers null runner, invalid payloads, and error handl
     autoclankerRepo: null,
     allowBilledLive: false,
     runIntensity: "standard",
+    executionPolicy: defaultExecutionPolicy(),
     goal: null,
     evalCommand: null,
     constraints: [],
@@ -1109,6 +1120,7 @@ test("derived workspace view merges sparse upstream review data with local state
       defaultIdeasMode: "canonicalize",
       allowBilledLive: false,
       runIntensity: "standard",
+      executionPolicy: defaultExecutionPolicy(),
       goal: "Improve parser throughput without hurting correctness.",
       evalCommand: null,
       constraints: ["Keep correctness steady."],
@@ -1352,6 +1364,7 @@ test("derived workspace view covers local frontier decision fallbacks", () => {
       defaultIdeasMode: "canonicalize",
       allowBilledLive: false,
       runIntensity: "standard",
+      executionPolicy: defaultExecutionPolicy(),
       goal: "Improve parser throughput.",
       evalCommand: null,
       constraints: [],

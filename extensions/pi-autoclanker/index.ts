@@ -50,6 +50,7 @@ const TOOL_NAMES = [
 ] as const;
 
 const COMMAND_NAMES = [
+  "run",
   "start",
   "resume",
   "status",
@@ -76,22 +77,29 @@ type AutoclankerPayload = JsonObject & {
   enabled?: boolean;
   error?: string;
   evalCommand?: string;
+  executionPolicy?: JsonObject;
   familyIds?: string[];
   frontierInputPath?: string;
   goal?: string;
+  headless?: boolean;
   ideasInputPath?: string;
   budgetWeight?: number;
   mergedCandidateId?: string;
   mergedGenotype?: unknown;
   maxIterations?: number;
+  minorRepairBudget?: number;
   mode?: string;
   name?: string;
   notes?: string;
   ok?: boolean;
   outputPath?: string;
+  overnight?: boolean;
   payload?: unknown;
   roughIdeas?: string[];
   sessionRoot?: string;
+  selfDebugMinorIssues?: boolean;
+  targetHours?: number;
+  unattended?: boolean;
   usedDefaultEvalCommand?: boolean;
   workspace?: string;
 };
@@ -108,6 +116,7 @@ const COMMAND_SUMMARIES: Record<CommandName, string> = {
     "Merge selected pathways into autoclanker.frontier.json and re-rank them.",
   off: "Disable the current project-local pi-autoclanker session.",
   resume: "Resume the current project-local pi-autoclanker session.",
+  run: "Start or resume an unattended/headless pi-autoclanker execution handoff.",
   start: "Start or resume a project-local pi-autoclanker session.",
   status: "Show the current project-local pi-autoclanker session status.",
 };
@@ -180,6 +189,11 @@ const COMMON_PROPERTIES = {
     description:
       "Optional shell command for autoclanker.eval.sh. Omit it to generate a default JSON-emitting stub.",
   },
+  executionPolicy: {
+    type: "object",
+    description:
+      "Optional execution policy with mode, clarificationPolicy, targetWallTimeHours, minorRepairBudget, and selfDebugMinorIssues.",
+  },
   goal: {
     type: "string",
     description: "Optimization goal for the project-local session.",
@@ -206,6 +220,34 @@ const COMMON_PROPERTIES = {
     type: "number",
     description:
       "Optional maximum number of eval ingestions before the wrapper asks the agent to stop and summarize.",
+  },
+  minorRepairBudget: {
+    type: "number",
+    description: "Minor self-repair attempts allowed before reporting a hard blocker.",
+  },
+  targetHours: {
+    type: "number",
+    description: "Target unattended wall-clock hours for the run handoff.",
+  },
+  unattended: {
+    type: "boolean",
+    description:
+      "Run with upfront-only clarifications and persisted assumptions after startup.",
+  },
+  headless: {
+    type: "boolean",
+    description:
+      "Run with clarification questions disabled for non-Pi supervisory agents.",
+  },
+  selfDebugMinorIssues: {
+    type: "boolean",
+    description:
+      "Allow the supervising agent to self-debug non-destructive minor setup issues.",
+  },
+  overnight: {
+    type: "boolean",
+    description:
+      "Shortcut for unattended mega mode with an 8-hour target wall-clock budget.",
   },
   mode: {
     type: "string",
@@ -746,7 +788,10 @@ async function invokeRuntime(
   const workspace = payload.workspace;
   return await new Promise<unknown>((resolvePromise, reject) => {
     const child = spawn(invocation.command, invocation.args, {
-      cwd: typeof workspace === "string" ? workspace : defaultWorkspace(),
+      cwd:
+        typeof workspace === "string" && (existsSync(workspace) || name !== "run")
+          ? workspace
+          : defaultWorkspace(),
       env: process.env,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -997,6 +1042,34 @@ export function parseAutoclankerCommandArgs(raw: string): {
         index = nextIndex;
         break;
       }
+      case "--unattended":
+        payload.unattended = true;
+        index += 1;
+        break;
+      case "--headless":
+        payload.headless = true;
+        index += 1;
+        break;
+      case "--overnight":
+        payload.overnight = true;
+        index += 1;
+        break;
+      case "--target-hours": {
+        const [value, nextIndex] = consumeFlagValue(rest, index, token);
+        payload.targetHours = Number(value);
+        index = nextIndex;
+        break;
+      }
+      case "--minor-repair-budget": {
+        const [value, nextIndex] = consumeFlagValue(rest, index, token);
+        payload.minorRepairBudget = Number(value);
+        index = nextIndex;
+        break;
+      }
+      case "--self-debug-minor-issues":
+        payload.selfDebugMinorIssues = true;
+        index += 1;
+        break;
       case "--notes": {
         const [value, nextIndex] = consumeFlagValue(rest, index, token);
         payload.notes = value;
@@ -1035,7 +1108,10 @@ export function parseAutoclankerCommandArgs(raw: string): {
   }
 
   if (positional.length > 0) {
-    if (command === "start" && typeof payload.goal !== "string") {
+    if (
+      (command === "start" || command === "run") &&
+      typeof payload.goal !== "string"
+    ) {
       payload.goal = positional.join(" ");
     } else {
       throw new Error(`Unexpected positional arguments for /autoclanker ${command}.`);
@@ -1066,6 +1142,9 @@ function summarizeCommandResult(
       return "pi-autoclanker started with a generated eval shell stub.";
     }
     return "pi-autoclanker started with an explicit eval command.";
+  }
+  if (command === "run") {
+    return "pi-autoclanker generated an unattended/headless execution handoff.";
   }
   if (command === "status") {
     const enabled = result.enabled === true ? "enabled" : "disabled";
@@ -1342,7 +1421,7 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
   // directory shells out to the runtime, gets the synthetic "status_workspace"
   // dashboard, and pins a noisy 6-line widget (Leader lane: none / Families: 0
   // / Pending queries: 0 / trust: unverified / next: …) above the editor.
-  // The /autoclanker slash command and ctrl+alt+x toggle still bypass this
+  // The /autoclanker slash command and dashboard shortcut still bypass this
   // gate and will surface the widget on demand.
   pi.on("session_start", async (_event, ctx) => {
     if (!hasAutoclankerSession(autoclankerCompactionPathsFor(ctx.cwd))) {
@@ -1365,19 +1444,29 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
     widgetState.running = null;
   });
 
+  async function toggleInlineDashboard(ctx: ExtensionContext): Promise<void> {
+    expandedWidget = !expandedWidget;
+    await syncWidget(ctx);
+  }
+
+  pi.registerShortcut("ctrl+x", {
+    description: "Toggle the pi-autoclanker inline dashboard",
+    handler: toggleInlineDashboard,
+  });
+
   pi.registerShortcut("ctrl+alt+x", {
     description: "Toggle the pi-autoclanker inline dashboard",
-    handler: async (ctx) => {
-      expandedWidget = !expandedWidget;
-      await syncWidget(ctx);
-    },
+    handler: toggleInlineDashboard,
+  });
+
+  pi.registerShortcut("ctrl+shift+x", {
+    description: "Open the pi-autoclanker fullscreen dashboard",
+    handler: openOverlay,
   });
 
   pi.registerShortcut("ctrl+alt+shift+x", {
     description: "Open the pi-autoclanker fullscreen dashboard",
-    handler: async (ctx) => {
-      await openOverlay(ctx);
-    },
+    handler: openOverlay,
   });
 
   for (const tool of TOOL_DEFINITIONS) {
@@ -1420,7 +1509,7 @@ export default function registerPiAutoclanker(pi: ExtensionAPI): void {
 
   pi.registerCommand("autoclanker", {
     description:
-      "Manage pi-autoclanker sessions with /autoclanker <start|resume|status|off|clear|export>.",
+      "Manage pi-autoclanker sessions with /autoclanker <run|start|resume|status|off|clear|export>.",
     handler: async (args, ctx) => {
       widgetState.running = "command";
       updateWidget(ctx);

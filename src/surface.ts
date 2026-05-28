@@ -4,6 +4,12 @@ export const surfaceManifest = {
   commands: [
     {
       description:
+        "Start or resume an unattended/headless execution handoff for long autonomous runs.",
+      name: "run",
+      slashCommand: "/autoclanker run",
+    },
+    {
+      description:
         "Start a new session or resume the existing project-local session from a direct goal or optional autoclanker.ideas.json intake file.",
       name: "start",
       slashCommand: "/autoclanker start",
@@ -60,6 +66,7 @@ export const surfaceManifest = {
     "schemas/pi-autoclanker.proposals.schema.json",
     "extensions/pi-autoclanker/assets/dashboard.html",
     "skills/autoclanker-create/SKILL.md",
+    "skills/autoclanker-autonomous-supervisor/SKILL.md",
     "skills/autoclanker-advanced-beliefs/SKILL.md",
     "skills/autoclanker-hooks/SKILL.md",
     "skills/autoclanker-hooks/examples/README.md",
@@ -72,6 +79,7 @@ export const surfaceManifest = {
     "skills/autoclanker-hooks/examples/after-eval/macos-notify.sh",
     "skills/autoclanker-review/SKILL.md",
     "docs/CLANKERBENCH.md",
+    "docs/HEADLESS_AGENT.md",
     "docs/MENTAL_MODEL.md",
     "docs/assets/pi-autoclanker-mental-model.svg",
     "docs/assets/pi-autoclanker-structure.svg",

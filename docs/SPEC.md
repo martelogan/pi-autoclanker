@@ -32,6 +32,7 @@ shape in a checked-in JSON form:
   `{ "id": "...", "path": "plans/idea.md" }` for larger checked-in markdown or text plans
 - `constraints`
 - optional `run_intensity`: `standard`, `deep`, or `mega`
+- optional `executionPolicy` for unattended or headless supervisors
 - optional `pathways`
 
 That file is only an intake convenience surface. The generated working surfaces
@@ -54,6 +55,10 @@ does want explicit early lane seeding; it is not the default intake shape.
 iteration-budget guardrails, `deep` is a visible label for intentionally larger
 runs, and `mega` explicitly disables the max-iteration stop so a supervised
 run can keep exploring until each useful lane has a measured decision.
+`executionPolicy` is additive wrapper state for long runs: after
+intake/preflight, unattended and headless supervisors should record uncertainty
+as assumptions, risks, pending queries, or proposal notes instead of stopping
+for late clarification questions.
 Once a session is initialized, that checked-in eval surface should be treated as
 fixed for the life of the session: the wrapper should snapshot it, surface the
 snapshot in status, and refuse eval ingest if the local `autoclanker.eval.sh`
@@ -80,8 +85,8 @@ The wrapper should also expose one shared derived state model that powers:
 - `autoclanker.md`
 - machine-readable `status` and `export`
 - the compact widget
-- the `Ctrl+Alt+X` inline dashboard
-- the `Ctrl+Alt+Shift+X` fullscreen overlay
+- the `Ctrl+X` / `Ctrl+Alt+X` inline dashboard
+- the `Ctrl+Shift+X` / `Ctrl+Alt+Shift+X` fullscreen overlay
 - the browser dashboard opened from `/autoclanker export`
 - deterministic pi context compaction summaries
 

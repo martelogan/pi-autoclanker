@@ -88,6 +88,19 @@ instructions to use the `autoclanker_*` tools, implement candidates, run the
 fixed eval surface, ingest measurements, fit, suggest, and repeat until a
 measured keep/reject/blocker result exists.
 
+For an unattended long run, use the execution handoff instead:
+
+```bash
+/autoclanker run --overnight Improve parser throughput without losing context quality.
+```
+
+`run --overnight` initializes or resumes the same files, sets `runIntensity` to
+`mega`, records an unattended execution policy, and returns a handoff prompt
+that tells the supervising agent not to ask late clarification questions. After
+startup, uncertainty should become assumptions, risks, pending comparison
+queries, or proposal notes. See [`docs/HEADLESS_AGENT.md`](docs/HEADLESS_AGENT.md)
+for non-Pi and enterprise/cloud supervisor usage.
+
 If you do not provide a real eval command yet, `pi-autoclanker` can generate a
 default checked-in `autoclanker.eval.sh` stub so the session starts immediately
 and stays inspectable.
@@ -168,7 +181,10 @@ or `autoclanker.frontier.json`. A compact domain intake can carry:
 
 When a frontier has more than one lane, `ingest-eval` now requires an explicit
 `--candidate-id` or unambiguous `--family-id`; this prevents measurements from
-being attributed to a generic current workspace lane.
+being attributed to a generic current workspace lane. That isolation is per
+measurement, not per whole run: after each fit/suggest cycle the frontier can
+keep, drop, split, or merge pathways and evaluate those merged candidates under
+the same locked eval surface.
 
 If you want a guided setup instead of typing everything into a slash command,
 start with:
@@ -208,12 +224,12 @@ summary.
 
 Most runs should keep a finite `maxIterations` so weak searches converge and
 summarize instead of spinning. When the intent is a supervised "go as far as
-possible" run, make that explicit with `runIntensity: "mega"` in
-`autoclanker.config.json` or `autoclanker.ideas.json`, or start with
-`--run-intensity mega` / `--mega`. Mega mode keeps the locked eval surface and
-candidate binding rules, but disables the wrapper's max-iteration stop so the
-LLM or human supervisor can continue until all valuable lanes have a measured
-keep/reject/blocker result.
+possible" run, use `/autoclanker run --overnight`, set
+`runIntensity: "mega"` in `autoclanker.config.json` or
+`autoclanker.ideas.json`, or pass `--run-intensity mega` / `--mega`. Mega mode
+keeps the locked eval surface and candidate binding rules, but disables the
+wrapper's max-iteration stop so the supervisor can continue until all valuable
+lanes have a measured keep/reject/blocker result.
 
 For a preseeded benchmark workspace, start from the directory that contains the
 session files and point at the existing intake file:
@@ -229,6 +245,12 @@ Read README.md, autoclanker.md, autoclanker.ideas.json, and the benchmark
 briefs first. Use the active pi-autoclanker session and its autoclanker_* tools.
 Treat bash autoclanker.eval.sh as the fixed eval surface. Do not stop until you
 have a measured keep/reject/blocker result.
+```
+
+For unattended runs, prefer:
+
+```bash
+/autoclanker run --overnight --ideas-input autoclanker.ideas.json
 ```
 
 ## Mental model
@@ -330,8 +352,8 @@ The wrapper now keeps one shared live model and exposes it through four views:
   without an autoclanker session the widget stays hidden so pi boots silently
   outside of optimization work; `/autoclanker` and the keyboard shortcuts
   below still surface the widget on demand from anywhere.
-- `Ctrl+Alt+X` for an expanded inline dashboard
-- `Ctrl+Alt+Shift+X` for a fullscreen overlay
+- `Ctrl+X` or `Ctrl+Alt+X` for an expanded inline dashboard
+- `Ctrl+Shift+X` or `Ctrl+Alt+Shift+X` for a fullscreen overlay
 - `/autoclanker export` for the machine-readable bundle and, inside the
   interactive extension, a browser dashboard that auto-refreshes while the
   extension is driving work
@@ -342,6 +364,10 @@ Those views stay grounded in the same four plain-language briefs:
 - `Run Brief`: what is being tested now, who leads, and what comparison comes next
 - `Posterior Brief`: what the evidence changed after fit and suggest
 - `Proposal Brief`: what is ready, blocked, deferred, or waiting for approval
+
+The expanded views include both a frontier decision table and a proposal table.
+That is where promoted lanes, pending merges, blocked lanes, and recommended or
+approval-ready proposals stay visible while a long run continues.
 
 The browser dashboard and widget stack do not add a second engine. They are
 just richer views over the same local files and upstream `autoclanker`
@@ -365,6 +391,7 @@ project-local files rather than from stale conversation memory.
 
 | Command | Description |
 | --- | --- |
+| `/autoclanker run <goal>` | Initialize or resume an unattended/headless execution handoff; use `--overnight` for long autonomous runs. |
 | `/autoclanker start <goal>` | Initialize or resume the project-local session from a goal; it does not launch autonomous coding by itself. |
 | `/autoclanker resume` | Mark the current session active again without changing beliefs. |
 | `/autoclanker status` | Summarize the current local session files plus upstream review, trust, lineage, and next-action state. |
@@ -379,6 +406,7 @@ Useful examples:
 
 ```text
 /autoclanker start Reduce API latency without hurting correctness.
+/autoclanker run --overnight Reduce API latency without hurting correctness.
 /autoclanker compare-frontier
 /autoclanker status
 /autoclanker export
@@ -412,6 +440,7 @@ source of truth.
 | Skill | Purpose |
 | --- | --- |
 | `autoclanker-create` | Start from a direct goal or optional `autoclanker.ideas.json`, write the local files, preview beliefs, and initialize the session. |
+| `autoclanker-autonomous-supervisor` | Drive unattended or headless execution from the generated handoff without asking late clarification questions. |
 | `autoclanker-advanced-beliefs` | Turn rough ideas into compact advanced JSON beliefs by starting with up to three high-yield follow-up questions per round when the beginner path is no longer enough. |
 | `autoclanker-hooks` | Add optional `autoclanker.hooks/before-eval.sh` and `after-eval.sh` scripts for eval-adjacent side effects without turning hooks into a second optimizer. |
 | `autoclanker-review` | Read the current session and summarize it through the Prior / Run / Posterior / Proposal briefs in plain language. |

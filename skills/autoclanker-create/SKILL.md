@@ -41,6 +41,10 @@ wrapper.
   first belief preview or seed an explicit pathway comparison
 - ask no clarification questions by default if `autoclanker` can already
   preview/canonicalize usefully from the current input
+- for unattended or headless execution, ask any essential questions only during
+  intake/preflight; after the execution handoff, persist unresolved uncertainty
+  as assumptions, risks, pending queries, or proposal notes instead of asking
+  the user late questions
 
 If the user does not already have a real eval command, allow the wrapper
 to generate the default checked-in `autoclanker.eval.sh` shell stub so the
@@ -61,6 +65,10 @@ session can start immediately.
 
 `autoclanker.ideas.json` is an optional checked-in intake file, not the main
 generated working surface.
+
+For long-running work, prefer `/autoclanker run --overnight` or
+`pi-autoclanker command run --overnight` so the session records an execution
+policy and handoff prompt before the agent starts spending compute.
 
 4. Call the extension tool bridge to:
 

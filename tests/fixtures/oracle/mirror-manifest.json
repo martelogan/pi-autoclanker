@@ -10,19 +10,19 @@
     },
     {
       "path": "schemas/pi-autoclanker.config.schema.json",
-      "sha256": "a520229bd5a768cd1030966da336caee50d264e7db66f60f1bb61d2918f87013"
+      "sha256": "75adb7c4802d60f632ac03afe6c8a82ebf66d57c0f0ba6a608a52ccc794e2f80"
     },
     {
       "path": "skills/autoclanker-create/SKILL.md",
-      "sha256": "c7ec793269af517d615c1f062aa39deba25e2e1b5202dc2814168addd6e3389f"
+      "sha256": "6c2d904735d42221f3d4ad61f0a0ec4da0fd2bcb3b048d391d1d0aece18a3c7d"
     },
     {
       "path": "skills/autoclanker-advanced-beliefs/SKILL.md",
-      "sha256": "3e03843a4ece233a5caa17d7a6a162d89f06c4c86f00c8b362fc583f019c4b49"
+      "sha256": "f8f06235589b2813259863f92a878537234988100adad1b7efef167055620ab2"
     },
     {
       "path": "skills/autoclanker-review/SKILL.md",
-      "sha256": "0bf5df1dbe632fb1cf847a5f56dc971294a78c9b88bd9b45ea2c3240c694e54e"
+      "sha256": "2faf61b3ee4395cab32987438dbc95338aec8ba4a18380ab4408381a6dd72ca9"
     },
     {
       "path": "examples/targets/parser-quickstart/README.md",

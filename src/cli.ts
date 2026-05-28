@@ -29,15 +29,22 @@ type CliPayload = JsonObject & {
   constraints?: string[];
   defaultIdeasMode?: IdeasMode;
   evalCommand?: string;
+  executionPolicy?: Record<string, unknown>;
   force?: boolean;
   goal?: string;
+  headless?: boolean;
   ideasInputPath?: string;
   maxIterations?: number;
+  minorRepairBudget?: number;
   mode?: IdeasMode;
   outputPath?: string;
   roughIdeas?: string[];
   runIntensity?: RunIntensity;
+  selfDebugMinorIssues?: boolean;
   sessionRoot?: string;
+  targetHours?: number;
+  unattended?: boolean;
+  overnight?: boolean;
   workspace?: string;
 };
 
@@ -178,6 +185,34 @@ function parseCommonFlags(tokens: string[], payload: CliPayload): string[] {
         payload.runIntensity = "mega";
         index += 1;
         break;
+      case "--unattended":
+        payload.unattended = true;
+        index += 1;
+        break;
+      case "--headless":
+        payload.headless = true;
+        index += 1;
+        break;
+      case "--overnight":
+        payload.overnight = true;
+        index += 1;
+        break;
+      case "--target-hours": {
+        const [value, nextIndex] = readFlagValue(tokens, index, token);
+        payload.targetHours = Number(value);
+        index = nextIndex;
+        break;
+      }
+      case "--minor-repair-budget": {
+        const [value, nextIndex] = readFlagValue(tokens, index, token);
+        payload.minorRepairBudget = Number(value);
+        index = nextIndex;
+        break;
+      }
+      case "--self-debug-minor-issues":
+        payload.selfDebugMinorIssues = true;
+        index += 1;
+        break;
       case "--allow-billed-live":
         payload.allowBilledLive = true;
         index += 1;
@@ -249,6 +284,7 @@ function parseCommandInvocation(argv: string[]): {
   let ideasFile: string | null = null;
   const payload: CliPayload = {};
   const flags = parseCommonFlags(argv.slice(1), payload);
+  const positional: string[] = [];
   let index = 0;
   while (index < flags.length) {
     const token = flags[index];
@@ -330,7 +366,19 @@ function parseCommandInvocation(argv: string[]): {
         index += 1;
         break;
       default:
-        throw new Error(`Unexpected argument for command ${name}: ${token}`);
+        if (token.startsWith("-")) {
+          throw new Error(`Unexpected argument for command ${name}: ${token}`);
+        }
+        positional.push(token);
+        index += 1;
+        break;
+    }
+  }
+  if (positional.length > 0) {
+    if ((name === "start" || name === "run") && typeof payload.goal !== "string") {
+      payload.goal = positional.join(" ");
+    } else {
+      throw new Error(`Unexpected positional arguments for command ${name}.`);
     }
   }
   const ideasInput = parseIdeasFile(ideasFile);
@@ -365,6 +413,11 @@ function printHelp(): void {
       "  --allow-prior-art-hard-gate",
       "  --run-intensity standard|deep|mega",
       "  --mega",
+      "  --unattended",
+      "  --headless",
+      "  --overnight",
+      "  --target-hours <n>",
+      "  --minor-repair-budget <n>",
     ].join("\n")}\n`,
   );
 }

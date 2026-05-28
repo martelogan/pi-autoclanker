@@ -31,3 +31,12 @@ the current state before continuing.
 
 If `autoclanker.proposals.json` exists, use it as the durable proposal mirror
 rather than reconstructing proposal state from prose.
+
+5. Distinguish questions from blockers.
+
+- Pending comparison questions are normal model guidance.
+- In unattended/headless mode, late user-facing questions should already be
+  converted into assumptions, risks, pending queries, or proposal notes.
+- Only call something blocked when execution cannot continue without a true hard
+  blocker such as eval-contract drift, missing required credentials, destructive
+  approval, or repeated unrepaired infrastructure failure.

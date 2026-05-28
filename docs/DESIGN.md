@@ -154,11 +154,18 @@ standard run may stop at `maxIterations` and summarize. A mega run is an
 explicit supervised mode: it keeps all eval-surface and candidate-binding
 guards, but it does not stop only because a small iteration budget was reached.
 
+Long-running execution has one additional wrapper policy layer. `run` records an
+`executionPolicy` that separates intake/preflight from execution: clarification
+questions may be allowed during intake, but unattended/headless execution must
+turn late uncertainty into assumptions, risks, pending queries, or proposal
+notes instead of stopping the supervisor. The policy is local wrapper state; it
+does not add a second optimizer.
+
 Those same briefs should be visible through:
 
 - the compact always-visible widget
-- `Ctrl+Alt+X` inline expansion
-- `Ctrl+Alt+Shift+X` fullscreen overlay
+- `Ctrl+X` or `Ctrl+Alt+X` inline expansion
+- `Ctrl+Shift+X` or `Ctrl+Alt+Shift+X` fullscreen overlay
 - the browser dashboard launched from `/autoclanker export`
 
 When the upstream session can derive `session review-bundle`, the wrapper

@@ -55,6 +55,7 @@ type JsonRecord = {
   frontierSummary?: unknown;
   goal?: unknown;
   handoff?: unknown;
+  handoffPrompt?: unknown;
   ingest?: unknown;
   mean?: unknown;
   mode?: unknown;
@@ -68,6 +69,7 @@ type JsonRecord = {
   prior_scale?: unknown;
   removed?: unknown;
   rootRelative?: unknown;
+  runIntensity?: unknown;
   scale?: unknown;
   sessionRoot?: unknown;
   suggestion?: unknown;
@@ -81,8 +83,16 @@ type JsonRecord = {
   upstreamPreviewDigest?: unknown;
   usedDefaultEvalCommand?: unknown;
   value?: unknown;
+  clarificationPolicy?: unknown;
   candidate_count?: unknown;
+  execution_policy?: unknown;
+  executionPolicy?: unknown;
   family_count?: unknown;
+  minorRepairBudget?: unknown;
+  preflight?: unknown;
+  ready?: unknown;
+  selfDebugMinorIssues?: unknown;
+  targetWallTimeHours?: unknown;
 };
 
 type EvalContractRecord = {
@@ -122,6 +132,8 @@ function writeConfig(
     defaultIdeasMode: string;
     enabled: boolean;
     evalCommand: string | null;
+    execution_policy: JsonRecord;
+    executionPolicy: JsonRecord;
     goal: string | null;
     sessionRoot: string;
   }>,
@@ -143,6 +155,12 @@ function writeConfig(
   }
   if (overrides?.evalCommand !== undefined && overrides.evalCommand !== null) {
     payload.evalCommand = overrides.evalCommand;
+  }
+  if (overrides?.execution_policy !== undefined) {
+    payload.execution_policy = overrides.execution_policy;
+  }
+  if (overrides?.executionPolicy !== undefined) {
+    payload.executionPolicy = overrides.executionPolicy;
   }
   if (overrides?.goal !== undefined && overrides.goal !== null) {
     payload.goal = overrides.goal;
@@ -188,6 +206,13 @@ function baseConfig(
     defaultIdeasMode: "canonicalize",
     allowBilledLive: false,
     runIntensity: "standard",
+    executionPolicy: {
+      mode: "interactive",
+      clarificationPolicy: "allowed",
+      targetWallTimeHours: null,
+      minorRepairBudget: 3,
+      selfDebugMinorIssues: false,
+    },
     goal: null,
     evalCommand: null,
     constraints: [],
@@ -313,6 +338,93 @@ coveredTest(
         runIntensity: "forever",
       }),
     ).toThrowError(/runIntensity/u);
+    const snakeConfigWorkspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-snake-config-"),
+    );
+    writeConfig(snakeConfigWorkspace, {
+      autoclankerBinary: "autoclanker",
+      sessionRoot: ".autoclanker",
+      defaultIdeasMode: "canonicalize",
+      execution_policy: {
+        mode: "unattended",
+        target_wall_time_hours: 4,
+        minor_repair_budget: 2,
+        self_debug_minor_issues: true,
+      },
+    });
+    expect(loadWorkspaceConfig(snakeConfigWorkspace).executionPolicy).toMatchObject({
+      mode: "unattended",
+      clarificationPolicy: "upfront_only",
+      targetWallTimeHours: 4,
+      minorRepairBudget: 2,
+      selfDebugMinorIssues: true,
+    });
+    expect(() =>
+      validateConfigDocument({
+        autoclankerBinary: "autoclanker",
+        sessionRoot: ".autoclanker",
+        defaultIdeasMode: "canonicalize",
+        executionPolicy: {
+          mode: "daemon",
+          clarificationPolicy: "allowed",
+          minorRepairBudget: 3,
+          selfDebugMinorIssues: false,
+        },
+      }),
+    ).toThrowError(/executionPolicy\.mode/u);
+    expect(() =>
+      validateConfigDocument({
+        autoclankerBinary: "autoclanker",
+        sessionRoot: ".autoclanker",
+        defaultIdeasMode: "canonicalize",
+        executionPolicy: {
+          mode: "unattended",
+          clarificationPolicy: "sometimes",
+          minorRepairBudget: 3,
+          selfDebugMinorIssues: true,
+        },
+      }),
+    ).toThrowError(/clarificationPolicy/u);
+    expect(() =>
+      validateConfigDocument({
+        autoclankerBinary: "autoclanker",
+        sessionRoot: ".autoclanker",
+        defaultIdeasMode: "canonicalize",
+        executionPolicy: {
+          mode: "headless",
+          clarificationPolicy: "never",
+          targetWallTimeHours: 0,
+          minorRepairBudget: 0,
+          selfDebugMinorIssues: "yes",
+        },
+      }),
+    ).toThrowError();
+    expect(() =>
+      validateConfigDocument({
+        autoclankerBinary: "autoclanker",
+        sessionRoot: ".autoclanker",
+        defaultIdeasMode: "canonicalize",
+        executionPolicy: {
+          mode: "headless",
+          clarificationPolicy: "never",
+          minorRepairBudget: 0,
+          selfDebugMinorIssues: true,
+        },
+      }),
+    ).toThrowError(/minorRepairBudget/u);
+    expect(() =>
+      validateConfigDocument({
+        autoclankerBinary: "autoclanker",
+        sessionRoot: ".autoclanker",
+        defaultIdeasMode: "canonicalize",
+        executionPolicy: {
+          mode: "headless",
+          clarificationPolicy: "never",
+          minorRepairBudget: 1,
+          selfDebugMinorIssues: "yes",
+        },
+      }),
+    ).toThrowError(/selfDebugMinorIssues/u);
 
     const absoluteBinary = touchExecutable(resolve(workspace, "absolute-autoclanker"));
     expect(resolveAutoclankerCommand(baseConfig(absoluteBinary), workspace)).toEqual([
@@ -1008,6 +1120,267 @@ coveredTest(
     expect(startResult.runIntensity).toBe("mega");
     dispatchTool("autoclanker_ingest_eval", undefined, { workspace, runner });
     dispatchTool("autoclanker_ingest_eval", undefined, { workspace, runner });
+  },
+);
+
+coveredTest(
+  ["M1-003", "M2-003"],
+  "run overnight creates an unattended execution handoff and writes policy state",
+  () => {
+    const runner = (argv: string[], cwd: string): InvocationResult => {
+      void cwd;
+      if (argv.includes("session") && argv.includes("init")) {
+        return {
+          returncode: 0,
+          stdout: '{"preview_digest":"digest-overnight-run"}',
+          stderr: "",
+        };
+      }
+      if (argv.includes("session") && argv.includes("status")) {
+        return {
+          returncode: 0,
+          stdout: hardenedStatusPayload(),
+          stderr: "",
+        };
+      }
+      if (argv.includes("session") && argv.includes("frontier-status")) {
+        return {
+          returncode: 0,
+          stdout:
+            '{"frontier_summary":{"candidate_count":0,"family_count":0,"pending_queries":[],"pending_merge_suggestions":[]}}',
+          stderr: "",
+        };
+      }
+      return { returncode: 0, stdout: "{}", stderr: "" };
+    };
+    const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-run-"));
+    const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
+    const result = asRecord(
+      dispatchCommand(
+        "run",
+        {
+          autoclankerBinary: fakeBinary,
+          evalCommand: JSON_EVAL_COMMAND,
+          goal: "Explore all plausible lanes overnight.",
+          overnight: true,
+          roughIdeas: ["Try a cache-backed parser lane."],
+          workspace,
+        },
+        { runner },
+      ),
+    );
+    const policy = asRecord(result.executionPolicy);
+    const preflight = asRecord(result.preflight);
+    const config = asRecord(
+      JSON.parse(readFileSync(resolve(workspace, CONFIG_FILENAME), "utf-8")),
+    );
+    const configPolicy = asRecord(config.executionPolicy);
+    const summary = readFileSync(resolve(workspace, SUMMARY_FILENAME), "utf-8");
+    const history = readFileSync(resolve(workspace, HISTORY_FILENAME), "utf-8");
+
+    expect(result.command).toBe("run");
+    expect(policy.mode).toBe("unattended");
+    expect(policy.clarificationPolicy).toBe("upfront_only");
+    expect(policy.targetWallTimeHours).toBe(8);
+    expect(result.runIntensity).toBe("mega");
+    expect(preflight.ready).toBe(true);
+    expect(String(result.handoffPrompt)).toContain(
+      "Clarifying questions are only allowed during intake/preflight",
+    );
+    expect(config.runIntensity).toBe("mega");
+    expect(configPolicy.mode).toBe("unattended");
+    expect(summary).toContain("## Execution Policy");
+    expect(summary).toContain(
+      "recommended resume command: `/autoclanker run --overnight`",
+    );
+    expect(history).toContain('"event":"execution_policy_activated"');
+    expect(history).toContain('"event":"assumption_recorded"');
+  },
+);
+
+coveredTest(
+  ["M1-003", "M2-003"],
+  "ideas executionPolicy is honored unless explicit flags override it",
+  () => {
+    const runner = (argv: string[], cwd: string): InvocationResult => {
+      void cwd;
+      if (argv.includes("session") && argv.includes("init")) {
+        return {
+          returncode: 0,
+          stdout: '{"preview_digest":"digest-policy"}',
+          stderr: "",
+        };
+      }
+      if (argv.includes("session") && argv.includes("status")) {
+        return { returncode: 0, stdout: hardenedStatusPayload(), stderr: "" };
+      }
+      return { returncode: 0, stdout: "{}", stderr: "" };
+    };
+    const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-policy-"));
+    const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
+    writeFileSync(
+      resolve(workspace, "autoclanker.ideas.json"),
+      `${JSON.stringify(
+        {
+          goal: "Use a headless supervisor.",
+          ideas: ["Keep exploration moving without questions."],
+          executionPolicy: {
+            mode: "headless",
+            clarificationPolicy: "never",
+            targetWallTimeHours: 6,
+            minorRepairBudget: 4,
+            selfDebugMinorIssues: true,
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+
+    const startResult = asRecord(
+      dispatchCommand(
+        "start",
+        {
+          autoclankerBinary: fakeBinary,
+          evalCommand: JSON_EVAL_COMMAND,
+          workspace,
+        },
+        { runner },
+      ),
+    );
+    expect(asRecord(startResult.executionPolicy).mode).toBe("headless");
+
+    const resumed = asRecord(
+      dispatchCommand(
+        "run",
+        {
+          unattended: true,
+          workspace,
+        },
+        { runner },
+      ),
+    );
+    const resumedPolicy = asRecord(resumed.executionPolicy);
+    expect(resumedPolicy.mode).toBe("unattended");
+    expect(resumedPolicy.clarificationPolicy).toBe("never");
+  },
+);
+
+coveredTest(
+  ["M1-003", "M2-003"],
+  "headless run flags and snake-case ideas policy produce noninteractive handoff state",
+  () => {
+    const runner = (argv: string[], cwd: string): InvocationResult => {
+      void cwd;
+      if (argv.includes("session") && argv.includes("init")) {
+        return {
+          returncode: 0,
+          stdout: '{"preview_digest":"digest-headless-policy"}',
+          stderr: "",
+        };
+      }
+      if (argv.includes("session") && argv.includes("status")) {
+        return { returncode: 0, stdout: hardenedStatusPayload(), stderr: "" };
+      }
+      return { returncode: 0, stdout: "{}", stderr: "" };
+    };
+    const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-headless-"));
+    const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
+    writeFileSync(
+      resolve(workspace, "autoclanker.ideas.json"),
+      `${JSON.stringify(
+        {
+          goal: "Run from a non-Pi supervisor.",
+          ideas: ["Keep the loop moving without late questions."],
+          execution_policy: {
+            mode: "unattended",
+            clarification_policy: "upfront_only",
+            target_wall_time_hours: 2,
+            minor_repair_budget: 2,
+            self_debug_minor_issues: true,
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+
+    const result = asRecord(
+      dispatchCommand(
+        "run",
+        {
+          autoclankerBinary: fakeBinary,
+          evalCommand: JSON_EVAL_COMMAND,
+          headless: true,
+          minorRepairBudget: 5,
+          selfDebugMinorIssues: false,
+          targetHours: 3,
+          workspace,
+        },
+        { runner },
+      ),
+    );
+    const policy = asRecord(result.executionPolicy);
+
+    expect(policy.mode).toBe("headless");
+    expect(policy.clarificationPolicy).toBe("never");
+    expect(policy.targetWallTimeHours).toBe(3);
+    expect(policy.minorRepairBudget).toBe(5);
+    expect(policy.selfDebugMinorIssues).toBe(false);
+    expect(String(result.handoffPrompt)).toContain(
+      "Clarifying questions are disabled; unresolved uncertainty must become assumptions",
+    );
+    expect(String(result.handoffPrompt)).toContain(
+      "Self-debug minor infrastructure issues: no; repair budget: 5.",
+    );
+  },
+);
+
+coveredTest(
+  ["M1-003", "M2-003"],
+  "run creates a missing explicit workspace but status does not",
+  () => {
+    const runner = (argv: string[], cwd: string): InvocationResult => {
+      void cwd;
+      if (argv.includes("session") && argv.includes("init")) {
+        return {
+          returncode: 0,
+          stdout: '{"preview_digest":"digest-missing-workspace"}',
+          stderr: "",
+        };
+      }
+      if (argv.includes("session") && argv.includes("status")) {
+        return { returncode: 0, stdout: hardenedStatusPayload(), stderr: "" };
+      }
+      return { returncode: 0, stdout: "{}", stderr: "" };
+    };
+    const parent = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-run-workspace-"));
+    const statusWorkspace = resolve(parent, "status-missing");
+    dispatchCommand("status", { workspace: statusWorkspace }, { runner });
+    expect(() =>
+      readFileSync(resolve(statusWorkspace, CONFIG_FILENAME), "utf-8"),
+    ).toThrow();
+
+    const runWorkspace = resolve(parent, "run-created");
+    const fakeBinary = touchExecutable(resolve(parent, "fake-autoclanker"));
+    const runResult = asRecord(
+      dispatchCommand(
+        "run",
+        {
+          autoclankerBinary: fakeBinary,
+          evalCommand: JSON_EVAL_COMMAND,
+          goal: "Create the workspace on run.",
+          workspace: runWorkspace,
+        },
+        { runner },
+      ),
+    );
+    expect(runResult.command).toBe("run");
+    expect(readFileSync(resolve(runWorkspace, CONFIG_FILENAME), "utf-8")).toContain(
+      "executionPolicy",
+    );
   },
 );
 

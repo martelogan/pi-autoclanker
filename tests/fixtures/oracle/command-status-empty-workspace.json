@@ -12,6 +12,60 @@
   "applyState": null,
   "billedLive": false,
   "canonicalizationModel": null,
+  "runIntensity": "standard",
+  "executionPolicy": {
+    "mode": "interactive",
+    "clarificationPolicy": "allowed",
+    "targetWallTimeHours": null,
+    "minorRepairBudget": 3,
+    "selfDebugMinorIssues": false
+  },
+  "preflight": {
+    "ready": false,
+    "blockerCount": 4,
+    "warningCount": 1,
+    "checks": [
+      {
+        "id": "workspace",
+        "status": "passed",
+        "summary": "Workspace exists."
+      },
+      {
+        "id": "goal",
+        "status": "blocker",
+        "summary": "No optimization goal is recorded."
+      },
+      {
+        "id": "eval_command",
+        "status": "blocker",
+        "summary": "No eval command is recorded."
+      },
+      {
+        "id": "autoclanker_cli",
+        "status": "blocker",
+        "summary": "autoclanker CLI is not resolvable from this workspace."
+      },
+      {
+        "id": "eval_surface_lock",
+        "status": "blocker",
+        "summary": "Checked-in eval surface drifted from the session lock."
+      },
+      {
+        "id": "upstream_artifacts",
+        "status": "warning",
+        "summary": "Upstream artifacts are not present yet; first apply/fit/suggest calls may create them."
+      }
+    ]
+  },
+  "handoffPrompt": "Use this workspace as an active pi-autoclanker autonomous run.\nWorkspace: <workspace>\nExecution mode: interactive; run intensity: standard; target: the configured run budget.\nClarifying questions are allowed when they materially improve the run.\nSelf-debug minor infrastructure issues: no; repair budget: 3.\nLoop: read autoclanker.md, select the next candidate lane or merge suggestion, isolate one candidate edit per measurement, run autoclanker.eval.sh through autoclanker_ingest_eval with an explicit candidate when a frontier has multiple lanes, then call fit, suggest, and status before deciding whether to keep, drop, split, or merge lanes.\nDo not rewrite the locked eval surface during execution. Stop only for true hard blockers: contract drift, missing required credentials with no fallback, destructive action required, or repeated unrepaired infrastructure failure.\nPreflight has blockers; resolve blockers before spending long-run compute.",
+  "nextActions": [
+    "Read autoclanker.md and the current Run Brief.",
+    "If beliefs are still preview-only, call autoclanker_apply_beliefs.",
+    "For each selected or merged candidate, isolate the candidate edit, run autoclanker_ingest_eval, then call autoclanker_fit and autoclanker_suggest.",
+    "Use pending queries and merge suggestions to compare, split, drop, or create merged lanes for later measurements.",
+    "Persist uncertainty as assumptions, risks, pending queries, or proposal notes instead of asking late clarification questions."
+  ],
+  "assumptions": [],
   "evalSurfaceSha256": null,
   "lockedEvalSurfaceSha256": null,
   "evalSurfaceMatchesLock": false,
@@ -34,6 +88,7 @@
   "followUpComparison": null,
   "frontierFilePresent": false,
   "ideasFilePresent": false,
+  "progress": null,
   "frontierSummary": {
     "frontier_id": "frontier_default",
     "candidate_count": 0,
@@ -58,6 +113,7 @@
       "title": "Run Brief",
       "summary": "No leader lane exists yet. No runner-up lane exists yet. No concrete comparison is pending.",
       "bullets": [
+        "Execution: interactive; Clarifying questions are allowed when they materially improve the run.",
         "Trust: unverified; eval surface lock drifted.",
         "Pending queries: 0; pending merges: 0.",
         "No concrete follow-up query is active.",
@@ -102,6 +158,7 @@
     "run_brief": {
       "summary": "No leader lane exists yet. No runner-up lane exists yet. No concrete comparison is pending.",
       "bullets": [
+        "Execution: interactive; Clarifying questions are allowed when they materially improve the run.",
         "Trust: unverified; eval surface lock drifted.",
         "Pending queries: 0; pending merges: 0.",
         "No concrete follow-up query is active.",
@@ -236,6 +293,11 @@
         "tone": "muted"
       },
       {
+        "label": "Execution",
+        "value": "interactive",
+        "tone": "muted"
+      },
+      {
         "label": "Iterations",
         "value": "0",
         "tone": "muted"
@@ -283,6 +345,7 @@
       "run": {
         "summary": "No leader lane exists yet. No runner-up lane exists yet. No concrete comparison is pending.",
         "bullets": [
+          "Execution: interactive; Clarifying questions are allowed when they materially improve the run.",
           "Trust: unverified; eval surface lock drifted.",
           "Pending queries: 0; pending merges: 0.",
           "No concrete follow-up query is active.",
@@ -368,7 +431,16 @@
       "eraId": "era_status_workspace_v1",
       "currentProposalId": null,
       "lastEvent": null,
-      "lastUpdatedAt": null
+      "lastUpdatedAt": null,
+      "recommendedCommand": "/autoclanker resume",
+      "executionPolicy": {
+        "mode": "interactive",
+        "clarificationPolicy": "allowed",
+        "targetWallTimeHours": null,
+        "minorRepairBudget": 3,
+        "selfDebugMinorIssues": false
+      },
+      "assumptions": []
     }
   },
   "evidenceViews": [
@@ -415,6 +487,15 @@
     "lastUpdatedAt": null,
     "currentProposalId": null,
     "resumeToken": null,
+    "recommendedCommand": "/autoclanker resume",
+    "executionPolicy": {
+      "mode": "interactive",
+      "clarificationPolicy": "allowed",
+      "targetWallTimeHours": null,
+      "minorRepairBudget": 3,
+      "selfDebugMinorIssues": false
+    },
+    "assumptions": [],
     "files": {
       "summary": "autoclanker.md",
       "beliefs": "autoclanker.beliefs.json",
@@ -467,7 +548,6 @@
     "autoclanker.progress.json": false,
     "autoclanker.history.jsonl": false
   },
-  "progress": null,
   "historyCount": 0,
   "exists": false,
   "handoff": {

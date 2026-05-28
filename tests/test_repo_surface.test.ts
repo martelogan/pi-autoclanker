@@ -26,6 +26,7 @@ coveredTest(["M0-001", "M1-006"], "package identity is pi-autoclanker", () => {
   expect(manifest.pi.extensions).toEqual(["./extensions/pi-autoclanker/index.ts"]);
   expect(manifest.pi.skills).toEqual([
     "./skills/autoclanker-advanced-beliefs",
+    "./skills/autoclanker-autonomous-supervisor",
     "./skills/autoclanker-create",
     "./skills/autoclanker-hooks",
     "./skills/autoclanker-review",
@@ -53,6 +54,8 @@ coveredTest(
     expect(readme).toContain("pi install https://github.com/martelogan/pi-autoclanker");
     expect(readme).toContain("pi install /absolute/path/to/pi-autoclanker");
     expect(readme).toContain("What’s included");
+    expect(readme).toContain("/autoclanker run");
+    expect(readme).toContain("HEADLESS_AGENT.md");
     expect(readme).toContain("Commands");
     expect(readme).toContain("Tools");
     expect(readme).toContain("Skills");
@@ -122,6 +125,7 @@ coveredTest(["M0-001", "M1-003"], "CLI entrypoint exposes root help", () => {
   expect(help).toContain("pi-autoclanker command <name> [flags]");
   expect(help).toContain("--clankerbench-manifest <path>");
   expect(help).toContain("--run-intensity standard|deep|mega");
+  expect(help).toContain("--overnight");
 });
 
 coveredTest(["M0-001"], "TypeScript index exports the public versioned surface", () => {

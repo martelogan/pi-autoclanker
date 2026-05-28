@@ -74,6 +74,7 @@
     "extensions": ["./extensions/pi-autoclanker/index.ts"],
     "skills": [
       "./skills/autoclanker-advanced-beliefs",
+      "./skills/autoclanker-autonomous-supervisor",
       "./skills/autoclanker-create",
       "./skills/autoclanker-hooks",
       "./skills/autoclanker-review"

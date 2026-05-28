@@ -26,6 +26,9 @@ user needs a compact advanced JSON belief batch.
   structure would materially change the next preview or frontier seed.
 - If the user does not want to elaborate further, stop cleanly and keep the
   unresolved structure as `proposal` or metadata-only beliefs.
+- In unattended or headless execution, do not ask follow-up questions after the
+  handoff has started. Record the missing preference, risk, or relation as an
+  assumption, pending query, or proposal risk and keep the run moving.
 
 3. Ask in this order when clarification is actually needed:
 

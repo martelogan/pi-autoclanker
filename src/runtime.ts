@@ -57,6 +57,7 @@ export const TOOL_NAMES = [
   "autoclanker_recommend_commit",
 ] as const;
 export const COMMAND_NAMES = [
+  "run",
   "start",
   "resume",
   "status",
@@ -68,6 +69,8 @@ export const COMMAND_NAMES = [
   "export",
 ] as const;
 export const RUN_INTENSITIES = ["standard", "deep", "mega"] as const;
+const EXECUTION_MODES = ["interactive", "unattended", "headless"] as const;
+const CLARIFICATION_POLICIES = ["allowed", "upfront_only", "never"] as const;
 
 const CONFIG_OVERRIDE_KEYS = [
   "autoclankerBinary",
@@ -77,6 +80,7 @@ const CONFIG_OVERRIDE_KEYS = [
   "allowBilledLive",
   "maxIterations",
   "runIntensity",
+  "executionPolicy",
 ] as const;
 const BILLED_LIVE_ENV_KEY = "PI_AUTOCLANKER_ALLOW_BILLED_LIVE";
 const UPSTREAM_LLM_LIVE_ENV_KEY = "AUTOCLANKER_ENABLE_LLM_LIVE";
@@ -132,10 +136,51 @@ type JsonObject = Record<string, unknown>;
 type EvalContractJson = JsonObject & {
   contract_digest?: unknown;
 };
+type AssumptionRecord = JsonObject & {
+  assumption?: unknown;
+  source?: unknown;
+  timestamp?: unknown;
+};
+type ExecutionPolicyInputRecord = JsonObject & {
+  clarificationPolicy?: unknown;
+  clarification_policy?: unknown;
+  minorRepairBudget?: unknown;
+  minor_repair_budget?: unknown;
+  mode?: unknown;
+  selfDebugMinorIssues?: unknown;
+  self_debug_minor_issues?: unknown;
+  targetWallTimeHours?: unknown;
+  target_wall_time_hours?: unknown;
+};
+type ExecutionPreflightCheck = JsonObject & {
+  id: string;
+  status: "blocker" | "passed" | "warning";
+  summary: string;
+};
+type ExecutionPreflight = JsonObject & {
+  ready: boolean;
+  blockerCount: number;
+  warningCount: number;
+  checks: ExecutionPreflightCheck[];
+};
+type RuntimeCommandResultRecord = JsonObject & {
+  command?: unknown;
+  preflight?: unknown;
+  tool?: unknown;
+};
 export type ToolName = (typeof TOOL_NAMES)[number];
 export type CommandName = (typeof COMMAND_NAMES)[number];
 export type IdeasMode = (typeof IDEAS_MODES)[number];
 export type RunIntensity = (typeof RUN_INTENSITIES)[number];
+type ExecutionMode = (typeof EXECUTION_MODES)[number];
+type ClarificationPolicy = (typeof CLARIFICATION_POLICIES)[number];
+export type ExecutionPolicy = {
+  clarificationPolicy: ClarificationPolicy;
+  minorRepairBudget: number;
+  mode: ExecutionMode;
+  selfDebugMinorIssues: boolean;
+  targetWallTimeHours: number | null;
+};
 export type InvocationResult = {
   returncode: number;
   stdout: string;
@@ -151,6 +196,7 @@ export type RuntimeConfig = {
   allowBilledLive: boolean;
   maxIterations?: number | null;
   runIntensity: RunIntensity;
+  executionPolicy: ExecutionPolicy;
   goal: string | null;
   evalCommand: string | null;
   constraints: string[];
@@ -165,6 +211,8 @@ type ConfigDocument = {
   defaultIdeasMode?: unknown;
   enabled?: unknown;
   evalCommand?: unknown;
+  execution_policy?: unknown;
+  executionPolicy?: unknown;
   goal?: unknown;
   maxIterations?: unknown;
   runIntensity?: unknown;
@@ -215,15 +263,18 @@ type ClankerbenchOuterLoopSummaryRecord = JsonObject & {
 };
 
 type SummaryHistoryEntry = {
+  assumption?: unknown;
   briefFingerprint?: unknown;
   candidateId?: unknown;
   candidateInput?: unknown;
   event?: unknown;
+  executionPolicyFingerprint?: unknown;
   hookExitCode?: unknown;
   hookStage?: unknown;
   hookStdout?: unknown;
   hookTimedOut?: unknown;
   proposalFingerprint?: unknown;
+  source?: unknown;
   timestamp?: unknown;
   upstream?: unknown;
   [key: string]: unknown;
@@ -540,6 +591,8 @@ type IdeasFileDocument = {
   maxIterations?: unknown;
   run_intensity?: unknown;
   runIntensity?: unknown;
+  execution_policy?: unknown;
+  executionPolicy?: unknown;
   convergence?: unknown;
 };
 
@@ -881,6 +934,7 @@ type LoadedIdeasInput = {
   frontier: CandidatePoolDocument | null;
   maxIterations: number | null;
   runIntensity: RunIntensity | null;
+  executionPolicy: ExecutionPolicy | null;
   convergence: JsonObject | null;
 };
 
@@ -969,6 +1023,16 @@ type RuntimePayload = {
   notes?: string;
   maxIterations?: number;
   runIntensity?: RunIntensity;
+  execution_policy?: unknown;
+  executionPolicy?: unknown;
+  unattended?: boolean;
+  headless?: boolean;
+  overnight?: boolean;
+  targetHours?: number;
+  targetWallTimeHours?: number;
+  minorRepairBudget?: number;
+  selfDebugMinorIssues?: boolean;
+  clarificationPolicy?: ClarificationPolicy;
   outputPath?: string;
   roughIdeas?: string[];
   sessionRoot?: string;
@@ -1101,6 +1165,8 @@ export function validateConfigDocument(payload: ConfigDocument): ConfigDocument 
     "constraints",
     "enabled",
     "evalCommand",
+    "execution_policy",
+    "executionPolicy",
     "goal",
     "maxIterations",
     "runIntensity",
@@ -1157,6 +1223,9 @@ export function validateConfigDocument(payload: ConfigDocument): ConfigDocument 
   if ("runIntensity" in normalized && normalized.runIntensity !== null) {
     runIntensityValue(normalized.runIntensity);
   }
+  if ("executionPolicy" in normalized && normalized.executionPolicy !== null) {
+    executionPolicyValue(normalized.executionPolicy, "executionPolicy");
+  }
   return normalized;
 }
 
@@ -1169,6 +1238,7 @@ function defaultConfigDocument(options?: {
     defaultIdeasMode: "canonicalize",
     autoclankerRepo: "../autoclanker",
     allowBilledLive: false,
+    executionPolicy: defaultExecutionPolicy(),
     maxIterations: null,
     runIntensity: "standard",
     enabled: true,
@@ -1192,6 +1262,10 @@ function runtimeConfigFromDocument(payload: ConfigDocument): RuntimeConfig {
         ? null
         : requireNonEmptyString(payload.autoclankerRepo, "autoclankerRepo"),
     allowBilledLive: coerceBool(payload.allowBilledLive ?? false, "allowBilledLive"),
+    executionPolicy: executionPolicyValue(
+      payload.executionPolicy ?? payload.execution_policy ?? defaultExecutionPolicy(),
+      "executionPolicy",
+    ),
     maxIterations:
       payload.maxIterations === undefined || payload.maxIterations === null
         ? null
@@ -1220,6 +1294,9 @@ function runtimeConfigToDocument(config: RuntimeConfig): ConfigDocument {
   }
   if (config.runIntensity !== "standard") {
     payload.runIntensity = config.runIntensity;
+  }
+  if (!executionPolicyEquals(config.executionPolicy, defaultExecutionPolicy())) {
+    payload.executionPolicy = config.executionPolicy;
   }
   if (config.autoclankerRepo !== null) {
     payload.autoclankerRepo = config.autoclankerRepo;
@@ -1318,6 +1395,84 @@ function resolveWorkspace(payload: RuntimePayload, workspace?: string): string {
   return resolve(process.cwd());
 }
 
+function executionPolicyFromPayloadOverrides(
+  payload: RuntimePayload,
+  base: ExecutionPolicy,
+): ExecutionPolicy {
+  let policy = base;
+  const rawPolicy = payload.executionPolicy ?? payload.execution_policy;
+  if (rawPolicy !== undefined && rawPolicy !== null) {
+    policy = executionPolicyValue(rawPolicy, "executionPolicy");
+  }
+  if (payload.overnight === true) {
+    policy = {
+      ...policy,
+      mode: "unattended",
+      clarificationPolicy: "upfront_only",
+      targetWallTimeHours: 8,
+      minorRepairBudget: policy.minorRepairBudget,
+      selfDebugMinorIssues: true,
+    };
+  }
+  if (payload.unattended === true) {
+    policy = {
+      ...policy,
+      mode: "unattended",
+      clarificationPolicy:
+        policy.clarificationPolicy === "allowed"
+          ? "upfront_only"
+          : policy.clarificationPolicy,
+      selfDebugMinorIssues: true,
+    };
+  }
+  if (payload.headless === true) {
+    policy = {
+      ...policy,
+      mode: "headless",
+      clarificationPolicy: "never",
+      selfDebugMinorIssues: true,
+    };
+  }
+  if (payload.clarificationPolicy !== undefined) {
+    policy = {
+      ...policy,
+      clarificationPolicy: clarificationPolicyValue(
+        payload.clarificationPolicy,
+        "clarificationPolicy",
+      ),
+    };
+  }
+  const rawTargetHours = payload.targetWallTimeHours ?? payload.targetHours;
+  if (rawTargetHours !== undefined) {
+    policy = {
+      ...policy,
+      targetWallTimeHours:
+        rawTargetHours === null
+          ? null
+          : positiveNumberValue(rawTargetHours, "targetWallTimeHours"),
+    };
+  }
+  if (payload.minorRepairBudget !== undefined) {
+    policy = {
+      ...policy,
+      minorRepairBudget: positiveIntegerValue(
+        payload.minorRepairBudget,
+        "minorRepairBudget",
+      ),
+    };
+  }
+  if (payload.selfDebugMinorIssues !== undefined) {
+    policy = {
+      ...policy,
+      selfDebugMinorIssues: coerceBool(
+        payload.selfDebugMinorIssues,
+        "selfDebugMinorIssues",
+      ),
+    };
+  }
+  return policy;
+}
+
 function sessionPathsForWorkspace(
   workspace: string,
   sessionRoot: string,
@@ -1391,8 +1546,24 @@ function runtimeContext(
         ...config,
         runIntensity: runIntensityValue(payload.runIntensity),
       };
+    } else if (key === "executionPolicy") {
+      config = {
+        ...config,
+        executionPolicy: executionPolicyFromPayloadOverrides(
+          payload,
+          config.executionPolicy,
+        ),
+      };
     }
   }
+  config = {
+    ...config,
+    executionPolicy: executionPolicyFromPayloadOverrides(
+      payload,
+      config.executionPolicy,
+    ),
+    runIntensity: payload.overnight === true ? "mega" : config.runIntensity,
+  };
   if (!IDEAS_MODES.includes(config.defaultIdeasMode)) {
     throw new Error(`Unsupported default ideas mode: ${config.defaultIdeasMode}`);
   }
@@ -3162,6 +3333,7 @@ function buildDerivedWorkspaceView(
       : `Next comparison: ${options.followUpComparison}.`,
   ].join(" ");
   const localRunBullets = [
+    `Execution: ${options.config.executionPolicy.mode}; ${executionPolicyQuestionHandling(options.config.executionPolicy)}`,
     `Trust: ${trustState}; eval surface lock ${options.evalSurfaceMatchesLock ? "matches" : "drifted"}.`,
     `Pending queries: ${options.pendingQueryCount}; pending merges: ${options.pendingMergeSuggestionCount}.`,
     options.followUpQueryType === null
@@ -3641,6 +3813,11 @@ function buildDerivedWorkspaceView(
       tone: options.config.runIntensity === "mega" ? "warning" : "muted",
     },
     {
+      label: "Execution",
+      value: options.config.executionPolicy.mode,
+      tone: options.config.executionPolicy.mode === "interactive" ? "muted" : "warning",
+    },
+    {
       label: "Iterations",
       value:
         options.config.runIntensity === "mega"
@@ -3791,6 +3968,9 @@ function buildDerivedWorkspaceView(
       lastUpdatedAt: summarySnapshot.lastUpdatedAt,
       currentProposalId: activeProposalLedger?.current_proposal_id ?? null,
       resumeToken: currentProposal?.resume_artifact ?? null,
+      recommendedCommand: recommendedResumeCommand(options.config.executionPolicy),
+      executionPolicy: options.config.executionPolicy,
+      assumptions: recentAssumptionRecords(options.history),
       files: {
         summary: shortWorkspacePath(options.workspace, options.paths.summaryPath),
         beliefs: shortWorkspacePath(options.workspace, options.paths.beliefsPath),
@@ -3843,6 +4023,9 @@ function buildDerivedWorkspaceView(
         currentProposalId: activeProposalLedger?.current_proposal_id ?? null,
         lastEvent: summarySnapshot.lastStep,
         lastUpdatedAt: summarySnapshot.lastUpdatedAt,
+        recommendedCommand: recommendedResumeCommand(options.config.executionPolicy),
+        executionPolicy: options.config.executionPolicy,
+        assumptions: recentAssumptionRecords(options.history),
       },
     },
   };
@@ -4001,6 +4184,11 @@ function writeSummary(
   const hooksDirPresent = existsSync(resolve(paths.workspace, HOOKS_DIRNAME));
   const latestBeforeEvalHook = latestHookEvent(history, "before-eval");
   const latestAfterEvalHook = latestHookEvent(history, "after-eval");
+  const assumptions = recentAssumptionRecords(history);
+  const executionTarget =
+    config.executionPolicy.targetWallTimeHours === null
+      ? "not set"
+      : `${config.executionPolicy.targetWallTimeHours}h`;
   const lines = [
     "# pi-autoclanker session",
     "",
@@ -4030,6 +4218,21 @@ function writeSummary(
     `- upstream session id: \`${identity.sessionId}\``,
     `- eval surface sha256: \`${currentEvalSha256 ?? lockedEvalSha256 ?? "Not recorded"}\``,
     `- eval surface lock valid: ${String(evalSurfaceMatchesLock).toLowerCase()}`,
+    "",
+    "## Execution Policy",
+    `- mode: \`${config.executionPolicy.mode}\``,
+    `- clarification policy: \`${config.executionPolicy.clarificationPolicy}\``,
+    `- target wall time: \`${executionTarget}\``,
+    `- minor repair budget: \`${config.executionPolicy.minorRepairBudget}\``,
+    `- self-debug minor issues: \`${String(config.executionPolicy.selfDebugMinorIssues)}\``,
+    `- question handling: ${executionPolicyQuestionHandling(config.executionPolicy)}`,
+    `- recommended resume command: \`${recommendedResumeCommand(config.executionPolicy)}\``,
+    ...(assumptions.length === 0
+      ? ["- assumptions: none recorded"]
+      : assumptions.map(
+          (item) =>
+            `- assumption: ${summaryString(item.assumption) ?? "Unspecified assumption."}`,
+        )),
     "",
     `## ${view.briefs.prior.title}`,
     view.briefs.prior.summary,
@@ -4482,6 +4685,193 @@ function latestSummarySnapshot(history: SummaryHistoryEntry[]): {
     pendingQueryCount: pendingQueries === null ? null : pendingQueries.length,
     topCandidate: summaryString(firstRankedCandidate?.candidate_id),
   };
+}
+
+function recentAssumptionRecords(history: SummaryHistoryEntry[]): AssumptionRecord[] {
+  return history
+    .filter((entry) => summaryString(entry.event) === "assumption_recorded")
+    .slice(-5)
+    .map((entry) => ({
+      assumption: summaryString(entry.assumption) ?? "Unspecified assumption.",
+      source: summaryString(entry.source) ?? "execution_policy",
+      timestamp: summaryString(entry.timestamp),
+    }));
+}
+
+function executionPolicyQuestionHandling(policy: ExecutionPolicy): string {
+  if (policy.clarificationPolicy === "allowed") {
+    return "Clarifying questions are allowed when they materially improve the run.";
+  }
+  if (policy.clarificationPolicy === "upfront_only") {
+    return "Clarifying questions are only allowed during intake/preflight; late uncertainty must become assumptions, risks, pending queries, or proposal notes.";
+  }
+  return "Clarifying questions are disabled; unresolved uncertainty must become assumptions, risks, pending queries, or proposal notes.";
+}
+
+function recommendedResumeCommand(policy: ExecutionPolicy): string {
+  if (policy.mode === "interactive") {
+    return "/autoclanker resume";
+  }
+  if (
+    policy.mode === "unattended" &&
+    policy.targetWallTimeHours === 8 &&
+    policy.clarificationPolicy === "upfront_only"
+  ) {
+    return "/autoclanker run --overnight";
+  }
+  return `/autoclanker run --${policy.mode}`;
+}
+
+function executionHandoffPrompt(options: {
+  config: RuntimeConfig;
+  paths: SessionPaths;
+  preflightReady: boolean;
+}): string {
+  const policy = options.config.executionPolicy;
+  const target =
+    policy.targetWallTimeHours === null
+      ? "the configured run budget"
+      : `${policy.targetWallTimeHours}h`;
+  return [
+    "Use this workspace as an active pi-autoclanker autonomous run.",
+    `Workspace: ${options.paths.workspace}`,
+    `Execution mode: ${policy.mode}; run intensity: ${options.config.runIntensity}; target: ${target}.`,
+    executionPolicyQuestionHandling(policy),
+    `Self-debug minor infrastructure issues: ${policy.selfDebugMinorIssues ? "yes" : "no"}; repair budget: ${policy.minorRepairBudget}.`,
+    "Loop: read autoclanker.md, select the next candidate lane or merge suggestion, isolate one candidate edit per measurement, run autoclanker.eval.sh through autoclanker_ingest_eval with an explicit candidate when a frontier has multiple lanes, then call fit, suggest, and status before deciding whether to keep, drop, split, or merge lanes.",
+    "Do not rewrite the locked eval surface during execution. Stop only for true hard blockers: contract drift, missing required credentials with no fallback, destructive action required, or repeated unrepaired infrastructure failure.",
+    options.preflightReady
+      ? "Preflight is ready; proceed without additional user questions."
+      : "Preflight has blockers; resolve blockers before spending long-run compute.",
+  ].join("\n");
+}
+
+function buildExecutionPreflight(options: {
+  artifactsPresent: boolean;
+  autoclankerCliResolvable: boolean;
+  beliefsDocument: BeliefsDocument;
+  config: RuntimeConfig;
+  evalSurfaceMatchesLock: boolean;
+  paths: SessionPaths;
+}): ExecutionPreflight {
+  const checks: ExecutionPreflightCheck[] = [];
+  const add = (
+    id: string,
+    status: "blocker" | "passed" | "warning",
+    summary: string,
+  ): void => {
+    checks.push({ id, status, summary });
+  };
+  add(
+    "workspace",
+    existsSync(options.paths.workspace) ? "passed" : "blocker",
+    existsSync(options.paths.workspace)
+      ? "Workspace exists."
+      : "Workspace does not exist.",
+  );
+  add(
+    "goal",
+    options.config.goal === null ? "blocker" : "passed",
+    options.config.goal === null
+      ? "No optimization goal is recorded."
+      : "Goal recorded.",
+  );
+  add(
+    "eval_command",
+    options.config.evalCommand === null ? "blocker" : "passed",
+    options.config.evalCommand === null
+      ? "No eval command is recorded."
+      : "Eval command recorded.",
+  );
+  add(
+    "autoclanker_cli",
+    options.autoclankerCliResolvable ? "passed" : "blocker",
+    options.autoclankerCliResolvable
+      ? "autoclanker CLI is resolvable."
+      : "autoclanker CLI is not resolvable from this workspace.",
+  );
+  add(
+    "eval_surface_lock",
+    options.evalSurfaceMatchesLock ? "passed" : "blocker",
+    options.evalSurfaceMatchesLock
+      ? "Checked-in eval surface matches the session lock."
+      : "Checked-in eval surface drifted from the session lock.",
+  );
+  const priorArt = summaryObject<ContextArtifactSummaryRecord>(
+    options.beliefsDocument.priorArt,
+  );
+  if (summaryString(priorArt?.status) === "hard_gate") {
+    add(
+      "prior_art_hard_gate",
+      "warning",
+      "Prior-art hard gate was overridden; keep duplicate or in-flight work visible.",
+    );
+  }
+  add(
+    "upstream_artifacts",
+    options.artifactsPresent ? "passed" : "warning",
+    options.artifactsPresent
+      ? "Upstream artifacts are present."
+      : "Upstream artifacts are not present yet; first apply/fit/suggest calls may create them.",
+  );
+  const blockerCount = checks.filter(
+    (check) => summaryString(check.status) === "blocker",
+  ).length;
+  const warningCount = checks.filter(
+    (check) => summaryString(check.status) === "warning",
+  ).length;
+  return {
+    ready: blockerCount === 0,
+    blockerCount,
+    warningCount,
+    checks,
+  };
+}
+
+function buildExecutionNextActions(policy: ExecutionPolicy): string[] {
+  const actions = [
+    "Read autoclanker.md and the current Run Brief.",
+    "If beliefs are still preview-only, call autoclanker_apply_beliefs.",
+    "For each selected or merged candidate, isolate the candidate edit, run autoclanker_ingest_eval, then call autoclanker_fit and autoclanker_suggest.",
+    "Use pending queries and merge suggestions to compare, split, drop, or create merged lanes for later measurements.",
+    "Persist uncertainty as assumptions, risks, pending queries, or proposal notes instead of asking late clarification questions.",
+  ];
+  if (policy.mode !== "interactive") {
+    actions.push(
+      "Continue until a proposal is ready, all active lanes are rejected, or a true hard blocker is recorded.",
+    );
+  }
+  return actions;
+}
+
+function executionPolicyFingerprint(policy: ExecutionPolicy): string {
+  return textSha256(JSON.stringify(policy));
+}
+
+function ensureExecutionPolicyActivation(
+  paths: SessionPaths,
+  policy: ExecutionPolicy,
+): void {
+  const history = loadHistory(paths.historyPath);
+  const fingerprint = executionPolicyFingerprint(policy);
+  const latestActivation = findLastHistoryEvent(history, "execution_policy_activated");
+  if (summaryString(latestActivation?.executionPolicyFingerprint) === fingerprint) {
+    return;
+  }
+  appendHistory(paths.historyPath, {
+    event: "execution_policy_activated",
+    executionPolicy: policy,
+    executionPolicyFingerprint: fingerprint,
+    questionHandling: executionPolicyQuestionHandling(policy),
+  });
+  if (policy.clarificationPolicy !== "allowed") {
+    appendHistory(paths.historyPath, {
+      event: "assumption_recorded",
+      assumption:
+        "Late clarification questions are disabled for this execution policy; unresolved uncertainty will be preserved as assumptions, risks, pending queries, or proposal notes.",
+      source: "execution_policy",
+    });
+  }
 }
 
 function appendHistory(path: string, entry: Record<string, unknown>): void {
@@ -5016,6 +5406,107 @@ function runIntensityValue(value: unknown, fieldName = "runIntensity"): RunInten
   return parsed as RunIntensity;
 }
 
+function executionModeValue(
+  value: unknown,
+  fieldName = "executionPolicy.mode",
+): ExecutionMode {
+  const parsed = requireNonEmptyString(value, fieldName);
+  if (!EXECUTION_MODES.includes(parsed as ExecutionMode)) {
+    throw new Error(`${fieldName} must be one of ${EXECUTION_MODES.join(", ")}.`);
+  }
+  return parsed as ExecutionMode;
+}
+
+function clarificationPolicyValue(
+  value: unknown,
+  fieldName = "executionPolicy.clarificationPolicy",
+): ClarificationPolicy {
+  const parsed = requireNonEmptyString(value, fieldName);
+  if (!CLARIFICATION_POLICIES.includes(parsed as ClarificationPolicy)) {
+    throw new Error(
+      `${fieldName} must be one of ${CLARIFICATION_POLICIES.join(", ")}.`,
+    );
+  }
+  return parsed as ClarificationPolicy;
+}
+
+function positiveNumberValue(value: unknown, fieldName: string): number {
+  const parsed = numberValue(value, fieldName);
+  if (parsed <= 0) {
+    throw new Error(`${fieldName} must be positive.`);
+  }
+  return parsed;
+}
+
+function defaultExecutionPolicy(mode: ExecutionMode = "interactive"): ExecutionPolicy {
+  return {
+    mode,
+    clarificationPolicy:
+      mode === "interactive"
+        ? "allowed"
+        : mode === "headless"
+          ? "never"
+          : "upfront_only",
+    targetWallTimeHours: null,
+    minorRepairBudget: 3,
+    selfDebugMinorIssues: mode !== "interactive",
+  };
+}
+
+function executionPolicyValue(
+  value: unknown,
+  fieldName = "executionPolicy",
+): ExecutionPolicy {
+  const mapping = ensureJsonObject<ExecutionPolicyInputRecord>(
+    value,
+    `${fieldName} must be a JSON object.`,
+  );
+  const mode = executionModeValue(mapping.mode ?? "interactive", `${fieldName}.mode`);
+  const defaultPolicy = defaultExecutionPolicy(mode);
+  const rawClarificationPolicy =
+    mapping.clarificationPolicy ?? mapping.clarification_policy;
+  const rawTargetWallTimeHours =
+    mapping.targetWallTimeHours ?? mapping.target_wall_time_hours;
+  const rawMinorRepairBudget = mapping.minorRepairBudget ?? mapping.minor_repair_budget;
+  const rawSelfDebugMinorIssues =
+    mapping.selfDebugMinorIssues ?? mapping.self_debug_minor_issues;
+  return {
+    mode,
+    clarificationPolicy:
+      rawClarificationPolicy === undefined || rawClarificationPolicy === null
+        ? defaultPolicy.clarificationPolicy
+        : clarificationPolicyValue(
+            rawClarificationPolicy,
+            `${fieldName}.clarificationPolicy`,
+          ),
+    targetWallTimeHours:
+      rawTargetWallTimeHours === undefined || rawTargetWallTimeHours === null
+        ? null
+        : positiveNumberValue(
+            rawTargetWallTimeHours,
+            `${fieldName}.targetWallTimeHours`,
+          ),
+    minorRepairBudget:
+      rawMinorRepairBudget === undefined || rawMinorRepairBudget === null
+        ? defaultPolicy.minorRepairBudget
+        : positiveIntegerValue(rawMinorRepairBudget, `${fieldName}.minorRepairBudget`),
+    selfDebugMinorIssues:
+      rawSelfDebugMinorIssues === undefined || rawSelfDebugMinorIssues === null
+        ? defaultPolicy.selfDebugMinorIssues
+        : coerceBool(rawSelfDebugMinorIssues, `${fieldName}.selfDebugMinorIssues`),
+  };
+}
+
+function executionPolicyEquals(left: ExecutionPolicy, right: ExecutionPolicy): boolean {
+  return (
+    left.mode === right.mode &&
+    left.clarificationPolicy === right.clarificationPolicy &&
+    left.targetWallTimeHours === right.targetWallTimeHours &&
+    left.minorRepairBudget === right.minorRepairBudget &&
+    left.selfDebugMinorIssues === right.selfDebugMinorIssues
+  );
+}
+
 function stringArray(value: unknown, fieldName: string): string[] {
   return stringList(value, fieldName);
 }
@@ -5438,6 +5929,11 @@ function loadIdeasInput(
     rawRunIntensity === undefined || rawRunIntensity === null
       ? null
       : runIntensityValue(rawRunIntensity, "run_intensity");
+  const rawExecutionPolicy = document.execution_policy ?? document.executionPolicy;
+  const executionPolicy =
+    rawExecutionPolicy === undefined || rawExecutionPolicy === null
+      ? null
+      : executionPolicyValue(rawExecutionPolicy, "execution_policy");
   return {
     path: located.path,
     source: located.source,
@@ -5449,6 +5945,7 @@ function loadIdeasInput(
     frontier: frontierFromIdeasDocument(document),
     maxIterations,
     runIntensity,
+    executionPolicy,
     convergence: convergenceDocument(document.convergence),
   };
 }
@@ -6604,6 +7101,12 @@ function toolInitSession(
       config.runIntensity === "standard"
         ? (ideasInput?.runIntensity ?? "standard")
         : config.runIntensity,
+    executionPolicy:
+      executionPolicyEquals(config.executionPolicy, defaultExecutionPolicy()) &&
+      ideasInput?.executionPolicy !== null &&
+      ideasInput?.executionPolicy !== undefined
+        ? ideasInput.executionPolicy
+        : config.executionPolicy,
     enabled: true,
     defaultIdeasMode: ideasMode,
   };
@@ -6695,6 +7198,7 @@ function toolInitSession(
     billedLive,
     usedDefaultEvalCommand,
     runIntensity: materializedConfig.runIntensity,
+    executionPolicy: materializedConfig.executionPolicy,
     evalSurfaceSha256: lockedEvalSurfaceSha256,
     ideasInputPath: ideasInput?.path,
     ideasInputSource: ideasInput?.source ?? "direct",
@@ -6718,7 +7222,19 @@ function toolInitSession(
     canonicalization,
     upstream: preview,
   });
+  if (materializedConfig.executionPolicy.mode !== "interactive") {
+    ensureExecutionPolicyActivation(paths, materializedConfig.executionPolicy);
+  }
   writeSummary(paths, materializedConfig, beliefsDocument, runner);
+  const preflight = buildExecutionPreflight({
+    artifactsPresent: upstreamArtifactsPresent(paths.upstreamSessionDir),
+    autoclankerCliResolvable:
+      resolveAutoclankerCommand(materializedConfig, workspace) !== null,
+    beliefsDocument,
+    config: materializedConfig,
+    evalSurfaceMatchesLock: true,
+    paths,
+  });
   return {
     ok: true,
     tool: "autoclanker_init_session",
@@ -6727,6 +7243,14 @@ function toolInitSession(
     billedLive,
     usedDefaultEvalCommand,
     runIntensity: materializedConfig.runIntensity,
+    executionPolicy: materializedConfig.executionPolicy,
+    preflight,
+    handoffPrompt: executionHandoffPrompt({
+      config: materializedConfig,
+      paths,
+      preflightReady: preflight.ready === true,
+    }),
+    nextActions: buildExecutionNextActions(materializedConfig.executionPolicy),
     files: sessionFileMap(paths),
     ideasInputPath: ideasInput?.path ?? null,
     ideasInputSource: ideasInput?.source ?? "direct",
@@ -6990,6 +7514,15 @@ function toolStatus(
     lastEvalNoisySystem,
     upstreamReviewBundle,
   });
+  const preflight = buildExecutionPreflight({
+    artifactsPresent,
+    autoclankerCliResolvable,
+    beliefsDocument,
+    config: runtimeConfig,
+    evalSurfaceMatchesLock,
+    paths,
+  });
+  const preflightReady = preflight.ready === true;
 
   return {
     ok: true,
@@ -7011,6 +7544,16 @@ function toolStatus(
         ? beliefsDocument.billedLive
         : false,
     canonicalizationModel: providerStatus,
+    runIntensity: runtimeConfig.runIntensity,
+    executionPolicy: runtimeConfig.executionPolicy,
+    preflight,
+    handoffPrompt: executionHandoffPrompt({
+      config: runtimeConfig,
+      paths,
+      preflightReady,
+    }),
+    nextActions: buildExecutionNextActions(runtimeConfig.executionPolicy),
+    assumptions: recentAssumptionRecords(history),
     evalSurfaceSha256: currentEvalSha256 ?? null,
     lockedEvalSurfaceSha256: lockedEvalSha256 ?? null,
     evalSurfaceMatchesLock,
@@ -7606,6 +8149,70 @@ function toolRecommendCommit(
   });
 }
 
+function commandRun(
+  workspace: string,
+  payload: RuntimePayload,
+  runner: Runner,
+): JsonObject {
+  mkdirSync(workspace, { recursive: true });
+  const runPayload: RuntimePayload = { ...payload };
+  if (
+    payload.unattended === undefined &&
+    payload.headless !== true &&
+    payload.overnight !== true
+  ) {
+    runPayload.unattended = true;
+  }
+  const { paths } = runtimeContext(workspace, runPayload);
+  const initOrResume = existsSync(paths.configPath)
+    ? commandResume(workspace, runPayload, runner)
+    : {
+        ...toolInitSession(workspace, runPayload, runner),
+        command: "start",
+      };
+  const { config, paths: updatedPaths } = runtimeContext(workspace, runPayload);
+  if (config.executionPolicy.mode !== "interactive") {
+    ensureExecutionPolicyActivation(updatedPaths, config.executionPolicy);
+  }
+  const status = toolStatus(workspace, runPayload, runner);
+  const statusRecord = ensureJsonObject<RuntimeCommandResultRecord>(
+    status,
+    "run status must be a JSON object.",
+  );
+  const preflight =
+    summaryObject<ExecutionPreflight>(statusRecord.preflight) ??
+    buildExecutionPreflight({
+      artifactsPresent: upstreamArtifactsPresent(updatedPaths.upstreamSessionDir),
+      autoclankerCliResolvable: resolveAutoclankerCommand(config, workspace) !== null,
+      beliefsDocument: loadJsonIfPresent<BeliefsDocument>(updatedPaths.beliefsPath),
+      config,
+      evalSurfaceMatchesLock: true,
+      paths: updatedPaths,
+    });
+  appendHistory(updatedPaths.historyPath, {
+    event: "execution_handoff_generated",
+    executionPolicy: config.executionPolicy,
+    preflight,
+  });
+  return {
+    ...statusRecord,
+    ok: true,
+    command: "run",
+    initializedCommand:
+      summaryString(summaryObject<RuntimeCommandResultRecord>(initOrResume)?.command) ??
+      summaryString(summaryObject<RuntimeCommandResultRecord>(initOrResume)?.tool) ??
+      "unknown",
+    executionPolicy: config.executionPolicy,
+    preflight,
+    handoffPrompt: executionHandoffPrompt({
+      config,
+      paths: updatedPaths,
+      preflightReady: preflight.ready === true,
+    }),
+    nextActions: buildExecutionNextActions(config.executionPolicy),
+  };
+}
+
 function commandStart(
   workspace: string,
   payload: RuntimePayload,
@@ -7649,6 +8256,9 @@ function commandResume(
   writeJsonFile(paths.configPath, runtimeConfigToDocument(resumedConfig));
   const beliefsDocument = loadJsonIfPresent<BeliefsDocument>(paths.beliefsPath);
   appendHistory(paths.historyPath, { event: "session_resumed" });
+  if (resumedConfig.executionPolicy.mode !== "interactive") {
+    ensureExecutionPolicyActivation(paths, resumedConfig.executionPolicy);
+  }
   writeSummary(paths, resumedConfig, beliefsDocument, runner);
   return {
     ...toolStatus(workspace, payload, runner),
@@ -7931,6 +8541,9 @@ export function dispatchCommand(
   const normalized = normalizedPayload(payload);
   const workspace = resolveWorkspace(normalized, options?.workspace);
   const runner = options?.runner ?? defaultRunner;
+  if (name === "run") {
+    return commandRun(workspace, normalized, runner);
+  }
   if (name === "start") {
     return commandStart(workspace, normalized, runner);
   }

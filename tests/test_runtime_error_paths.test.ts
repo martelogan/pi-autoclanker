@@ -280,6 +280,13 @@ coveredTest(["M2-004"], "repo fallback and preview overrides are supported", () 
       defaultIdeasMode: "canonicalize",
       allowBilledLive: false,
       runIntensity: "standard",
+      executionPolicy: {
+        mode: "interactive",
+        clarificationPolicy: "allowed",
+        targetWallTimeHours: null,
+        minorRepairBudget: 3,
+        selfDebugMinorIssues: false,
+      },
       goal: null,
       evalCommand: null,
       constraints: [],

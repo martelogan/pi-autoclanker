@@ -51,6 +51,49 @@
       "type": "string",
       "enum": ["standard", "deep", "mega"]
     },
+    "executionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["interactive", "unattended", "headless"]
+        },
+        "clarificationPolicy": {
+          "type": "string",
+          "enum": ["allowed", "upfront_only", "never"]
+        },
+        "clarification_policy": {
+          "type": "string",
+          "enum": ["allowed", "upfront_only", "never"]
+        },
+        "targetWallTimeHours": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0
+        },
+        "target_wall_time_hours": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0
+        },
+        "minorRepairBudget": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "minor_repair_budget": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "selfDebugMinorIssues": {
+          "type": "boolean"
+        },
+        "self_debug_minor_issues": {
+          "type": "boolean"
+        }
+      }
+    },
+    "execution_policy": {
+      "$ref": "#/properties/executionPolicy"
+    },
     "enabled": {
       "type": "boolean"
     }
