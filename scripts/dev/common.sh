@@ -33,9 +33,9 @@ dev_node_modules_bin_dir() {
     echo "$(dev_repo_root)/node_modules/.bin"
 }
 
-dev_find_npm() {
-    if [[ -n "${PI_AUTOCLANKER_DEV_NPM_BIN:-}" && -x "${PI_AUTOCLANKER_DEV_NPM_BIN}" ]]; then
-        echo "${PI_AUTOCLANKER_DEV_NPM_BIN}"
+dev_find_pnpm() {
+    if [[ -n "${PI_AUTOCLANKER_DEV_PNPM_BIN:-}" && -x "${PI_AUTOCLANKER_DEV_PNPM_BIN}" ]]; then
+        echo "${PI_AUTOCLANKER_DEV_PNPM_BIN}"
         return 0
     fi
 
@@ -50,7 +50,7 @@ dev_find_npm() {
             echo "${candidate}"
             return 0
         fi
-    done < <(type -P -a npm 2>/dev/null || true)
+    done < <(type -P -a pnpm 2>/dev/null || true)
 
     return 1
 }
@@ -85,11 +85,12 @@ dev_load_repo_dotenv() {
 
 dev_prepare_node_env() {
     dev_ensure_dirs
+    export PNPM_HOME="${PNPM_HOME:-$(dev_install_root)/pnpm-home}"
     export npm_config_cache="${npm_config_cache:-$(dev_install_root)/npm-cache}"
     export PATH="$(dev_local_bin_dir):$(dev_node_modules_bin_dir):${PATH}"
-    local npm_bin
-    if npm_bin="$(dev_find_npm)"; then
-        export PATH="$(dirname "${npm_bin}"):${PATH}"
+    local pnpm_bin
+    if pnpm_bin="$(dev_find_pnpm)"; then
+        export PATH="$(dirname "${pnpm_bin}"):${PATH}"
     fi
 }
 
@@ -113,14 +114,14 @@ dev_prepare_coverage_dir() {
     export PI_AUTOCLANKER_COVERAGE_DIR="${coverage_dir}"
 }
 
-dev_run_npm() {
+dev_run_pnpm() {
     dev_prepare_node_env
-    local npm_bin
-    if ! npm_bin="$(dev_find_npm)"; then
-        echo "error: npm is required to run node-backed tasks" >&2
+    local pnpm_bin
+    if ! pnpm_bin="$(dev_find_pnpm)"; then
+        echo "error: pnpm is required to run node-backed tasks" >&2
         return 1
     fi
-    "${npm_bin}" "$@"
+    "${pnpm_bin}" "$@"
 }
 
 dev_run_tool() {
@@ -136,7 +137,7 @@ dev_run_tool() {
         return 0
     fi
 
-    dev_run_npm exec -- "${tool}" "$@"
+    dev_run_pnpm exec "${tool}" "$@"
 }
 
 dev_run_port_cli() {
@@ -152,7 +153,7 @@ dev_run_port_cli() {
         "${repo_root}/node_modules/.bin/tsx" "${repo_root}/src/cli.ts" "$@"
         return 0
     fi
-    dev_run_npm exec -- tsx "${repo_root}/src/cli.ts" "$@"
+    dev_run_pnpm exec tsx "${repo_root}/src/cli.ts" "$@"
 }
 
 dev_run_python() {

@@ -29,18 +29,21 @@ const EXPECTED_TOOL_NAMES = [
 ] as const;
 
 function packEnv(): NodeJS.ProcessEnv {
+  const pnpmHome = resolve(repoRoot(), ".tmp/pnpm-home");
   const npmCache = resolve(repoRoot(), ".tmp/npm-cache");
+  mkdirSync(pnpmHome, { recursive: true });
   mkdirSync(npmCache, { recursive: true });
   return {
     ...process.env,
+    PNPM_HOME: pnpmHome,
     npm_config_cache: npmCache,
   };
 }
 
-function npmBin(env: NodeJS.ProcessEnv): string {
+function pnpmBin(env: NodeJS.ProcessEnv): string {
   const candidates = execFileSync(
     "bash",
-    ["--noprofile", "--norc", "-c", "type -P -a npm"],
+    ["--noprofile", "--norc", "-c", "type -P -a pnpm"],
     {
       cwd: repoRoot(),
       encoding: "utf-8",
@@ -51,9 +54,9 @@ function npmBin(env: NodeJS.ProcessEnv): string {
     .split(/\r?\n/u)
     .map((candidate) => candidate.trim())
     .filter(Boolean);
-  for (const candidate of [...new Set([...candidates, "npm"])]) {
+  for (const candidate of [...new Set([...candidates, "pnpm"])]) {
     try {
-      execFileSync(candidate, ["exec", "--", "tsc", "--version"], {
+      execFileSync(candidate, ["exec", "tsc", "--version"], {
         cwd: repoRoot(),
         encoding: "utf-8",
         env,
@@ -62,48 +65,57 @@ function npmBin(env: NodeJS.ProcessEnv): string {
       return candidate;
     } catch {}
   }
-  throw new Error("Unable to find a working npm binary for package tests.");
+  throw new Error("Unable to find a working pnpm binary for package tests.");
 }
 
 function ensureBuilt(env: NodeJS.ProcessEnv): void {
-  execFileSync(npmBin(env), ["run", "build"], {
+  execFileSync(pnpmBin(env), ["run", "build"], {
     cwd: repoRoot(),
     encoding: "utf-8",
     env,
     stdio: ["ignore", "pipe", "pipe"],
   });
+}
+
+function parsePackEntry(raw: string): PackEntry {
+  const payload = JSON.parse(raw) as PackEntry | PackEntry[];
+  const entry = Array.isArray(payload) ? payload[0] : payload;
+  if (!entry) {
+    throw new Error("pnpm pack did not return package metadata.");
+  }
+  return entry;
 }
 
 function dryRunPack(): Set<string> {
   const env = packEnv();
-  const npm = npmBin(env);
+  const pnpm = pnpmBin(env);
   ensureBuilt(env);
-  const raw = execFileSync(npm, ["pack", "--json", "--dry-run"], {
+  const raw = execFileSync(pnpm, ["pack", "--json", "--dry-run"], {
     cwd: repoRoot(),
     encoding: "utf-8",
     env,
     stdio: ["ignore", "pipe", "pipe"],
   });
-  const payload = JSON.parse(raw) as PackEntry[];
-  return new Set((payload[0]?.files ?? []).map((entry) => entry.path));
+  const payload = parsePackEntry(raw);
+  return new Set((payload?.files ?? []).map((entry) => entry.path));
 }
 
 function packAndExtract(): string {
   const env = packEnv();
-  const npm = npmBin(env);
+  const pnpm = pnpmBin(env);
   ensureBuilt(env);
   const packDir = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-pack-"));
   const unpackDir = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-unpack-"));
-  const raw = execFileSync(npm, ["pack", "--json", "--pack-destination", packDir], {
+  const raw = execFileSync(pnpm, ["pack", "--json", "--pack-destination", packDir], {
     cwd: repoRoot(),
     encoding: "utf-8",
     env,
     stdio: ["ignore", "pipe", "pipe"],
   });
-  const payload = JSON.parse(raw) as PackEntry[];
-  const filename = payload[0]?.filename;
+  const payload = parsePackEntry(raw);
+  const filename = payload?.filename;
   if (!filename) {
-    throw new Error("npm pack did not return a tarball filename.");
+    throw new Error("pnpm pack did not return a tarball filename.");
   }
   execFileSync("tar", ["-xzf", resolve(packDir, filename), "-C", unpackDir], {
     cwd: repoRoot(),

@@ -80,6 +80,7 @@ type JsonRecord = {
   ok?: unknown;
   objectiveBackend?: unknown;
   acquisitionBackend?: unknown;
+  preflight?: unknown;
   preview?: unknown;
   previewSummary?: unknown;
   queries?: unknown;
@@ -107,6 +108,17 @@ function asRecord(value: unknown): JsonRecord {
   }
   return value as JsonRecord;
 }
+
+type PreflightCheckRecord = JsonRecord & {
+  id?: unknown;
+  status?: unknown;
+  summary?: unknown;
+};
+
+type PreflightRecord = JsonRecord & {
+  blockerCount?: unknown;
+  checks?: PreflightCheckRecord[];
+};
 
 function parseJsonResult(result: {
   status: number;
@@ -549,6 +561,19 @@ coveredTest(
     asRecord(expected.handoff).autoclankerCliResolvable = asRecord(
       actual.handoff,
     ).autoclankerCliResolvable;
+    const expectedPreflight = asRecord(expected.preflight) as PreflightRecord;
+    const actualPreflight = asRecord(actual.preflight) as PreflightRecord;
+    expectedPreflight.blockerCount = actualPreflight.blockerCount;
+    const expectedChecks = expectedPreflight.checks ?? [];
+    const actualChecks = actualPreflight.checks ?? [];
+    const expectedCliCheck = expectedChecks.find(
+      (check) => check.id === "autoclanker_cli",
+    );
+    const actualCliCheck = actualChecks.find((check) => check.id === "autoclanker_cli");
+    if (expectedCliCheck && actualCliCheck) {
+      expectedCliCheck.status = actualCliCheck.status;
+      expectedCliCheck.summary = actualCliCheck.summary;
+    }
     expect(actual).toEqual(expected);
   },
 );

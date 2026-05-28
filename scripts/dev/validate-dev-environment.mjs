@@ -10,6 +10,7 @@ const devcontainerJson = resolve(root, ".devcontainer/devcontainer.json");
 const envrcDevenv = resolve(root, "configs/strict-env/envrc.devenv.example");
 
 const requiredEnvKeys = [
+  "PNPM_HOME",
   "npm_config_cache",
   "MISE_DATA_DIR",
   "MISE_CACHE_DIR",

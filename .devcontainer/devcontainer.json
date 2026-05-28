@@ -10,6 +10,7 @@
     }
   },
   "containerEnv": {
+    "PNPM_HOME": "/workspaces/pi-autoclanker-typescript/.local/dev/pnpm-home",
     "npm_config_cache": "/workspaces/pi-autoclanker-typescript/.local/dev/npm-cache",
     "MISE_DATA_DIR": "/workspaces/pi-autoclanker-typescript/.mise/data",
     "MISE_CACHE_DIR": "/workspaces/pi-autoclanker-typescript/.mise/cache",
