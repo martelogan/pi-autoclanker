@@ -26,7 +26,7 @@ eval -> fit -> suggest
 next comparison, merge, or drop
 ```
 
-![Mental model flow](/Users/logan_martel/Projects/pi-autoclanker/docs/assets/pi-autoclanker-mental-model.svg)
+![Mental model flow](assets/pi-autoclanker-mental-model.svg)
 
 ## What You Will Actually See
 
@@ -62,7 +62,7 @@ approval without reopening the whole interactive view.
 | suggest | rank the current lanes and pick the next useful action under uncertainty |
 | comparison query | the next concrete lane-vs-lane or family-vs-family question that would reduce uncertainty most |
 
-![Structure diagram](/Users/logan_martel/Projects/pi-autoclanker/docs/assets/pi-autoclanker-structure.svg)
+![Structure diagram](assets/pi-autoclanker-structure.svg)
 
 ## What Bayes Is Doing Here
 
@@ -133,7 +133,7 @@ of them as evidence views:
 - candidate rankings: which lanes currently look strongest
 - convergence: whether new evals are still changing the picture
 
-![Evidence views](/Users/logan_martel/Projects/pi-autoclanker/docs/assets/pi-autoclanker-evidence-views.svg)
+![Evidence views](assets/pi-autoclanker-evidence-views.svg)
 
 Those views are useful because they answer different questions:
 
