@@ -45,6 +45,8 @@ export const CLANKERBENCH_RESEARCH_SOURCE_KINDS = [
   "repo",
   "prior_art",
   "codebase_patterns",
+  "run_contract",
+  "lane_ledger",
   "operator_note",
   "clankergraph",
 ] as const;
@@ -147,9 +149,11 @@ export type ClankerbenchOuterLoop = {
   guardrails?: string[] | undefined;
   hooks_dir?: string | undefined;
   ideas_path?: string | undefined;
+  lane_ledger_path?: string | undefined;
   max_iterations?: number | undefined;
   max_wall_time_sec?: number | undefined;
   runners?: ClankerbenchOuterLoopRunner[] | undefined;
+  run_contract_path?: string | undefined;
   session_path?: string | undefined;
   status_path?: string | undefined;
   stop_conditions?: string[] | undefined;
@@ -258,9 +262,11 @@ type ClankerbenchOuterLoopDocument = {
   guardrails?: unknown;
   hooks_dir?: unknown;
   ideas_path?: unknown;
+  lane_ledger_path?: unknown;
   max_iterations?: unknown;
   max_wall_time_sec?: unknown;
   runners?: unknown;
+  run_contract_path?: unknown;
   session_path?: unknown;
   status_path?: unknown;
   stop_conditions?: unknown;
@@ -655,6 +661,10 @@ function outerLoop(value: unknown, label: string): ClankerbenchOuterLoop | undef
     ),
     hooks_dir: optionalString(record.hooks_dir, `${label}.hooks_dir`),
     ideas_path: optionalString(record.ideas_path, `${label}.ideas_path`),
+    lane_ledger_path: optionalString(
+      record.lane_ledger_path,
+      `${label}.lane_ledger_path`,
+    ),
     max_iterations: optionalPositiveInteger(
       record.max_iterations,
       `${label}.max_iterations`,
@@ -664,6 +674,10 @@ function outerLoop(value: unknown, label: string): ClankerbenchOuterLoop | undef
       `${label}.max_wall_time_sec`,
     ),
     runners: outerLoopRunners(record.runners, `${label}.runners`),
+    run_contract_path: optionalString(
+      record.run_contract_path,
+      `${label}.run_contract_path`,
+    ),
     session_path: optionalString(record.session_path, `${label}.session_path`),
     status_path: optionalString(record.status_path, `${label}.status_path`),
     stop_conditions: optionalStageAgnosticStringList(

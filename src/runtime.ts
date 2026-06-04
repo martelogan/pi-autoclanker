@@ -31,6 +31,8 @@ export const IDEAS_FILENAME = "autoclanker.ideas.json";
 export const CLANKERBENCH_MANIFEST_FILENAME = "clankerbench.manifest.json";
 const PRIOR_ART_FILENAME = "prior_art.md";
 const CODEBASE_PATTERNS_FILENAME = "codebase_patterns.md";
+const RUN_CONTRACT_FILENAME = "run-contract.json";
+const LANE_LEDGER_FILENAME = "lane-ledger.md";
 export const PROPOSALS_FILENAME = "autoclanker.proposals.json";
 export const HISTORY_FILENAME = "autoclanker.history.jsonl";
 export const PROGRESS_FILENAME = "autoclanker.progress.json";
@@ -236,9 +238,11 @@ type BeliefsDocument = {
   evalSurfaceSha256?: unknown;
   ideasInputPath?: unknown;
   ideasInputSource?: unknown;
+  laneLedger?: unknown;
   mode?: unknown;
   preview?: unknown;
   priorArt?: unknown;
+  runContract?: unknown;
   roughIdeaSources?: unknown;
   roughIdeas?: unknown;
   surfaceOverlay?: unknown;
@@ -262,6 +266,8 @@ type ClankerbenchOuterLoopSummaryRecord = JsonObject & {
   contextPath?: unknown;
   evidencePath?: unknown;
   hooksDir?: unknown;
+  laneLedgerPath?: unknown;
+  runContractPath?: unknown;
 };
 
 type SummaryHistoryEntry = {
@@ -981,6 +987,7 @@ type ClankerbenchGraphSourceSummaryRecord = JsonObject & {
 };
 
 type ContextArtifactKind = "prior_art" | "codebase_patterns";
+type RunControlArtifactKind = "run_contract" | "lane_ledger";
 
 type ContextArtifact = {
   byteCount: number;
@@ -997,6 +1004,36 @@ type ContextArtifact = {
 type ContextArtifactSummaryRecord = JsonObject & {
   path?: unknown;
   status?: unknown;
+};
+
+type RunControlArtifact = {
+  byteCount: number;
+  excerpt: string;
+  kind: RunControlArtifactKind;
+  path: string;
+  relativePath: string;
+  schemaVersion: string | null;
+  sha256: string;
+  status: "present" | "warning";
+  text: string;
+  warnings: string[];
+};
+
+type RunControlArtifactSummaryRecord = JsonObject & {
+  path?: unknown;
+  schemaVersion?: unknown;
+  status?: unknown;
+  warnings?: unknown;
+};
+
+type RunContractDocument = JsonObject & {
+  schemaVersion?: unknown;
+  schema_version?: unknown;
+};
+
+type LoadedRunControlArtifacts = {
+  laneLedger: RunControlArtifact | null;
+  runContract: RunControlArtifact | null;
 };
 
 type LoadedContextArtifacts = {
@@ -2859,6 +2896,219 @@ function loadContextArtifacts(
   };
 }
 
+function runControlArtifactMarkerIncludes(
+  marker: string,
+  kind: RunControlArtifactKind,
+): boolean {
+  const normalized = marker.toLowerCase().replace(/[-\s]+/gu, "_");
+  return normalized.includes(kind);
+}
+
+function resolveManifestPath(workspace: string, path: string): string {
+  return isAbsolute(path) ? path : resolve(workspace, path);
+}
+
+function candidateRunControlArtifactPaths(
+  workspace: string,
+  clankerbenchManifest: LoadedClankerbenchManifest | null,
+  kind: RunControlArtifactKind,
+  defaultFilename: string,
+): { path: string; required: boolean }[] {
+  const paths: { path: string; required: boolean }[] = [];
+  const manifest = clankerbenchManifest?.manifest;
+  const outerLoopPath =
+    kind === "run_contract"
+      ? manifest?.outer_loop?.run_contract_path
+      : manifest?.outer_loop?.lane_ledger_path;
+  if (outerLoopPath !== undefined) {
+    paths.push({ path: resolveManifestPath(workspace, outerLoopPath), required: true });
+  }
+  paths.push({ path: resolve(workspace, defaultFilename), required: false });
+  for (const source of manifest?.research_sources ?? []) {
+    const marker = `${source.id} ${source.kind} ${source.description ?? ""}`;
+    if (
+      source.path !== undefined &&
+      (source.kind === kind || runControlArtifactMarkerIncludes(marker, kind))
+    ) {
+      paths.push({
+        path: resolveManifestPath(workspace, source.path),
+        required: source.optional !== true,
+      });
+    }
+  }
+  for (const artifact of manifest?.artifacts ?? []) {
+    const marker = `${artifact.id} ${artifact.kind ?? ""} ${artifact.role ?? ""} ${artifact.description ?? ""}`;
+    if (runControlArtifactMarkerIncludes(marker, kind)) {
+      paths.push({
+        path: resolveManifestPath(workspace, artifact.path),
+        required: artifact.optional !== true,
+      });
+    }
+  }
+
+  const seen = new Set<string>();
+  return paths.filter((item) => {
+    if (seen.has(item.path)) {
+      return false;
+    }
+    seen.add(item.path);
+    return true;
+  });
+}
+
+function runContractMetadata(text: string): {
+  schemaVersion: string | null;
+  warnings: string[];
+} {
+  const warnings: string[] = [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text) as unknown;
+  } catch {
+    return {
+      schemaVersion: null,
+      warnings: ["Run contract is not valid JSON; inspect before candidate edits."],
+    };
+  }
+  const record = summaryObject<RunContractDocument>(parsed);
+  if (record === null) {
+    return {
+      schemaVersion: null,
+      warnings: ["Run contract must be a JSON object to be machine-checkable."],
+    };
+  }
+  const schemaVersion =
+    summaryString(record.schema_version) ?? summaryString(record.schemaVersion);
+  if (schemaVersion === null) {
+    warnings.push(
+      "Run contract has no schema_version/schemaVersion; inspect manually before trusting stop or promotion rules.",
+    );
+  }
+  return { schemaVersion, warnings };
+}
+
+function laneLedgerWarnings(text: string): string[] {
+  const normalized = text.trim();
+  const warnings: string[] = [];
+  if (normalized.length === 0) {
+    warnings.push("Lane ledger is empty; initialize lanes before measuring.");
+  }
+  if (/\b(todo|tbd|placeholder|not\s+started|no\s+lanes)\b/iu.test(normalized)) {
+    warnings.push(
+      "Lane ledger still looks like a placeholder; update it with active lanes before long-run execution.",
+    );
+  }
+  return warnings;
+}
+
+function readRunControlArtifact(
+  workspace: string,
+  path: string,
+  kind: RunControlArtifactKind,
+): RunControlArtifact | null {
+  if (!existsSync(path) || !statSync(path).isFile()) {
+    return null;
+  }
+  const text = readFileSync(path, "utf-8");
+  const metadata =
+    kind === "run_contract"
+      ? runContractMetadata(text)
+      : { schemaVersion: null, warnings: laneLedgerWarnings(text) };
+  const warnings = metadata.warnings;
+  return {
+    byteCount: Buffer.byteLength(text, "utf-8"),
+    excerpt: markdownExcerpt(text),
+    kind,
+    path,
+    relativePath: shortWorkspacePath(workspace, path),
+    schemaVersion: metadata.schemaVersion,
+    sha256: textSha256(text),
+    status: warnings.length === 0 ? "present" : "warning",
+    text,
+    warnings,
+  };
+}
+
+function loadFirstRunControlArtifact(
+  workspace: string,
+  clankerbenchManifest: LoadedClankerbenchManifest | null,
+  kind: RunControlArtifactKind,
+  defaultFilename: string,
+): RunControlArtifact | null {
+  const candidates = candidateRunControlArtifactPaths(
+    workspace,
+    clankerbenchManifest,
+    kind,
+    defaultFilename,
+  );
+  for (const candidate of candidates) {
+    const artifact = readRunControlArtifact(workspace, candidate.path, kind);
+    if (artifact !== null) {
+      return artifact;
+    }
+    if (candidate.required) {
+      throw new Error(
+        `clankerbench ${kind} artifact does not exist: ${shortWorkspacePath(
+          workspace,
+          candidate.path,
+        )}`,
+      );
+    }
+  }
+  return null;
+}
+
+function loadRunControlArtifacts(
+  workspace: string,
+  clankerbenchManifest: LoadedClankerbenchManifest | null,
+): LoadedRunControlArtifacts {
+  return {
+    laneLedger: loadFirstRunControlArtifact(
+      workspace,
+      clankerbenchManifest,
+      "lane_ledger",
+      LANE_LEDGER_FILENAME,
+    ),
+    runContract: loadFirstRunControlArtifact(
+      workspace,
+      clankerbenchManifest,
+      "run_contract",
+      RUN_CONTRACT_FILENAME,
+    ),
+  };
+}
+
+function runControlArtifactSummary(
+  workspace: string,
+  artifact: RunControlArtifact,
+): JsonObject {
+  return {
+    byteCount: artifact.byteCount,
+    excerpt: artifact.excerpt,
+    kind: artifact.kind,
+    path: shortWorkspacePath(workspace, artifact.path),
+    schemaVersion: artifact.schemaVersion,
+    sha256: artifact.sha256,
+    status: artifact.status,
+    warnings: artifact.warnings,
+  };
+}
+
+function runControlArtifactConstraints(artifacts: LoadedRunControlArtifacts): string[] {
+  const constraints: string[] = [];
+  if (artifacts.runContract !== null) {
+    constraints.push(
+      `Read ${artifacts.runContract.relativePath} before candidate edits; treat its goal, acceptance gates, eval promotion rules, and stop conditions as the run contract, and record any deviation explicitly.`,
+    );
+  }
+  if (artifacts.laneLedger !== null) {
+    constraints.push(
+      `Use ${artifacts.laneLedger.relativePath} as the active lane ledger: update it before first measurement, after each lane decision, and before stopping so rejected, merged, split, and independently shippable lanes stay visible.`,
+    );
+  }
+  return constraints;
+}
+
 function contextArtifactConstraints(artifacts: LoadedContextArtifacts): string[] {
   const constraints: string[] = [];
   if (artifacts.priorArt !== null) {
@@ -4207,6 +4457,12 @@ function writeSummary(
   const codebasePatternsRecord = summaryObject<ContextArtifactSummaryRecord>(
     beliefsDocument.codebasePatterns,
   );
+  const runContractRecord = summaryObject<RunControlArtifactSummaryRecord>(
+    beliefsDocument.runContract,
+  );
+  const laneLedgerRecord = summaryObject<RunControlArtifactSummaryRecord>(
+    beliefsDocument.laneLedger,
+  );
   const contextArtifactLines = [
     priorArtRecord === null
       ? null
@@ -4214,6 +4470,20 @@ function writeSummary(
     codebasePatternsRecord === null
       ? null
       : `- codebase patterns: \`${summaryString(codebasePatternsRecord.path) ?? "Not recorded"}\` (${summaryString(codebasePatternsRecord.status) ?? "present"})`,
+  ].filter((line): line is string => line !== null);
+  const runControlArtifactLines = [
+    runContractRecord === null
+      ? null
+      : `- run contract: \`${summaryString(runContractRecord.path) ?? RUN_CONTRACT_FILENAME}\` (${summaryString(runContractRecord.status) ?? "present"}; schema \`${summaryString(runContractRecord.schemaVersion) ?? "unrecorded"}\`)`,
+    laneLedgerRecord === null
+      ? null
+      : `- lane ledger: \`${summaryString(laneLedgerRecord.path) ?? LANE_LEDGER_FILENAME}\` (${summaryString(laneLedgerRecord.status) ?? "present"})`,
+    ...summaryStringList(runContractRecord?.warnings).map(
+      (warning) => `- run contract warning: ${warning}`,
+    ),
+    ...summaryStringList(laneLedgerRecord?.warnings).map(
+      (warning) => `- lane ledger warning: ${warning}`,
+    ),
   ].filter((line): line is string => line !== null);
   const hooksDirPresent = existsSync(resolve(paths.workspace, HOOKS_DIRNAME));
   const latestBeforeEvalHook = latestHookEvent(history, "before-eval");
@@ -4293,6 +4563,9 @@ function writeSummary(
     ...(contextArtifactLines.length === 0
       ? []
       : ["## Context Artifacts", ...contextArtifactLines, ""]),
+    ...(runControlArtifactLines.length === 0
+      ? []
+      : ["## Run Contract & Lane Ledger", ...runControlArtifactLines, ""]),
     "## Lineage",
     ...summaryStringList(lineageRecord.chain).map((item) => `- ${item}`),
     "",
@@ -4317,6 +4590,8 @@ function writeSummary(
             : ["- validated clankergraph sources:", ...clankerbenchGraphSourceLines]),
           `- context path: \`${summaryString(clankerbenchOuterLoop.contextPath) ?? "Not recorded"}\``,
           `- evidence path: \`${summaryString(clankerbenchOuterLoop.evidencePath) ?? "Not recorded"}\``,
+          `- run contract path: \`${summaryString(clankerbenchOuterLoop.runContractPath) ?? "Not recorded"}\``,
+          `- lane ledger path: \`${summaryString(clankerbenchOuterLoop.laneLedgerPath) ?? "Not recorded"}\``,
           `- declared hooks: \`${summaryString(clankerbenchOuterLoop.hooksDir) ?? "Not recorded"}\``,
           "",
         ]),
@@ -4760,6 +5035,7 @@ function recommendedResumeCommand(policy: ExecutionPolicy): string {
 }
 
 function executionHandoffPrompt(options: {
+  beliefsDocument?: BeliefsDocument;
   config: RuntimeConfig;
   paths: SessionPaths;
   preflightReady: boolean;
@@ -4769,6 +5045,20 @@ function executionHandoffPrompt(options: {
     policy.targetWallTimeHours === null
       ? "the configured run budget"
       : `${policy.targetWallTimeHours}h`;
+  const runContract = summaryObject<RunControlArtifactSummaryRecord>(
+    options.beliefsDocument?.runContract,
+  );
+  const laneLedger = summaryObject<RunControlArtifactSummaryRecord>(
+    options.beliefsDocument?.laneLedger,
+  );
+  const runControlLines = [
+    runContract === null
+      ? null
+      : `Run contract: read ${summaryString(runContract.path) ?? RUN_CONTRACT_FILENAME} before edits; preserve acceptance gates, promotion rules, and stop conditions unless a deviation is recorded.`,
+    laneLedger === null
+      ? null
+      : `Lane ledger: update ${summaryString(laneLedger.path) ?? LANE_LEDGER_FILENAME} before first measurement, after each lane decision, and before stopping.`,
+  ].filter((line): line is string => line !== null);
   return [
     "Use this workspace as an active pi-autoclanker autonomous run.",
     `Workspace: ${options.paths.workspace}`,
@@ -4776,6 +5066,8 @@ function executionHandoffPrompt(options: {
     executionPolicyQuestionHandling(policy),
     `Self-debug minor infrastructure issues: ${policy.selfDebugMinorIssues ? "yes" : "no"}; repair budget: ${policy.minorRepairBudget}.`,
     "Loop: read autoclanker.md, select the next candidate lane or merge suggestion, isolate one candidate edit per measurement, run autoclanker.eval.sh through autoclanker_ingest_eval with an explicit candidate when a frontier has multiple lanes, then call fit, suggest, and status before deciding whether to keep, drop, split, or merge lanes.",
+    ...runControlLines,
+    "Do not stop after one tiny, neutral, or local-optimum lane while plausible high-value lanes remain; keep shaping, splitting, merging, or parking lanes until the frontier is genuinely exhausted or a proposal is ready.",
     "Do not rewrite the locked eval surface during execution. Stop only for true hard blockers: contract drift, missing required credentials with no fallback, destructive action required, or repeated unrepaired infrastructure failure.",
     options.preflightReady
       ? "Preflight is ready; proceed without additional user questions."
@@ -4844,6 +5136,32 @@ function buildExecutionPreflight(options: {
       "Prior-art hard gate was overridden; keep duplicate or in-flight work visible.",
     );
   }
+  const runContract = summaryObject<RunControlArtifactSummaryRecord>(
+    options.beliefsDocument.runContract,
+  );
+  if (runContract !== null) {
+    const warnings = summaryStringList(runContract.warnings);
+    add(
+      "run_contract",
+      warnings.length === 0 ? "passed" : "warning",
+      warnings.length === 0
+        ? `Run contract recorded at ${summaryString(runContract.path) ?? RUN_CONTRACT_FILENAME}.`
+        : `Run contract needs attention: ${warnings.join(" ")}`,
+    );
+  }
+  const laneLedger = summaryObject<RunControlArtifactSummaryRecord>(
+    options.beliefsDocument.laneLedger,
+  );
+  if (laneLedger !== null) {
+    const warnings = summaryStringList(laneLedger.warnings);
+    add(
+      "lane_ledger",
+      warnings.length === 0 ? "passed" : "warning",
+      warnings.length === 0
+        ? `Lane ledger recorded at ${summaryString(laneLedger.path) ?? LANE_LEDGER_FILENAME}.`
+        : `Lane ledger needs attention: ${warnings.join(" ")}`,
+    );
+  }
   add(
     "upstream_artifacts",
     options.artifactsPresent ? "passed" : "warning",
@@ -4865,7 +5183,10 @@ function buildExecutionPreflight(options: {
   };
 }
 
-function buildExecutionNextActions(policy: ExecutionPolicy): string[] {
+function buildExecutionNextActions(
+  policy: ExecutionPolicy,
+  beliefsDocument?: BeliefsDocument,
+): string[] {
   const actions = [
     "Read autoclanker.md and the current Run Brief.",
     "If beliefs are still preview-only, call autoclanker_apply_beliefs.",
@@ -4873,6 +5194,26 @@ function buildExecutionNextActions(policy: ExecutionPolicy): string[] {
     "Use pending queries and merge suggestions to compare, split, drop, or create merged lanes for later measurements.",
     "Persist uncertainty as assumptions, risks, pending queries, or proposal notes instead of asking late clarification questions.",
   ];
+  const runContract = summaryObject<RunControlArtifactSummaryRecord>(
+    beliefsDocument?.runContract,
+  );
+  const laneLedger = summaryObject<RunControlArtifactSummaryRecord>(
+    beliefsDocument?.laneLedger,
+  );
+  if (runContract !== null) {
+    actions.splice(
+      1,
+      0,
+      `Read ${summaryString(runContract.path) ?? RUN_CONTRACT_FILENAME} before edits and keep deviations explicit.`,
+    );
+  }
+  if (laneLedger !== null) {
+    actions.splice(
+      runContract === null ? 1 : 2,
+      0,
+      `Update ${summaryString(laneLedger.path) ?? LANE_LEDGER_FILENAME} before first measurement and after each lane decision.`,
+    );
+  }
   if (policy.mode !== "interactive") {
     actions.push(
       "Continue until a proposal is ready, all active lanes are rejected, or a true hard blocker is recorded.",
@@ -5672,8 +6013,11 @@ function validateClankerbenchGraphSources(
 
 function clankerbenchResearchGuidance(manifest: ClankerbenchRunManifest): string[] {
   const researchSources = manifest.research_sources ?? [];
+  const guidance = [
+    "Treat clankerbench as a multi-lane optimization contract: use evidence to rank the frontier, screen cheaply where possible, and do not stop after one local optimum while plausible high-value lanes remain.",
+  ];
   if (researchSources.length === 0) {
-    return [];
+    return guidance;
   }
 
   const kinds = [...new Set(researchSources.map((source) => source.kind))].join(", ");
@@ -5689,9 +6033,10 @@ function clankerbenchResearchGuidance(manifest: ClankerbenchRunManifest): string
   const graphClause = graphRoles
     ? ` Clankergraph sources are typed as ${graphRoles}; keep evidence, beliefs, benchmark verdicts, and context separate unless a derivation explicitly records the loss.`
     : "";
-  return [
+  guidance.push(
     `Before candidate edits, complete the clankerbench context pass from declared research sources (${kinds}; ${requiredCount} required, ${optionalCount} optional): start with local/repo artifacts, use papers/docs/web/prior art only when they materially improve the frontier, and keep eval/acceptance proof authoritative.${graphClause}`,
-  ];
+  );
+  return guidance;
 }
 
 function clankerbenchManifestSummary(
@@ -5732,9 +6077,11 @@ function clankerbenchManifestSummary(
             guardrails: outerLoop.guardrails ?? [],
             hooksDir: outerLoop.hooks_dir ?? null,
             ideasPath: outerLoop.ideas_path ?? null,
+            laneLedgerPath: outerLoop.lane_ledger_path ?? null,
             maxIterations: outerLoop.max_iterations ?? null,
             maxWallTimeSec: outerLoop.max_wall_time_sec ?? null,
             runners: outerLoop.runners ?? [],
+            runContractPath: outerLoop.run_contract_path ?? null,
             sessionPath: outerLoop.session_path ?? null,
             statusPath: outerLoop.status_path ?? null,
             stopConditions: outerLoop.stop_conditions ?? [],
@@ -6043,10 +6390,12 @@ function resolvedInitInput(
   ideasInput: LoadedIdeasInput | null;
   clankerbenchManifest: LoadedClankerbenchManifest | null;
   contextArtifacts: LoadedContextArtifacts;
+  runControlArtifacts: LoadedRunControlArtifacts;
 } {
   const ideasInput = loadIdeasInput(workspace, payload, paths);
   const clankerbenchManifest = loadClankerbenchManifest(workspace, payload);
   const contextArtifacts = loadContextArtifacts(workspace, clankerbenchManifest);
+  const runControlArtifacts = loadRunControlArtifacts(workspace, clankerbenchManifest);
   const goal =
     optionalString(payload.goal, "goal") ??
     ideasInput?.goal ??
@@ -6069,6 +6418,7 @@ function resolvedInitInput(
           ...(ideasInput?.constraints ?? []),
           ...(clankerbenchManifest?.constraints ?? []),
           ...contextArtifactConstraints(contextArtifacts),
+          ...runControlArtifactConstraints(runControlArtifacts),
         ]);
   const roughIdeaSources =
     ideasInput?.ideas.map((idea) => ({
@@ -6095,6 +6445,7 @@ function resolvedInitInput(
     ideasInput,
     clankerbenchManifest,
     contextArtifacts,
+    runControlArtifacts,
   };
 }
 
@@ -7134,6 +7485,7 @@ function toolInitSession(
     ideasInput,
     clankerbenchManifest,
     contextArtifacts,
+    runControlArtifacts,
   } = resolvedInitInput(workspace, payload, paths);
   if (contextArtifacts.priorArt?.hardGate && payload.allowPriorArtHardGate !== true) {
     throw new Error(
@@ -7223,6 +7575,18 @@ function toolInitSession(
       clankerbenchManifest,
     );
   }
+  if (runControlArtifacts.runContract !== null) {
+    beliefsDocument.runContract = runControlArtifactSummary(
+      workspace,
+      runControlArtifacts.runContract,
+    );
+  }
+  if (runControlArtifacts.laneLedger !== null) {
+    beliefsDocument.laneLedger = runControlArtifactSummary(
+      workspace,
+      runControlArtifacts.laneLedger,
+    );
+  }
   if (ideasInput?.surfaceOverlay !== null && ideasInput?.surfaceOverlay !== undefined) {
     beliefsDocument.surfaceOverlay = ideasInput.surfaceOverlay;
   }
@@ -7288,6 +7652,12 @@ function toolInitSession(
     codebasePatterns: contextArtifacts.codebasePatterns
       ? contextArtifactSummary(workspace, contextArtifacts.codebasePatterns)
       : null,
+    runContract: runControlArtifacts.runContract
+      ? runControlArtifactSummary(workspace, runControlArtifacts.runContract)
+      : null,
+    laneLedger: runControlArtifacts.laneLedger
+      ? runControlArtifactSummary(workspace, runControlArtifacts.laneLedger)
+      : null,
     ...(clankerbenchManifest === null
       ? {}
       : {
@@ -7326,16 +7696,22 @@ function toolInitSession(
     executionPolicy: materializedConfig.executionPolicy,
     preflight,
     handoffPrompt: executionHandoffPrompt({
+      beliefsDocument,
       config: materializedConfig,
       paths,
       preflightReady: preflight.ready === true,
     }),
-    nextActions: buildExecutionNextActions(materializedConfig.executionPolicy),
+    nextActions: buildExecutionNextActions(
+      materializedConfig.executionPolicy,
+      beliefsDocument,
+    ),
     files: sessionFileMap(paths),
     ideasInputPath: ideasInput?.path ?? null,
     ideasInputSource: ideasInput?.source ?? "direct",
     priorArtStatus: contextArtifacts.priorArt?.status ?? "absent",
     codebasePatternsStatus: contextArtifacts.codebasePatterns?.status ?? "absent",
+    runContractStatus: runControlArtifacts.runContract?.status ?? "absent",
+    laneLedgerStatus: runControlArtifacts.laneLedger?.status ?? "absent",
     ...(clankerbenchManifest === null
       ? {}
       : {
@@ -7628,11 +8004,15 @@ function toolStatus(
     executionPolicy: runtimeConfig.executionPolicy,
     preflight,
     handoffPrompt: executionHandoffPrompt({
+      beliefsDocument,
       config: runtimeConfig,
       paths,
       preflightReady,
     }),
-    nextActions: buildExecutionNextActions(runtimeConfig.executionPolicy),
+    nextActions: buildExecutionNextActions(
+      runtimeConfig.executionPolicy,
+      beliefsDocument,
+    ),
     assumptions: recentAssumptionRecords(history),
     evalSurfaceSha256: currentEvalSha256 ?? null,
     lockedEvalSurfaceSha256: lockedEvalSha256 ?? null,
@@ -7656,6 +8036,8 @@ function toolStatus(
     followUpComparison,
     frontierFilePresent: existsSync(paths.frontierPath),
     ideasFilePresent,
+    runContract: beliefsDocument.runContract ?? null,
+    laneLedger: beliefsDocument.laneLedger ?? null,
     progress: loadProgress(paths),
     frontierSummary,
     briefs: view.briefs,
@@ -8259,12 +8641,13 @@ function commandRun(
     status,
     "run status must be a JSON object.",
   );
+  const beliefsDocument = loadJsonIfPresent<BeliefsDocument>(updatedPaths.beliefsPath);
   const preflight =
     summaryObject<ExecutionPreflight>(statusRecord.preflight) ??
     buildExecutionPreflight({
       artifactsPresent: upstreamArtifactsPresent(updatedPaths.upstreamSessionDir),
       autoclankerCliResolvable: resolveAutoclankerCommand(config, workspace) !== null,
-      beliefsDocument: loadJsonIfPresent<BeliefsDocument>(updatedPaths.beliefsPath),
+      beliefsDocument,
       config,
       evalSurfaceMatchesLock: true,
       paths: updatedPaths,
@@ -8285,11 +8668,12 @@ function commandRun(
     executionPolicy: config.executionPolicy,
     preflight,
     handoffPrompt: executionHandoffPrompt({
+      beliefsDocument,
       config,
       paths: updatedPaths,
       preflightReady: preflight.ready === true,
     }),
-    nextActions: buildExecutionNextActions(config.executionPolicy),
+    nextActions: buildExecutionNextActions(config.executionPolicy, beliefsDocument),
   };
 }
 

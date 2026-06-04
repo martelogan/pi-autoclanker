@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gpgconf --kill scdaemon)",
+      "Bash(gpgconf --kill gpg-agent)",
+      "Bash(gpg-connect-agent /bye)",
+      "Bash(rtk read *)",
+      "Bash(pkill -9 -f 'gpg --pinentry-mode loopback')",
+      "Bash(pkill -9 -x gpg-agent)",
+      "Bash(pkill -9 -x scdaemon)",
+      "Bash(pkill -9 -x pinentry)",
+      "Bash(pkill -9 -f 'gpgconf --kill')",
+      "Bash(pkill -9 -x pinentry-mac)",
+      "Bash(rtk ls *)"
+    ]
+  }
+}

@@ -21,6 +21,8 @@ const clankerbenchPaths = [
   "schemas/clankerbench.pipeline.schema.json",
   "examples/clankerbench-mini/README.md",
   "examples/clankerbench-mini/clankerbench.manifest.json",
+  "examples/clankerbench-mini/run-contract.json",
+  "examples/clankerbench-mini/lane-ledger.md",
   "examples/clankerbench-mini/graphs/evidence.clankergraph.json",
   "examples/clankerbench-mini/graphs/investigation-evidence.clankergraph.json",
 ] as const;
@@ -94,6 +96,8 @@ coveredTest(
     expect(manifest.research_sources?.map((source) => source.kind)).toEqual([
       "local",
       "operator_note",
+      "run_contract",
+      "lane_ledger",
       "web",
       "clankergraph",
     ]);
@@ -104,9 +108,11 @@ coveredTest(
     );
     expect(manifest.outer_loop?.eval_command).toBe("./bench eval --json");
     expect(manifest.outer_loop?.hooks_dir).toBe("clankerbench.hooks");
+    expect(manifest.outer_loop?.lane_ledger_path).toBe("lane-ledger.md");
     expect(manifest.outer_loop?.max_iterations).toBe(50);
     expect(manifest.outer_loop?.max_wall_time_sec).toBe(28800);
     expect(manifest.outer_loop?.runners?.[0]?.id).toBe("local");
+    expect(manifest.outer_loop?.run_contract_path).toBe("run-contract.json");
     expect(manifest.outer_loop?.guardrails).toContain(
       "Do not rewrite the locked eval contract inside a candidate loop.",
     );

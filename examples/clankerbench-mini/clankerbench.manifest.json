@@ -302,6 +302,18 @@
       "path": "clankerbench.manifest.json",
       "kind": "contract",
       "role": "input"
+    },
+    {
+      "id": "run_contract",
+      "path": "run-contract.json",
+      "kind": "run_contract",
+      "role": "input"
+    },
+    {
+      "id": "lane_ledger",
+      "path": "lane-ledger.md",
+      "kind": "lane_ledger",
+      "role": "input"
     }
   ],
   "research_sources": [
@@ -317,6 +329,18 @@
       "path": "optimization.ideas.json",
       "optional": true,
       "description": "Human-provided hypotheses or rough ideas to preserve during context distillation."
+    },
+    {
+      "id": "run_contract",
+      "kind": "run_contract",
+      "path": "run-contract.json",
+      "description": "Machine-readable run contract with acceptance gates, promotion rules, and stop conditions."
+    },
+    {
+      "id": "lane_ledger",
+      "kind": "lane_ledger",
+      "path": "lane-ledger.md",
+      "description": "Human-readable lane ledger for active, rejected, merged, split, and shippable proposal lanes."
     },
     {
       "id": "external_prior_art",
@@ -343,6 +367,7 @@
     ],
     "hooks_dir": "clankerbench.hooks",
     "ideas_path": "optimization.ideas.json",
+    "lane_ledger_path": "lane-ledger.md",
     "max_iterations": 50,
     "max_wall_time_sec": 28800,
     "runners": [
@@ -352,6 +377,7 @@
         "description": "Run the declared eval command in the current workspace."
       }
     ],
+    "run_contract_path": "run-contract.json",
     "session_path": "tmp/clankerbench/session",
     "status_path": "tmp/clankerbench/session/progress.json",
     "stop_conditions": [

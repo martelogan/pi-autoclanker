@@ -88,6 +88,7 @@ type JsonRecord = {
   genotype?: unknown;
   goal?: unknown;
   handoff?: unknown;
+  handoffPrompt?: unknown;
   hooks?: unknown;
   ingest?: unknown;
   kind?: unknown;
@@ -141,11 +142,13 @@ type JsonRecord = {
   comparedLaneCount?: unknown;
   codebasePatternsStatus?: unknown;
   constraints?: unknown;
+  laneLedgerStatus?: unknown;
   priorArtStatus?: unknown;
   result?: unknown;
   session?: unknown;
   stdout?: unknown;
   researchSources?: unknown;
+  runContractStatus?: unknown;
   stages?: unknown;
 };
 
@@ -1981,7 +1984,11 @@ coveredTest(
           autoclankerBinary: binaryPath,
           workspace,
         }),
-      );
+      ) as JsonRecord & {
+        handoffPrompt?: unknown;
+        laneLedgerStatus?: unknown;
+        runContractStatus?: unknown;
+      };
       expect(initResult.ideasInputSource).toBe("auto");
       expect(initResult.frontierSeedWarnings).toEqual([]);
       expect(asRecord(initResult.frontier).candidate_count).toBe(3);
@@ -2094,6 +2101,40 @@ EOF`;
       ].join("\n"),
       "utf-8",
     );
+    writeFileSync(
+      resolve(workspace, "run-contract.json"),
+      `${JSON.stringify(
+        {
+          schema_version: "clankerbench.run_contract.v1",
+          goal: "Improve a generic benchmark without changing its proof surface.",
+          acceptance_gates: ["weighted_latency_ms improves without correctness loss"],
+          promotion_rules: ["Use locked eval for final confirmation"],
+          stop_conditions: [
+            "candidate confirmed",
+            "all meaningful lanes rejected with evidence",
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    writeFileSync(
+      resolve(workspace, "lane-ledger.md"),
+      [
+        "# Lane Ledger",
+        "",
+        "## Active Lanes",
+        "",
+        "- `batching`: Measure data batching before promoting a draft.",
+        "- `direct_writer`: Measure direct output writer impact separately.",
+        "",
+        "## Parked Or Rejected Lanes",
+        "",
+        "- None yet.",
+      ].join("\n"),
+      "utf-8",
+    );
     mkdirSync(resolve(workspace, "graphs"), { recursive: true });
     writeFileSync(
       resolve(workspace, "graphs/investigation-evidence.clankergraph.json"),
@@ -2151,6 +2192,16 @@ EOF`;
               path: "codebase_patterns.md",
             },
             {
+              id: "generic_run_contract",
+              kind: "run_contract",
+              path: "run-contract.json",
+            },
+            {
+              id: "generic_lane_ledger",
+              kind: "lane_ledger",
+              path: "lane-ledger.md",
+            },
+            {
               id: "investigation_evidence",
               kind: "clankergraph",
               graph_role: "evidence",
@@ -2166,7 +2217,9 @@ EOF`;
               "Treat external research as hypothesis input, not proof.",
             ],
             hooks_dir: "clankerbench.hooks",
+            lane_ledger_path: "lane-ledger.md",
             max_iterations: 7,
+            run_contract_path: "run-contract.json",
             stop_conditions: ["candidate confirmed", "all active lanes rejected"],
           },
         },
@@ -2187,6 +2240,8 @@ EOF`;
       expect(initResult.usedDefaultEvalCommand).toBe(false);
       expect(initResult.priorArtStatus).toBe("present");
       expect(initResult.codebasePatternsStatus).toBe("present");
+      expect(initResult.runContractStatus).toBe("present");
+      expect(initResult.laneLedgerStatus).toBe("present");
 
       const configDocument = asRecord(
         JSON.parse(readFileSync(resolve(workspace, CONFIG_FILENAME), "utf-8")),
@@ -2197,15 +2252,22 @@ EOF`;
       };
       expect(configDocument.evalCommand).toBe(manifestEvalCommand);
       expect(configDocument.maxIterations).toBe(7);
-      expect(configDocument.constraints).toEqual([
-        "Keep the locked eval surface fixed.",
-        "Treat external research as hypothesis input, not proof.",
-        expect.stringContaining(
-          "Before candidate edits, complete the clankerbench context pass",
-        ),
-        expect.stringContaining("Read prior_art.md before candidate edits"),
-        expect.stringContaining("Read codebase_patterns.md before design scoring"),
-      ]);
+      expect(configDocument.constraints).toEqual(
+        expect.arrayContaining([
+          "Keep the locked eval surface fixed.",
+          "Treat external research as hypothesis input, not proof.",
+          expect.stringContaining(
+            "Treat clankerbench as a multi-lane optimization contract",
+          ),
+          expect.stringContaining(
+            "Before candidate edits, complete the clankerbench context pass",
+          ),
+          expect.stringContaining("Read prior_art.md before candidate edits"),
+          expect.stringContaining("Read codebase_patterns.md before design scoring"),
+          expect.stringContaining("Read run-contract.json before candidate edits"),
+          expect.stringContaining("Use lane-ledger.md as the active lane ledger"),
+        ]),
+      );
 
       const beliefsDocument = asRecord(
         JSON.parse(readFileSync(resolve(workspace, BELIEFS_FILENAME), "utf-8")),
@@ -2213,8 +2275,10 @@ EOF`;
         canonicalBeliefs?: unknown;
         clankerbenchManifest?: unknown;
         codebasePatterns?: unknown;
+        laneLedger?: unknown;
         priorArt?: unknown;
         preview?: unknown;
+        runContract?: unknown;
       };
       const clankerbench = asRecord(beliefsDocument.clankerbenchManifest);
       expect(clankerbench.primaryMetric).toBe("weighted_latency_ms");
@@ -2225,7 +2289,7 @@ EOF`;
         "compare",
         "session",
       ]);
-      expect(clankerbench.researchSources as unknown[]).toHaveLength(4);
+      expect(clankerbench.researchSources as unknown[]).toHaveLength(6);
       const clankerbenchGraphSummary = clankerbench as JsonRecord & {
         graphSources?: unknown[];
       };
@@ -2238,6 +2302,8 @@ EOF`;
       expect(asRecord(beliefsDocument.codebasePatterns).path).toBe(
         "codebase_patterns.md",
       );
+      expect(asRecord(beliefsDocument.runContract).path).toBe("run-contract.json");
+      expect(asRecord(beliefsDocument.laneLedger).path).toBe("lane-ledger.md");
       const canonicalBeliefs = beliefsDocument.canonicalBeliefs as unknown[];
       expect(
         canonicalBeliefs.some(
@@ -2254,7 +2320,7 @@ EOF`;
 
       const summary = readFileSync(resolve(workspace, SUMMARY_FILENAME), "utf-8");
       expect(summary).toContain("## Clankerbench");
-      expect(summary).toContain("- research sources: `4`");
+      expect(summary).toContain("- research sources: `6`");
       expect(summary).toContain(
         "- `local_analysis` (local, required): tmp/bench/analysis.md",
       );
@@ -2265,6 +2331,12 @@ EOF`;
         "- `local_codebase_patterns` (codebase_patterns, required): codebase_patterns.md",
       );
       expect(summary).toContain(
+        "- `generic_run_contract` (run_contract, required): run-contract.json",
+      );
+      expect(summary).toContain(
+        "- `generic_lane_ledger` (lane_ledger, required): lane-ledger.md",
+      );
+      expect(summary).toContain(
         "- `investigation_evidence` (clankergraph/evidence, required): graphs/investigation-evidence.clankergraph.json",
       );
       expect(summary).toContain("- validated clankergraph sources:");
@@ -2272,10 +2344,26 @@ EOF`;
         "- `investigation_evidence` -> `external-investigation-sample-root-cause` (evidence, 4 nodes): graphs/investigation-evidence.clankergraph.json",
       );
       expect(summary).toContain("- context path: `tmp/bench/context_brief.md`");
+      expect(summary).toContain("- run contract path: `run-contract.json`");
+      expect(summary).toContain("- lane ledger path: `lane-ledger.md`");
       expect(summary).toContain("## Context Artifacts");
       expect(summary).toContain("- prior art: `prior_art.md` (present)");
       expect(summary).toContain(
         "- codebase patterns: `codebase_patterns.md` (present)",
+      );
+      expect(summary).toContain("## Run Contract & Lane Ledger");
+      expect(summary).toContain(
+        "- run contract: `run-contract.json` (present; schema `clankerbench.run_contract.v1`)",
+      );
+      expect(summary).toContain("- lane ledger: `lane-ledger.md` (present)");
+      expect(String(initResult.handoffPrompt)).toContain(
+        "Run contract: read run-contract.json before edits",
+      );
+      expect(String(initResult.handoffPrompt)).toContain(
+        "Lane ledger: update lane-ledger.md before first measurement",
+      );
+      expect(String(initResult.handoffPrompt)).toContain(
+        "Do not stop after one tiny, neutral, or local-optimum lane",
       );
     });
   },

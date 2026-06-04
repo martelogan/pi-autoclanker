@@ -57,7 +57,7 @@
       }
     ]
   },
-  "handoffPrompt": "Use this workspace as an active pi-autoclanker autonomous run.\nWorkspace: <workspace>\nExecution mode: interactive; run intensity: standard; target: the configured run budget.\nClarifying questions are allowed when they materially improve the run.\nSelf-debug minor infrastructure issues: no; repair budget: 3.\nLoop: read autoclanker.md, select the next candidate lane or merge suggestion, isolate one candidate edit per measurement, run autoclanker.eval.sh through autoclanker_ingest_eval with an explicit candidate when a frontier has multiple lanes, then call fit, suggest, and status before deciding whether to keep, drop, split, or merge lanes.\nDo not rewrite the locked eval surface during execution. Stop only for true hard blockers: contract drift, missing required credentials with no fallback, destructive action required, or repeated unrepaired infrastructure failure.\nPreflight has blockers; resolve blockers before spending long-run compute.",
+  "handoffPrompt": "Use this workspace as an active pi-autoclanker autonomous run.\nWorkspace: <workspace>\nExecution mode: interactive; run intensity: standard; target: the configured run budget.\nClarifying questions are allowed when they materially improve the run.\nSelf-debug minor infrastructure issues: no; repair budget: 3.\nLoop: read autoclanker.md, select the next candidate lane or merge suggestion, isolate one candidate edit per measurement, run autoclanker.eval.sh through autoclanker_ingest_eval with an explicit candidate when a frontier has multiple lanes, then call fit, suggest, and status before deciding whether to keep, drop, split, or merge lanes.\nDo not stop after one tiny, neutral, or local-optimum lane while plausible high-value lanes remain; keep shaping, splitting, merging, or parking lanes until the frontier is genuinely exhausted or a proposal is ready.\nDo not rewrite the locked eval surface during execution. Stop only for true hard blockers: contract drift, missing required credentials with no fallback, destructive action required, or repeated unrepaired infrastructure failure.\nPreflight has blockers; resolve blockers before spending long-run compute.",
   "nextActions": [
     "Read autoclanker.md and the current Run Brief.",
     "If beliefs are still preview-only, call autoclanker_apply_beliefs.",
@@ -88,6 +88,8 @@
   "followUpComparison": null,
   "frontierFilePresent": false,
   "ideasFilePresent": false,
+  "runContract": null,
+  "laneLedger": null,
   "progress": null,
   "frontierSummary": {
     "frontier_id": "frontier_default",
