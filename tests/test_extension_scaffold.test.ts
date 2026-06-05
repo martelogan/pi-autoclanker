@@ -49,6 +49,7 @@ coveredTest(["M1-004"], "required skills exist at canonical repo paths", () => {
     "skills/autoclanker-autonomous-supervisor/SKILL.md",
     "skills/autoclanker-advanced-beliefs/SKILL.md",
     "skills/autoclanker-hooks/SKILL.md",
+    "skills/autoclanker-kickoff/SKILL.md",
     "skills/autoclanker-review/SKILL.md",
   ];
   for (const relativePath of required) {

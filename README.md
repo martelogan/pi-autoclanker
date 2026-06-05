@@ -12,6 +12,7 @@
 
 **[Install](#install)** ·
 **[Quick start](#quick-start)** ·
+**[Prompt kickoff](#prompt-kickoff)** ·
 **[Clankerbench](#clankerbench)** ·
 **[Mental model](#mental-model)** ·
 **[Live surfaces](#live-surfaces)** ·
@@ -99,7 +100,10 @@ For an unattended long run, use the execution handoff instead:
 that tells the supervising agent not to ask late clarification questions. After
 startup, uncertainty should become assumptions, risks, pending comparison
 queries, or proposal notes. See [`docs/HEADLESS_AGENT.md`](docs/HEADLESS_AGENT.md)
-for non-Pi and enterprise/cloud supervisor usage.
+for non-Pi and enterprise/cloud supervisor usage, and
+[`docs/PROMPT_KICKOFF.md`](docs/PROMPT_KICKOFF.md) for the canonical copy/paste
+prompt that tells the agent to execute the returned handoff instead of stopping
+after setup.
 
 If you do not provide a real eval command yet, `pi-autoclanker` can generate a
 default checked-in `autoclanker.eval.sh` stub so the session starts immediately
@@ -253,6 +257,23 @@ For unattended runs, prefer:
 /autoclanker run --overnight --ideas-input autoclanker.ideas.json
 ```
 
+## Prompt kickoff
+
+When you want the extension to make the right setup happen from a simple prompt,
+use `/skill:autoclanker-kickoff` or paste the one-prompt contract from
+[`docs/PROMPT_KICKOFF.md`](docs/PROMPT_KICKOFF.md). That path tells the agent to
+reuse existing `autoclanker.ideas.json`, `clankerbench.manifest.json`,
+`run-contract.json`, `lane-ledger.md`, and evidence artifacts; run
+`/autoclanker run --overnight`; read the returned `handoffPrompt`; and execute
+the measured loop rather than stopping after CLI setup.
+
+For creating seeded GitHub issues, see
+[`docs/ISSUE_SEEDER.md`](docs/ISSUE_SEEDER.md) and the dependency-free static
+local-first manager in [`examples/issue-seeder`](examples/issue-seeder). It
+persists multiple seeds in browser storage, imports/exports seed JSON, and
+generates issue markdown, artifact manifests, run contracts, lane ledgers, local
+prompts, and headless commands without calling GitHub or storing secrets.
+
 ## Mental model
 
 The beginner mental model should stay small:
@@ -299,6 +320,8 @@ The fastest way to understand the repo now is:
 - [`examples/targets/parser-quickstart`](examples/targets/parser-quickstart) for
   a real packaged parser target and benchmark
 - [`examples/minimal`](examples/minimal) for the smallest kickoff shape
+- [`examples/issue-seeder`](examples/issue-seeder) for a static local-first
+  issue seed manager
 - [`examples/parser-demo-expanded`](examples/parser-demo-expanded) for a fuller
   worked session after the extension has already materialized local files
 
@@ -443,11 +466,13 @@ source of truth.
 | `autoclanker-autonomous-supervisor` | Drive unattended or headless execution from the generated handoff without asking late clarification questions. |
 | `autoclanker-advanced-beliefs` | Turn rough ideas into compact advanced JSON beliefs by starting with up to three high-yield follow-up questions per round when the beginner path is no longer enough. |
 | `autoclanker-hooks` | Add optional `autoclanker.hooks/before-eval.sh` and `after-eval.sh` scripts for eval-adjacent side effects without turning hooks into a second optimizer. |
+| `autoclanker-kickoff` | Start or resume from a simple prompt, reuse seeded workspace files, run the overnight handoff, and execute the returned prompt end-to-end. |
 | `autoclanker-review` | Read the current session and summarize it through the Prior / Run / Posterior / Proposal briefs in plain language. |
 
 The common flow is:
 
 - use `autoclanker-create` first,
+- use `autoclanker-kickoff` when you want a one-prompt long-run start,
 - keep rough ideas as plain strings at first,
 - move to `autoclanker-advanced-beliefs` only when risks, relations, or
   graph-structured priors actually matter.
@@ -741,6 +766,9 @@ session tiers:
   worked session with `autoclanker.ideas.json`, `candidates.json`,
   `autoclanker.proposals.json`, the four-brief summary, and a checked-in eval
   surface for that same packaged target
+- [`examples/issue-seeder`](examples/issue-seeder): standalone static local-first
+  manager for copying seeded issue bodies, artifact manifests, run contracts,
+  lane ledgers, Pi prompts, and headless commands
 
 Use `examples/targets/parser-quickstart` when you want to get your hands on a
 real target immediately, even from a lean `autoclanker + pi-autoclanker`

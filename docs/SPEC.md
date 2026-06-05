@@ -219,6 +219,21 @@ the frontier. If the active supervisor has no external-search capability, those
 sources remain visible queued context rather than silently becoming assumed
 evidence.
 
+## Issue seeding contract
+
+The repo may ship a static issue seeder for target repositories. That surface
+must stay generic and credential-free: it manages a local seed catalog and
+generates copyable issue markdown, artifact manifests, `autoclanker.ideas.json`,
+`run-contract.json`, `lane-ledger.md`, Pi prompts, and headless commands, but it
+does not call GitHub or upload artifacts by default.
+
+Generated issue prompts must preserve the same contract as the runtime docs:
+setup commands prepare or resume the workspace, the agent must execute the
+returned handoff prompt, the eval surface stays fixed, multi-lane measurements
+need explicit candidate identity, evidence artifacts are exploratory inputs
+rather than proof, and long runs should not stop after one local optimum while
+other seeded lanes remain plausible.
+
 ## Required public surfaces
 
 ### 1. Extension tools
@@ -274,11 +289,18 @@ The repo must ship at least:
 
 - `autoclanker-create`
 - `autoclanker-advanced-beliefs`
+- `autoclanker-kickoff`
 - `autoclanker-review`
 
 The beginner path must work from rough ideas. The advanced path must help users
 produce compact machine-authored JSON belief batches rather than forcing them to
 write complex Bayes declarations manually.
+
+The kickoff path must make the setup/execution split explicit:
+`/autoclanker run` or `pi-autoclanker command run` prepares or resumes workspace
+state and returns a handoff prompt, while the supervising agent must execute
+that prompt by reading workspace artifacts, comparing lanes, ingesting
+measurements, fitting, suggesting, and recording proposal or blocker state.
 
 The advanced path should stay bounded:
 

@@ -29,6 +29,7 @@ coveredTest(["M0-001", "M1-006"], "package identity is pi-autoclanker", () => {
     "./skills/autoclanker-autonomous-supervisor",
     "./skills/autoclanker-create",
     "./skills/autoclanker-hooks",
+    "./skills/autoclanker-kickoff",
     "./skills/autoclanker-review",
   ]);
   expect(manifest.keywords).toEqual(
@@ -56,6 +57,9 @@ coveredTest(
     expect(readme).toContain("What’s included");
     expect(readme).toContain("/autoclanker run");
     expect(readme).toContain("HEADLESS_AGENT.md");
+    expect(readme).toContain("PROMPT_KICKOFF.md");
+    expect(readme).toContain("ISSUE_SEEDER.md");
+    expect(readme).toContain("examples/issue-seeder");
     expect(readme).toContain("Commands");
     expect(readme).toContain("Tools");
     expect(readme).toContain("Skills");
@@ -83,6 +87,7 @@ coveredTest(
     expect(readme).toContain("autoclanker_init_session");
     expect(readme).toContain("/autoclanker start <goal>");
     expect(readme).toContain("autoclanker-create");
+    expect(readme).toContain("autoclanker-kickoff");
     expect(readme).toContain("autoclanker-hooks");
     expect(readme).toContain("anti-thrash nudges");
     expect(readme).toContain("machine-readable evidence digests");
@@ -107,6 +112,9 @@ coveredTest(
     expect(spec).toContain("deterministic summary");
     expect(spec).toContain("goal, rough ideas, and optional");
     expect(spec).toContain("autoclanker.ideas.json");
+    expect(spec).toContain("Issue seeding contract");
+    expect(spec).toContain("setup commands prepare or resume the workspace");
+    expect(spec).toContain("autoclanker-kickoff");
     expect(spec).toContain("markdown or text plans");
     expect(spec).toContain("optimization lever (gene)");
     expect(spec).toContain("objective backend");

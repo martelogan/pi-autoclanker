@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>pi-autoclanker issue seeder</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main>
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Static local-first seed manager</p>
+          <h1>Optimization issue seeder</h1>
+          <p>
+            Manage ready-to-run optimization issues outside an agent session.
+            Seeds stay in browser storage, can be imported or exported as JSON,
+            and generate the same artifact contract that pi-autoclanker expects.
+          </p>
+        </div>
+        <div class="hero-actions">
+          <button id="newSeed" type="button">New seed</button>
+          <button class="secondary" id="exportAll" type="button">Export all</button>
+          <label class="file-button">
+            Import JSON
+            <input id="importFile" type="file" accept="application/json" />
+          </label>
+        </div>
+      </header>
+
+      <aside class="catalog" aria-label="Seed catalog">
+        <div class="row">
+          <h2>Seeds</h2>
+          <span id="seedCount" class="pill"></span>
+        </div>
+        <div id="seedList" class="seed-list"></div>
+      </aside>
+
+      <section class="editor">
+        <div class="row">
+          <h2>Seed Inputs</h2>
+          <button id="saveSeed" type="button">Save seed</button>
+        </div>
+
+        <div class="grid two">
+          <label>
+            Target repo
+            <input id="repo" />
+          </label>
+          <label>
+            Issue label
+            <input id="label" />
+          </label>
+        </div>
+
+        <label>
+          Issue title
+          <input id="title" />
+        </label>
+
+        <label>
+          Goal
+          <textarea id="goal"></textarea>
+        </label>
+
+        <div class="grid two">
+          <label>
+            Run intensity
+            <select id="intensity">
+              <option value="mega">mega</option>
+              <option value="deep">deep</option>
+              <option value="standard">standard</option>
+            </select>
+          </label>
+          <label>
+            Harness
+            <select id="harness">
+              <option value="pi">Pi extension</option>
+              <option value="headless">Headless CLI</option>
+              <option value="both">Both</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          Ideas or lanes, one per line
+          <textarea id="ideas"></textarea>
+        </label>
+
+        <label>
+          Constraints, one per line
+          <textarea id="constraints"></textarea>
+        </label>
+
+        <label>
+          Artifact refs, one per line as name=url or plain URL
+          <textarea id="artifacts"></textarea>
+        </label>
+
+        <label>
+          Evidence notes
+          <textarea id="evidence"></textarea>
+        </label>
+
+        <p class="note">
+          Keep sensitive request payloads, credentials, customer data, and raw
+          private benchmark rows out of generated public issues. Reference stable
+          artifact URLs, immutable object keys, or checked-in paths instead.
+        </p>
+      </section>
+
+      <section class="outputs">
+        <div class="row">
+          <h2>Generated Outputs</h2>
+          <button id="downloadSeed" class="secondary" type="button">
+            Download current
+          </button>
+        </div>
+
+        <article class="output">
+          <div class="row">
+            <h3>Issue body</h3>
+            <button data-copy="issueBody" type="button">Copy</button>
+          </div>
+          <textarea id="issueBody" readonly></textarea>
+        </article>
+
+        <article class="output">
+          <div class="row">
+            <h3>autoclanker.ideas.json</h3>
+            <button data-copy="ideasJson" type="button">Copy</button>
+          </div>
+          <textarea id="ideasJson" readonly></textarea>
+        </article>
+
+        <article class="output">
+          <div class="row">
+            <h3>artifact-manifest.json</h3>
+            <button data-copy="artifactJson" type="button">Copy</button>
+          </div>
+          <textarea id="artifactJson" readonly></textarea>
+        </article>
+
+        <article class="output">
+          <div class="row">
+            <h3>run-contract.json</h3>
+            <button data-copy="runContractJson" type="button">Copy</button>
+          </div>
+          <textarea id="runContractJson" readonly></textarea>
+        </article>
+
+        <article class="output">
+          <div class="row">
+            <h3>lane-ledger.md</h3>
+            <button data-copy="laneLedger" type="button">Copy</button>
+          </div>
+          <textarea id="laneLedger" readonly></textarea>
+        </article>
+
+        <article class="output">
+          <div class="row">
+            <h3>Pi prompt</h3>
+            <button data-copy="piPrompt" type="button">Copy</button>
+          </div>
+          <textarea id="piPrompt" readonly></textarea>
+        </article>
+
+        <article class="output">
+          <div class="row">
+            <h3>Headless command</h3>
+            <button data-copy="headlessCommand" type="button">Copy</button>
+          </div>
+          <textarea id="headlessCommand" readonly></textarea>
+        </article>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -304,6 +304,10 @@ coveredTest(
       resolve(root, "skills/autoclanker-create/SKILL.md"),
       "utf-8",
     );
+    const kickoffSkill = readFileSync(
+      resolve(root, "skills/autoclanker-kickoff/SKILL.md"),
+      "utf-8",
+    );
     const reviewSkill = readFileSync(
       resolve(root, "skills/autoclanker-review/SKILL.md"),
       "utf-8",
@@ -363,6 +367,9 @@ coveredTest(
     expect(createSkill).toContain("autoclanker.ideas.json");
     expect(createSkill).toContain("markdown or text plan files");
     expect(createSkill).toContain("ask no clarification questions by default");
+    expect(kickoffSkill).toContain("handoffPrompt");
+    expect(kickoffSkill).toContain("run-contract.json");
+    expect(kickoffSkill).toContain("lane-ledger.md");
     expect(reviewSkill).toContain("optimization lever (gene)");
     expect(reviewSkill).toContain("next query is trying to learn");
     expect(advancedSkill).toContain(
@@ -384,6 +391,10 @@ coveredTest(
     const design = readFileSync(resolve(root, "docs/DESIGN.md"), "utf-8");
     const createSkill = readFileSync(
       resolve(root, "skills/autoclanker-create/SKILL.md"),
+      "utf-8",
+    );
+    const kickoffSkill = readFileSync(
+      resolve(root, "skills/autoclanker-kickoff/SKILL.md"),
       "utf-8",
     );
     const advancedSkill = readFileSync(
@@ -415,6 +426,7 @@ coveredTest(
     expect(design).toContain("shared dashboard model");
     expect(design).toContain("autoclanker.proposals.json");
     expect(createSkill).toContain("Prior Brief");
+    expect(kickoffSkill).toContain("independently reviewable proposals");
     expect(advancedSkill).toContain("Proposal Brief");
     expect(reviewSkill).toContain("Prior Brief");
     expect(reviewSkill).toContain("Proposal Brief");
