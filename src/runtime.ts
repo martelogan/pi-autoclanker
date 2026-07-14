@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import type { SpawnSyncReturns } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
   appendFileSync,
@@ -1094,6 +1095,48 @@ function defaultRunner(argv: string[], cwd: string): InvocationResult {
     stdout: completed.stdout ?? "",
     stderr: completed.stderr ?? "",
   };
+}
+
+const GOALLOOP_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
+
+function goalloopInvocationFromSpawn(
+  completed: SpawnSyncReturns<string>,
+): InvocationResult {
+  if (completed.error) {
+    const code = (completed.error as NodeJS.ErrnoException).code;
+    if (code === "ENOBUFS") {
+      throw new Error(
+        "goalloop output exceeded the 32 MiB invocation buffer; trim gate " +
+          "output or write large artifacts to files instead of stdout.",
+      );
+    }
+    return {
+      returncode: completed.status ?? 1,
+      stdout: completed.stdout ?? "",
+      stderr: completed.stderr || completed.error.message,
+    };
+  }
+  return {
+    returncode: completed.status ?? 0,
+    stdout: completed.stdout ?? "",
+    stderr: completed.stderr ?? "",
+  };
+}
+
+function goalloopDefaultRunner(argv: string[], cwd: string): InvocationResult {
+  const [command, ...args] = argv;
+  if (!command) {
+    return { returncode: 1, stdout: "", stderr: "Missing command." };
+  }
+  return goalloopInvocationFromSpawn(
+    spawnSync(command, args, {
+      cwd,
+      encoding: "utf-8",
+      env: childProcessEnv(),
+      maxBuffer: GOALLOOP_MAX_BUFFER_BYTES,
+      stdio: ["ignore", "pipe", "pipe"],
+    }),
+  );
 }
 
 function childProcessEnv(extraEnv?: Record<string, string>): NodeJS.ProcessEnv {
@@ -8788,6 +8831,8 @@ function commandExport(
 
 export const __testHooks = {
   activeProposalMirrorEra,
+  goalloopDefaultRunner,
+  goalloopInvocationFromSpawn,
   appendDerivedViewTransitions,
   buildDerivedWorkspaceView,
   candidateDescriptor,
@@ -8832,7 +8877,9 @@ export function dispatchTool(
 ): JsonObject {
   const normalized = normalizedPayload(payload);
   const workspace = resolveWorkspace(normalized, options?.workspace);
-  const runner = options?.runner ?? defaultRunner;
+  const runner =
+    options?.runner ??
+    (name.startsWith("goalloop_") ? goalloopDefaultRunner : defaultRunner);
   if (name === "autoclanker_init_session") {
     return toolInitSession(workspace, normalized, runner);
   }

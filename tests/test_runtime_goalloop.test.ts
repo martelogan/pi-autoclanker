@@ -10,7 +10,7 @@ import { resolve } from "node:path";
 
 import { expect } from "vitest";
 
-import { HISTORY_FILENAME, dispatchTool } from "../src/runtime.js";
+import { HISTORY_FILENAME, __testHooks, dispatchTool } from "../src/runtime.js";
 import type { InvocationResult, Runner } from "../src/runtime.js";
 import { surfaceManifest } from "../src/surface.js";
 import { coveredTest } from "./compliance.js";
@@ -447,5 +447,82 @@ coveredTest(
     for (const name of GOALLOOP_TOOL_NAMES) {
       expect(surfaceToolNames).toContain(name);
     }
+  },
+);
+
+coveredTest(
+  ["M6-002"],
+  "goalloop default runner raises a clear error when output exceeds the buffer",
+  () => {
+    const oversized = {
+      error: Object.assign(new Error("spawnSync /bin/sh ENOBUFS"), {
+        code: "ENOBUFS",
+      }),
+      output: [],
+      pid: 0,
+      signal: null,
+      status: null,
+      stderr: "",
+      stdout: "partial-",
+    };
+    expect(() => __testHooks.goalloopInvocationFromSpawn(oversized)).toThrowError(
+      /32 MiB invocation buffer/u,
+    );
+
+    const failed = {
+      error: Object.assign(new Error("spawn missing-tool ENOENT"), {
+        code: "ENOENT",
+      }),
+      output: [],
+      pid: 0,
+      signal: null,
+      status: null,
+      stderr: "",
+      stdout: "",
+    };
+    const mapped = __testHooks.goalloopInvocationFromSpawn(failed);
+    expect(mapped.returncode).toBe(1);
+    expect(mapped.stderr).toContain("ENOENT");
+
+    const succeeded = {
+      output: [],
+      pid: 0,
+      signal: null,
+      status: 0,
+      stderr: "",
+      stdout: '{"ok": true}',
+    };
+    expect(__testHooks.goalloopInvocationFromSpawn(succeeded)).toEqual({
+      returncode: 0,
+      stderr: "",
+      stdout: '{"ok": true}',
+    });
+  },
+);
+
+coveredTest(
+  ["M6-002"],
+  "goalloop default runner executes real commands under the raised buffer",
+  () => {
+    const workspace = mkdtempSync(resolve(tmpdir(), "pi-goalloop-runner-"));
+    const echoed = __testHooks.goalloopDefaultRunner(
+      ["/bin/sh", "-c", "printf '{\"ok\": true}'"],
+      workspace,
+    );
+    expect(echoed.returncode).toBe(0);
+    expect(echoed.stdout).toBe('{"ok": true}');
+    expect(__testHooks.goalloopDefaultRunner([], workspace)).toEqual({
+      returncode: 1,
+      stderr: "Missing command.",
+      stdout: "",
+    });
+
+    const deferredPayload = {
+      autoclankerBinary: "definitely-missing-goalloop-binary",
+      autoclankerRepo: null,
+      workspace,
+    };
+    const status = asRecord(dispatchTool("goalloop_status", deferredPayload));
+    expect(status.deferred).toBe(true);
   },
 );
