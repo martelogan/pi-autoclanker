@@ -31,6 +31,17 @@ const DESCRIPTION_OVERRIDES = new Map([
   ],
 ]);
 
+// pi-autoclanker-native requirement families with no Python-oracle counterpart.
+const TS_ONLY_REQUIREMENT_FAMILIES = new Set(["M6"]);
+
+function requirementFamily(requirementId: string): string {
+  return requirementId.split("-")[0] ?? requirementId;
+}
+
+function isTsOnlyRequirement(requirementId: string): boolean {
+  return TS_ONLY_REQUIREMENT_FAMILIES.has(requirementFamily(requirementId));
+}
+
 function expectedMatrixFromOracle(): Requirement[] {
   const oracle = loadOracleFixtureJson<Requirement[]>("compliance_matrix.json");
   return oracle.map((entry) => ({
@@ -51,7 +62,16 @@ coveredTest(
         status,
       }),
     );
-    expect(local).toEqual(expectedMatrixFromOracle());
+    const tsOnly = local.filter((entry) => isTsOnlyRequirement(entry.requirement_id));
+    expect(tsOnly.length).toBeGreaterThan(0);
+    for (const entry of tsOnly) {
+      expect(entry.gate).toBe("required");
+      expect(entry.status).toBe("active");
+    }
+    const mirrored = local.filter(
+      (entry) => !isTsOnlyRequirement(entry.requirement_id),
+    );
+    expect(mirrored).toEqual(expectedMatrixFromOracle());
   },
 );
 

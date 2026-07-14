@@ -184,23 +184,5 @@
     "gate": "live",
     "description": "The repo provides a billed provider-backed acceptance lane and records proof artifacts when it successfully exercises advanced belief promotion from rough ideas into advanced JSON beliefs with explicit live opt-in.",
     "status": "external"
-  },
-  {
-    "requirement_id": "M6-001",
-    "gate": "required",
-    "description": "The goalloop tool family (goalloop_init, goalloop_status, goalloop_gate, goalloop_goal, goalloop_handoff, goalloop_audit) stays a thin wrapper that shells out to the goalloop CLI through the resolved autoclanker umbrella command, forwards loop parameters verbatim, defers with a structured result when no CLI resolves, and appends goalloop events to autoclanker.history.jsonl without reimplementing loop logic in TypeScript.",
-    "status": "active"
-  },
-  {
-    "requirement_id": "M6-002",
-    "gate": "required",
-    "description": "goalloop goal, gate, and assert semantics survive the bridge: a not-met or failed-gate exit is returned as a structured ok:false result carrying the propagated exit code instead of throwing, while goalloop validation errors surface the CLI's machine-readable error message as a thrown error.",
-    "status": "active"
-  },
-  {
-    "requirement_id": "M6-003",
-    "gate": "required",
-    "description": "goalloop handoff and audit-prompt text artifacts pass through unmodified as prompt payloads, audit ingest forwards the triaged findings path and records the round outcome, and the goalloop-operator skill is packaged in the pi surface.",
-    "status": "active"
   }
 ]
