@@ -430,10 +430,27 @@ These are the extension tools available to pi:
 | `autoclanker_compare_frontier` | Persist or reuse `autoclanker.frontier.json`, then compare explicit pathways through upstream `autoclanker`. |
 | `autoclanker_merge_pathways` | Merge selected pathways into the local frontier file and ask upstream `autoclanker` to re-rank them. |
 | `autoclanker_recommend_commit` | Ask `autoclanker` for a commit recommendation. |
+| `goalloop_init` | Scaffold a goalloop charter and requirement tracker through the `autoclanker goalloop` umbrella. |
+| `goalloop_status` | Read goal-loop progress (waves, gates, contract lock, audit state), optionally asserting selectors. |
+| `goalloop_gate` | Run the goal-loop charter gates with real exit-code propagation. |
+| `goalloop_goal` | Run the deterministic goal-loop completion check; not-met is a structured result, never an error. |
+| `goalloop_handoff` | Emit the goal-loop next-iteration handoff prompt as passthrough text. |
+| `goalloop_audit` | Drive the adversarial audit phase: auditor prompt, triaged-findings ingest, or convergence status. |
 
 The point of these tools is not to reimplement `autoclanker` in TypeScript. The
 extension stays thin and inspectable, while `autoclanker` remains the Bayesian
 source of truth.
+
+### Goal loops
+
+The `goalloop_*` family bridges the sibling repo's `goalloop` subpackage
+(deterministic goal loops: file-backed charter/tracker state, digest-locked
+gate contracts, adversarial audit convergence) into pi. The tools ride the
+same resolved `autoclanker` command (`autoclanker goalloop …`), so no extra
+configuration is needed beyond `autoclankerBinary`/`autoclankerRepo`. Loop
+events are appended to `autoclanker.history.jsonl` so summaries and compaction
+surface loop activity; the loop keeps its own history at the loop root. The
+`goalloop-operator` skill documents the full workflow.
 
 ## Skills
 

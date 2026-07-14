@@ -50,6 +50,7 @@ coveredTest(["M1-004"], "required skills exist at canonical repo paths", () => {
     "skills/autoclanker-advanced-beliefs/SKILL.md",
     "skills/autoclanker-hooks/SKILL.md",
     "skills/autoclanker-review/SKILL.md",
+    "skills/goalloop-operator/SKILL.md",
   ];
   for (const relativePath of required) {
     expect(existsSync(resolve(repoRoot(), relativePath))).toBe(true);

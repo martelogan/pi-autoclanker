@@ -30,6 +30,7 @@ coveredTest(["M0-001", "M1-006"], "package identity is pi-autoclanker", () => {
     "./skills/autoclanker-create",
     "./skills/autoclanker-hooks",
     "./skills/autoclanker-review",
+    "./skills/goalloop-operator",
   ]);
   expect(manifest.keywords).toEqual(
     expect.arrayContaining(["pi-package", "autoclanker", "typescript"]),

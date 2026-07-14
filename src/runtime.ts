@@ -55,6 +55,12 @@ export const TOOL_NAMES = [
   "autoclanker_compare_frontier",
   "autoclanker_merge_pathways",
   "autoclanker_recommend_commit",
+  "goalloop_init",
+  "goalloop_status",
+  "goalloop_gate",
+  "goalloop_goal",
+  "goalloop_handoff",
+  "goalloop_audit",
 ] as const;
 export const COMMAND_NAMES = [
   "run",
@@ -1000,10 +1006,18 @@ type BeliefMetadataMapping = {
 };
 
 type RuntimePayload = {
+  action?: string;
   allowBilledLive?: boolean;
   allowPriorArtHardGate?: boolean;
+  auditor?: string;
   autoclankerBinary?: string;
   autoclankerRepo?: string | null;
+  findingsPath?: string;
+  gates?: string[];
+  maxAuditRounds?: number;
+  name?: string;
+  root?: string;
+  selectors?: string[];
   canonicalizationModel?: string;
   candidateId?: string;
   baselineCandidateId?: string;
@@ -2124,6 +2138,328 @@ function invokeAutoclanker(options: {
     value: parsed,
     argv,
   };
+}
+
+type GoalloopPayload = {
+  argv?: unknown;
+  confirmed?: unknown;
+  converged?: unknown;
+  error?: unknown;
+  exitCode?: unknown;
+  mode?: unknown;
+  ok?: unknown;
+  prompt?: unknown;
+  reason?: unknown;
+  refuted?: unknown;
+  round?: unknown;
+  [key: string]: unknown;
+};
+
+function goalloopFailureMessage(invocation: InvocationResult): string {
+  const parsedStderr = parseJson(invocation.stderr);
+  if (
+    parsedStderr &&
+    typeof parsedStderr === "object" &&
+    !Array.isArray(parsedStderr)
+  ) {
+    const message = (parsedStderr as UpstreamPayload).error;
+    if (typeof message === "string" && message.trim().length > 0) {
+      return message;
+    }
+  }
+  return (
+    invocation.stderr.trim() || invocation.stdout.trim() || "goalloop command failed"
+  );
+}
+
+function invokeGoalloop(options: {
+  config: RuntimeConfig;
+  workspace: string;
+  root: string;
+  args: string[];
+  runner: Runner;
+  textOutput?: boolean;
+}): GoalloopPayload {
+  const commandPrefix = resolveAutoclankerCommand(options.config, options.workspace);
+  if (commandPrefix === null) {
+    return {
+      mode: "deferred",
+      reason:
+        "autoclanker CLI unavailable (goalloop rides the autoclanker umbrella). " +
+        "Set autoclankerBinary or autoclankerRepo in autoclanker.config.json.",
+    };
+  }
+  const argv = [...commandPrefix, "goalloop", ...options.args, "--root", options.root];
+  const invocation = options.runner(argv, options.workspace);
+  if (options.textOutput) {
+    if (invocation.returncode !== 0) {
+      throw new Error(goalloopFailureMessage(invocation));
+    }
+    return { ok: true, exitCode: 0, prompt: invocation.stdout, argv };
+  }
+  const stdout = invocation.stdout.trim();
+  let parsed: unknown = null;
+  if (stdout) {
+    try {
+      parsed = JSON.parse(stdout) as unknown;
+    } catch {
+      parsed = null;
+    }
+  }
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    const payload: GoalloopPayload = { ...(parsed as GoalloopPayload) };
+    payload.exitCode = invocation.returncode;
+    if (!("ok" in payload)) {
+      payload.ok = invocation.returncode === 0;
+    }
+    if (!("argv" in payload)) {
+      payload.argv = argv;
+    }
+    return payload;
+  }
+  throw new Error(goalloopFailureMessage(invocation));
+}
+
+function goalloopRootFor(workspace: string, payload: RuntimePayload): string {
+  const override = optionalString(payload.root, "root");
+  return override ? resolve(workspace, override) : workspace;
+}
+
+type GoalloopExtras = {
+  action?: string;
+  assert?: GoalloopPayload;
+  prompt?: string;
+};
+
+function goalloopToolResult(
+  tool: string,
+  root: string,
+  result: GoalloopPayload,
+  extras?: GoalloopExtras,
+  alsoOk = true,
+): JsonObject {
+  const deferred = result.mode === "deferred";
+  const ok = deferred ? false : result.ok === true;
+  return {
+    ok: ok && alsoOk,
+    deferred,
+    tool,
+    root,
+    result,
+    ...(extras ?? {}),
+  };
+}
+
+function toolGoalloopInit(
+  workspace: string,
+  payload: RuntimePayload,
+  runner: Runner,
+): JsonObject {
+  const { config, paths } = runtimeContext(workspace, payload);
+  const root = goalloopRootFor(workspace, payload);
+  const name = requireNonEmptyString(payload.name, "name");
+  const args = ["init", "--name", name];
+  for (const gate of stringList(payload.gates ?? [], "gates")) {
+    args.push("--gate", gate);
+  }
+  const auditor = optionalString(payload.auditor, "auditor");
+  if (auditor) {
+    args.push("--auditor", auditor);
+  }
+  if (payload.maxAuditRounds !== undefined) {
+    args.push(
+      "--max-audit-rounds",
+      String(positiveIntegerValue(payload.maxAuditRounds, "maxAuditRounds")),
+    );
+  }
+  const result = invokeGoalloop({ config, workspace, root, args, runner });
+  if (result.mode !== "deferred") {
+    appendHistory(paths.historyPath, {
+      event: "goalloop_init",
+      name,
+      ok: result.ok === true,
+      root,
+    });
+  }
+  return goalloopToolResult("goalloop_init", root, result);
+}
+
+function toolGoalloopStatus(
+  workspace: string,
+  payload: RuntimePayload,
+  runner: Runner,
+): JsonObject {
+  const { config } = runtimeContext(workspace, payload);
+  const root = goalloopRootFor(workspace, payload);
+  const status = invokeGoalloop({
+    config,
+    workspace,
+    root,
+    args: ["status"],
+    runner,
+  });
+  const selectors = stringList(payload.selectors ?? [], "selectors");
+  if (selectors.length === 0) {
+    return goalloopToolResult("goalloop_status", root, status);
+  }
+  const assertResult = invokeGoalloop({
+    config,
+    workspace,
+    root,
+    args: ["assert", ...selectors],
+    runner,
+  });
+  return goalloopToolResult(
+    "goalloop_status",
+    root,
+    status,
+    { assert: assertResult },
+    assertResult.ok === true,
+  );
+}
+
+function toolGoalloopGate(
+  workspace: string,
+  payload: RuntimePayload,
+  runner: Runner,
+): JsonObject {
+  const { config, paths } = runtimeContext(workspace, payload);
+  const root = goalloopRootFor(workspace, payload);
+  const result = invokeGoalloop({
+    config,
+    workspace,
+    root,
+    args: ["gate"],
+    runner,
+  });
+  if (result.mode !== "deferred") {
+    appendHistory(paths.historyPath, {
+      event: "goalloop_gate",
+      exitCode: result.exitCode ?? null,
+      ok: result.ok === true,
+      root,
+    });
+  }
+  return goalloopToolResult("goalloop_gate", root, result);
+}
+
+function toolGoalloopGoal(
+  workspace: string,
+  payload: RuntimePayload,
+  runner: Runner,
+): JsonObject {
+  const { config, paths } = runtimeContext(workspace, payload);
+  const root = goalloopRootFor(workspace, payload);
+  const extras: GoalloopExtras = {};
+  let selectorsOk = true;
+  const selectors = stringList(payload.selectors ?? [], "selectors");
+  if (selectors.length > 0) {
+    const assertResult = invokeGoalloop({
+      config,
+      workspace,
+      root,
+      args: ["assert", ...selectors],
+      runner,
+    });
+    extras.assert = assertResult;
+    selectorsOk = assertResult.ok === true;
+  }
+  const result = invokeGoalloop({
+    config,
+    workspace,
+    root,
+    args: ["goal"],
+    runner,
+  });
+  if (result.mode !== "deferred") {
+    appendHistory(paths.historyPath, {
+      event: "goalloop_goal",
+      exitCode: result.exitCode ?? null,
+      ok: result.ok === true,
+      reason: result.reason ?? null,
+      root,
+    });
+  }
+  return goalloopToolResult("goalloop_goal", root, result, extras, selectorsOk);
+}
+
+function toolGoalloopHandoff(
+  workspace: string,
+  payload: RuntimePayload,
+  runner: Runner,
+): JsonObject {
+  const { config } = runtimeContext(workspace, payload);
+  const root = goalloopRootFor(workspace, payload);
+  const result = invokeGoalloop({
+    config,
+    workspace,
+    root,
+    args: ["handoff"],
+    runner,
+    textOutput: true,
+  });
+  const extras: GoalloopExtras = {};
+  if (typeof result.prompt === "string") {
+    extras.prompt = result.prompt;
+  }
+  return goalloopToolResult("goalloop_handoff", root, result, extras);
+}
+
+function toolGoalloopAudit(
+  workspace: string,
+  payload: RuntimePayload,
+  runner: Runner,
+): JsonObject {
+  const { config, paths } = runtimeContext(workspace, payload);
+  const root = goalloopRootFor(workspace, payload);
+  const action = optionalString(payload.action, "action") ?? "status";
+  if (action === "prompt") {
+    const result = invokeGoalloop({
+      config,
+      workspace,
+      root,
+      args: ["audit", "prompt"],
+      runner,
+      textOutput: true,
+    });
+    const extras: GoalloopExtras = { action };
+    if (typeof result.prompt === "string") {
+      extras.prompt = result.prompt;
+    }
+    return goalloopToolResult("goalloop_audit", root, result, extras);
+  }
+  if (action === "ingest") {
+    const findingsPath = requireNonEmptyString(payload.findingsPath, "findingsPath");
+    const result = invokeGoalloop({
+      config,
+      workspace,
+      root,
+      args: ["audit", "ingest", resolve(workspace, findingsPath)],
+      runner,
+    });
+    if (result.mode !== "deferred") {
+      appendHistory(paths.historyPath, {
+        event: "goalloop_audit_ingest",
+        confirmed: result.confirmed ?? null,
+        converged: result.converged ?? null,
+        refuted: result.refuted ?? null,
+        root,
+        round: result.round ?? null,
+      });
+    }
+    return goalloopToolResult("goalloop_audit", root, result, { action });
+  }
+  if (action === "status") {
+    const result = invokeGoalloop({
+      config,
+      workspace,
+      root,
+      args: ["audit", "status"],
+      runner,
+    });
+    return goalloopToolResult("goalloop_audit", root, result, { action });
+  }
+  throw new Error('action must be one of "prompt", "ingest", "status".');
 }
 
 function canonicalizeIdeasPayload(options: {
@@ -8529,6 +8865,24 @@ export function dispatchTool(
   }
   if (name === "autoclanker_recommend_commit") {
     return toolRecommendCommit(workspace, normalized, runner);
+  }
+  if (name === "goalloop_init") {
+    return toolGoalloopInit(workspace, normalized, runner);
+  }
+  if (name === "goalloop_status") {
+    return toolGoalloopStatus(workspace, normalized, runner);
+  }
+  if (name === "goalloop_gate") {
+    return toolGoalloopGate(workspace, normalized, runner);
+  }
+  if (name === "goalloop_goal") {
+    return toolGoalloopGoal(workspace, normalized, runner);
+  }
+  if (name === "goalloop_handoff") {
+    return toolGoalloopHandoff(workspace, normalized, runner);
+  }
+  if (name === "goalloop_audit") {
+    return toolGoalloopAudit(workspace, normalized, runner);
   }
   throw new Error(`Unknown tool: ${name}`);
 }

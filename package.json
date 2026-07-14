@@ -77,7 +77,8 @@
       "./skills/autoclanker-autonomous-supervisor",
       "./skills/autoclanker-create",
       "./skills/autoclanker-hooks",
-      "./skills/autoclanker-review"
+      "./skills/autoclanker-review",
+      "./skills/goalloop-operator"
     ]
   },
   "peerDependencies": {
