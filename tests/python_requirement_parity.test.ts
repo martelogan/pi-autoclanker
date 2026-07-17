@@ -31,15 +31,31 @@ const DESCRIPTION_OVERRIDES = new Map([
   ],
 ]);
 
-// pi-autoclanker-native requirement families with no Python-oracle counterpart.
+// pi-autoclanker-native requirements with no Python-oracle counterpart. The
+// archive at PI_AUTOCLANKER_PY_ORACLE_REPO is a frozen snapshot (no git
+// history) whose matrix froze at this repo's initial-commit fixture; every
+// requirement added since (M2-009..M2-015 TS-native features, the M6 goalloop
+// family) exists only here and must be filtered from oracle comparisons.
 const TS_ONLY_REQUIREMENT_FAMILIES = new Set(["M6"]);
+const TS_ONLY_REQUIREMENT_IDS = new Set([
+  "M2-009",
+  "M2-010",
+  "M2-011",
+  "M2-012",
+  "M2-013",
+  "M2-014",
+  "M2-015",
+]);
 
 function requirementFamily(requirementId: string): string {
   return requirementId.split("-")[0] ?? requirementId;
 }
 
 function isTsOnlyRequirement(requirementId: string): boolean {
-  return TS_ONLY_REQUIREMENT_FAMILIES.has(requirementFamily(requirementId));
+  return (
+    TS_ONLY_REQUIREMENT_FAMILIES.has(requirementFamily(requirementId)) ||
+    TS_ONLY_REQUIREMENT_IDS.has(requirementId)
+  );
 }
 
 function expectedMatrixFromOracle(): Requirement[] {

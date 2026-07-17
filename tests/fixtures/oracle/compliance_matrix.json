@@ -14,7 +14,7 @@
   {
     "requirement_id": "M0-003",
     "gate": "required",
-    "description": "Published package artifacts ship the required contract surface, and installed package assets keep the runtime contract loadable from the TypeScript distribution.",
+    "description": "Wheel and sdist artifacts ship the required contract surface, and installed artifacts can load packaged runtime assets.",
     "status": "active"
   },
   {
@@ -26,7 +26,7 @@
   {
     "requirement_id": "M1-002",
     "gate": "required",
-    "description": "The TypeScript tool bridge shells out to `autoclanker` for session bootstrap, status, preview, apply, ingest, fit, suggest, and commit recommendation.",
+    "description": "The Python tool bridge shells out to `autoclanker` for session bootstrap, status, preview, apply, ingest, fit, suggest, and commit recommendation.",
     "status": "active"
   },
   {
@@ -99,48 +99,6 @@
     "requirement_id": "M2-008",
     "gate": "required",
     "description": "The checked-in `autoclanker.eval.sh` surface is snapshotted at session initialization, exposed in session status, and rejected at eval ingest time if it drifts during the life of that session.",
-    "status": "active"
-  },
-  {
-    "requirement_id": "M2-009",
-    "gate": "required",
-    "description": "A local `autoclanker.frontier.json` file can persist explicit pathway families and stays readable through frontier-status surfaces.",
-    "status": "active"
-  },
-  {
-    "requirement_id": "M2-010",
-    "gate": "required",
-    "description": "`compare-frontier` and `merge-pathways` only edit the local frontier file and call upstream `autoclanker` surfaces instead of adding a second inference layer.",
-    "status": "active"
-  },
-  {
-    "requirement_id": "M2-011",
-    "gate": "required",
-    "description": "Status and export surfaces expose locked eval-contract trust plus frontier counts, pending queries, and pending merge suggestions.",
-    "status": "active"
-  },
-  {
-    "requirement_id": "M2-012",
-    "gate": "required",
-    "description": "A local `autoclanker.proposals.json` mirror is created once proposal state exists and is rebuilt from upstream proposal-ledger artifacts when the local mirror is missing.",
-    "status": "active"
-  },
-  {
-    "requirement_id": "M2-013",
-    "gate": "required",
-    "description": "The wrapper summary, status, and export surfaces expose additive Prior / Run / Posterior / Proposal briefs plus dashboard, evidence-view, and resume metadata.",
-    "status": "active"
-  },
-  {
-    "requirement_id": "M2-014",
-    "gate": "required",
-    "description": "The extension provides a compact widget, `Ctrl+Alt+X` inline dashboard, `Ctrl+Alt+Shift+X` fullscreen overlay, and browser dashboard export from the same shared dashboard model.",
-    "status": "active"
-  },
-  {
-    "requirement_id": "M2-015",
-    "gate": "required",
-    "description": "README, mental-model docs, skills, and the packaged example session describe the four-brief proposal-ledger workflow and the proposal mirror file.",
     "status": "active"
   },
   {
