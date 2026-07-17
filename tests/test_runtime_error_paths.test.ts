@@ -298,6 +298,7 @@ coveredTest(["M2-004"], "repo fallback and preview overrides are supported", () 
         targetWallTimeHours: null,
         minorRepairBudget: 3,
         selfDebugMinorIssues: false,
+        toolTimeoutSec: 900,
       },
       goal: null,
       evalCommand: null,

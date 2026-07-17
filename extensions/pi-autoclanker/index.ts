@@ -209,7 +209,7 @@ const COMMON_PROPERTIES = {
   executionPolicy: {
     type: "object",
     description:
-      "Optional execution policy with mode, clarificationPolicy, targetWallTimeHours, minorRepairBudget, and selfDebugMinorIssues.",
+      "Optional execution policy with mode, clarificationPolicy, targetWallTimeHours, minorRepairBudget, selfDebugMinorIssues, and toolTimeoutSec (per-invocation subprocess timeout in seconds; null disables it).",
   },
   goal: {
     type: "string",

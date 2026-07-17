@@ -119,6 +119,7 @@ const DEFAULT_STATUS_ERA_ID = "era_status_workspace_v1";
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 const CHILD_ENV_BLOCKLIST = ["NODE_V8_COVERAGE"] as const;
 const HOOK_TIMEOUT_MS = 30_000;
+const DEFAULT_TOOL_TIMEOUT_SEC = 900;
 const HOOK_OUTPUT_MAX_BYTES = 8 * 1024;
 const HOOK_TRUNCATION_MARKER = "\n...[truncated: hook output exceeded 8KB]";
 const PLAN_CANONICALIZATION_MAX_CHARS = 3200;
@@ -162,6 +163,8 @@ type ExecutionPolicyInputRecord = JsonObject & {
   self_debug_minor_issues?: unknown;
   targetWallTimeHours?: unknown;
   target_wall_time_hours?: unknown;
+  toolTimeoutSec?: unknown;
+  tool_timeout_sec?: unknown;
 };
 type ExecutionPreflightCheck = JsonObject & {
   id: string;
@@ -191,13 +194,18 @@ export type ExecutionPolicy = {
   mode: ExecutionMode;
   selfDebugMinorIssues: boolean;
   targetWallTimeHours: number | null;
+  toolTimeoutSec: number | null;
 };
 export type InvocationResult = {
   returncode: number;
   stdout: string;
   stderr: string;
 };
-export type Runner = (argv: string[], cwd: string) => InvocationResult;
+export type Runner = (
+  argv: string[],
+  cwd: string,
+  timeoutMs?: number | null,
+) => InvocationResult;
 
 export type RuntimeConfig = {
   autoclankerBinary: string;
@@ -1134,7 +1142,24 @@ type RoughIdeaSource = {
   sourceKind: "inline" | "file";
 };
 
-function defaultRunner(argv: string[], cwd: string): InvocationResult {
+function spawnTimedOut(completed: SpawnSyncReturns<string>): boolean {
+  const code = (completed.error as NodeJS.ErrnoException | undefined)?.code;
+  return code === "ETIMEDOUT" || completed.signal === "SIGTERM";
+}
+
+function timedOutInvocationError(
+  label: string,
+  argv: string[],
+  timeoutMs: number,
+): Error {
+  return new Error(`${label} timed out after ${timeoutMs / 1000}s: ${argv.join(" ")}`);
+}
+
+function defaultRunner(
+  argv: string[],
+  cwd: string,
+  timeoutMs?: number | null,
+): InvocationResult {
   const [command, ...args] = argv;
   if (!command) {
     return { returncode: 1, stdout: "", stderr: "Missing command." };
@@ -1144,7 +1169,11 @@ function defaultRunner(argv: string[], cwd: string): InvocationResult {
     encoding: "utf-8",
     env: childProcessEnv(),
     stdio: ["ignore", "pipe", "pipe"],
+    ...(timeoutMs === undefined || timeoutMs === null ? {} : { timeout: timeoutMs }),
   });
+  if (timeoutMs !== undefined && timeoutMs !== null && spawnTimedOut(completed)) {
+    throw timedOutInvocationError("autoclanker invocation", argv, timeoutMs);
+  }
   if (completed.error) {
     return {
       returncode: completed.status ?? 1,
@@ -1163,7 +1192,20 @@ const GOALLOOP_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
 
 function goalloopInvocationFromSpawn(
   completed: SpawnSyncReturns<string>,
+  context?: { argv: string[]; timeoutMs: number | null | undefined },
 ): InvocationResult {
+  const contextTimeoutMs = context?.timeoutMs;
+  if (
+    contextTimeoutMs !== undefined &&
+    contextTimeoutMs !== null &&
+    spawnTimedOut(completed)
+  ) {
+    throw timedOutInvocationError(
+      "goalloop invocation",
+      context?.argv ?? [],
+      contextTimeoutMs,
+    );
+  }
   if (completed.error) {
     const code = (completed.error as NodeJS.ErrnoException).code;
     if (code === "ENOBUFS") {
@@ -1185,7 +1227,11 @@ function goalloopInvocationFromSpawn(
   };
 }
 
-function goalloopDefaultRunner(argv: string[], cwd: string): InvocationResult {
+function goalloopDefaultRunner(
+  argv: string[],
+  cwd: string,
+  timeoutMs?: number | null,
+): InvocationResult {
   const [command, ...args] = argv;
   if (!command) {
     return { returncode: 1, stdout: "", stderr: "Missing command." };
@@ -1197,8 +1243,16 @@ function goalloopDefaultRunner(argv: string[], cwd: string): InvocationResult {
       env: childProcessEnv(),
       maxBuffer: GOALLOOP_MAX_BUFFER_BYTES,
       stdio: ["ignore", "pipe", "pipe"],
+      ...(timeoutMs === undefined || timeoutMs === null ? {} : { timeout: timeoutMs }),
     }),
+    { argv, timeoutMs },
   );
+}
+
+function toolTimeoutMs(config: RuntimeConfig): number | null {
+  return config.executionPolicy.toolTimeoutSec === null
+    ? null
+    : config.executionPolicy.toolTimeoutSec * 1000;
 }
 
 function childProcessEnv(extraEnv?: Record<string, string>): NodeJS.ProcessEnv {
@@ -2199,7 +2253,7 @@ function invokeAutoclanker(options: {
   }
   let invocation: InvocationResult;
   try {
-    invocation = options.runner(argv, options.workspace);
+    invocation = options.runner(argv, options.workspace, toolTimeoutMs(options.config));
   } finally {
     if (options.extraEnv) {
       for (const [key, previous] of previousEnv) {
@@ -2298,7 +2352,11 @@ function invokeGoalloop(options: {
     };
   }
   const argv = [...commandPrefix, "goalloop", ...options.args, "--root", options.root];
-  const invocation = options.runner(argv, options.workspace);
+  const invocation = options.runner(
+    argv,
+    options.workspace,
+    toolTimeoutMs(options.config),
+  );
   if (options.textOutput) {
     if (invocation.returncode !== 0) {
       throw new Error(goalloopFailureMessage(invocation));
@@ -2920,14 +2978,19 @@ function refreshUpstreamPreview(options: {
 function runEvalScript(
   path: string,
   workspace: string,
-  options?: { extraEnv?: Record<string, string> },
+  options?: { extraEnv?: Record<string, string>; timeoutMs?: number | null },
 ): JsonObject {
+  const timeoutMs = options?.timeoutMs;
   const completed = spawnSync(path, [], {
     cwd: workspace,
     encoding: "utf-8",
     env: childProcessEnv(options?.extraEnv),
     stdio: ["ignore", "pipe", "pipe"],
+    ...(timeoutMs === undefined || timeoutMs === null ? {} : { timeout: timeoutMs }),
   });
+  if (timeoutMs !== undefined && timeoutMs !== null && spawnTimedOut(completed)) {
+    throw timedOutInvocationError("autoclanker eval surface", [path], timeoutMs);
+  }
   if (completed.error || (completed.status ?? 0) !== 0) {
     throw new Error(
       (completed.stderr ?? "").trim() ||
@@ -6292,6 +6355,7 @@ function defaultExecutionPolicy(mode: ExecutionMode = "interactive"): ExecutionP
     targetWallTimeHours: null,
     minorRepairBudget: 3,
     selfDebugMinorIssues: mode !== "interactive",
+    toolTimeoutSec: DEFAULT_TOOL_TIMEOUT_SEC,
   };
 }
 
@@ -6312,6 +6376,10 @@ function executionPolicyValue(
   const rawMinorRepairBudget = mapping.minorRepairBudget ?? mapping.minor_repair_budget;
   const rawSelfDebugMinorIssues =
     mapping.selfDebugMinorIssues ?? mapping.self_debug_minor_issues;
+  // "in" rather than "??": an explicit toolTimeoutSec null must survive as
+  // null (unlimited) instead of collapsing to the bounded default.
+  const rawToolTimeoutSec =
+    "toolTimeoutSec" in mapping ? mapping.toolTimeoutSec : mapping.tool_timeout_sec;
   return {
     mode,
     clarificationPolicy:
@@ -6336,6 +6404,16 @@ function executionPolicyValue(
       rawSelfDebugMinorIssues === undefined || rawSelfDebugMinorIssues === null
         ? defaultPolicy.selfDebugMinorIssues
         : coerceBool(rawSelfDebugMinorIssues, `${fieldName}.selfDebugMinorIssues`),
+    // Unlike targetWallTimeHours, an explicit null is meaningful here: it
+    // opts a policy out of the invocation timeout entirely (legit long
+    // billed-live canonicalization or benchmark evals), while an absent
+    // field keeps the bounded default.
+    toolTimeoutSec:
+      rawToolTimeoutSec === undefined
+        ? defaultPolicy.toolTimeoutSec
+        : rawToolTimeoutSec === null
+          ? null
+          : positiveNumberValue(rawToolTimeoutSec, `${fieldName}.toolTimeoutSec`),
   };
 }
 
@@ -6345,7 +6423,8 @@ function executionPolicyEquals(left: ExecutionPolicy, right: ExecutionPolicy): b
     left.clarificationPolicy === right.clarificationPolicy &&
     left.targetWallTimeHours === right.targetWallTimeHours &&
     left.minorRepairBudget === right.minorRepairBudget &&
-    left.selfDebugMinorIssues === right.selfDebugMinorIssues
+    left.selfDebugMinorIssues === right.selfDebugMinorIssues &&
+    left.toolTimeoutSec === right.toolTimeoutSec
   );
 }
 
@@ -8718,6 +8797,7 @@ function toolIngestEval(
   const evalPayload = ensureEvalPayloadIncludesContract(
     normalizeEvalPayloadForSchema(
       runEvalScript(paths.evalPath, workspace, {
+        timeoutMs: toolTimeoutMs(config),
         extraEnv: {
           PI_AUTOCLANKER_UPSTREAM_SESSION_ID: upstreamContract.sessionId,
           PI_AUTOCLANKER_UPSTREAM_ERA_ID: upstreamContract.eraId,
@@ -9380,6 +9460,7 @@ function commandExport(
 
 export const __testHooks = {
   activeProposalMirrorEra,
+  defaultRunner,
   goalloopDefaultRunner,
   goalloopInvocationFromSpawn,
   appendDerivedViewTransitions,

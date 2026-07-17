@@ -212,6 +212,7 @@ function baseConfig(
       targetWallTimeHours: null,
       minorRepairBudget: 3,
       selfDebugMinorIssues: false,
+      toolTimeoutSec: 900,
     },
     goal: null,
     evalCommand: null,

@@ -56,6 +56,7 @@ function defaultExecutionPolicy(): RuntimeConfig["executionPolicy"] {
     targetWallTimeHours: null,
     minorRepairBudget: 3,
     selfDebugMinorIssues: false,
+    toolTimeoutSec: 900,
   };
 }
 

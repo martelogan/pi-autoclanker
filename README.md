@@ -231,6 +231,15 @@ keeps the locked eval surface and candidate binding rules, but disables the
 wrapper's max-iteration stop so the supervisor can continue until all valuable
 lanes have a measured keep/reject/blocker result.
 
+Independently of iteration budgets, every subprocess the wrapper spawns on a
+tool call (upstream `autoclanker` invocations, `goalloop` invocations, and the
+checked-in `autoclanker.eval.sh` surface) is bounded by
+`executionPolicy.toolTimeoutSec` — 900 seconds by default — so a hung gate or
+eval cannot stall an unattended run forever. Set it to `null` in
+`autoclanker.config.json` when a legitimately long billed canonicalization or
+benchmark eval needs an unbounded invocation; a timed-out invocation surfaces
+a clear error naming the timed-out command.
+
 For a preseeded benchmark workspace, start from the directory that contains the
 session files and point at the existing intake file:
 
