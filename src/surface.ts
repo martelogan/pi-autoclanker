@@ -78,6 +78,7 @@ export const surfaceManifest = {
     "skills/autoclanker-hooks/examples/after-eval/evidence-digest.sh",
     "skills/autoclanker-hooks/examples/after-eval/macos-notify.sh",
     "skills/autoclanker-review/SKILL.md",
+    "skills/goalloop-operator/SKILL.md",
     "docs/CLANKERBENCH.md",
     "docs/HEADLESS_AGENT.md",
     "docs/MENTAL_MODEL.md",
@@ -176,6 +177,35 @@ export const surfaceManifest = {
     {
       description: "Ask autoclanker for a commit recommendation.",
       name: "autoclanker_recommend_commit",
+    },
+    {
+      description:
+        "Scaffold a goalloop charter and requirement tracker through the autoclanker umbrella CLI.",
+      name: "goalloop_init",
+    },
+    {
+      description:
+        "Read goal-loop progress (waves, gates, contract lock, audit state), optionally asserting selected rows or waves are finished.",
+      name: "goalloop_status",
+    },
+    {
+      description: "Run the goal-loop charter gates with real exit-code propagation.",
+      name: "goalloop_gate",
+    },
+    {
+      description:
+        "Run the deterministic goal-loop completion check; not-met is a structured result, never an error.",
+      name: "goalloop_goal",
+    },
+    {
+      description:
+        "Emit the goal-loop next-iteration handoff prompt as passthrough text.",
+      name: "goalloop_handoff",
+    },
+    {
+      description:
+        "Drive the adversarial audit phase: emit the auditor prompt, ingest triaged findings, or report convergence.",
+      name: "goalloop_audit",
     },
   ],
   version: "0.1.0",

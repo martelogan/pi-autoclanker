@@ -31,6 +31,33 @@ const DESCRIPTION_OVERRIDES = new Map([
   ],
 ]);
 
+// pi-autoclanker-native requirements with no Python-oracle counterpart. The
+// archive at PI_AUTOCLANKER_PY_ORACLE_REPO is a frozen snapshot (no git
+// history) whose matrix froze at this repo's initial-commit fixture; every
+// requirement added since (M2-009..M2-015 TS-native features, the M6 goalloop
+// family) exists only here and must be filtered from oracle comparisons.
+const TS_ONLY_REQUIREMENT_FAMILIES = new Set(["M6"]);
+const TS_ONLY_REQUIREMENT_IDS = new Set([
+  "M2-009",
+  "M2-010",
+  "M2-011",
+  "M2-012",
+  "M2-013",
+  "M2-014",
+  "M2-015",
+]);
+
+function requirementFamily(requirementId: string): string {
+  return requirementId.split("-")[0] ?? requirementId;
+}
+
+function isTsOnlyRequirement(requirementId: string): boolean {
+  return (
+    TS_ONLY_REQUIREMENT_FAMILIES.has(requirementFamily(requirementId)) ||
+    TS_ONLY_REQUIREMENT_IDS.has(requirementId)
+  );
+}
+
 function expectedMatrixFromOracle(): Requirement[] {
   const oracle = loadOracleFixtureJson<Requirement[]>("compliance_matrix.json");
   return oracle.map((entry) => ({
@@ -51,7 +78,16 @@ coveredTest(
         status,
       }),
     );
-    expect(local).toEqual(expectedMatrixFromOracle());
+    const tsOnly = local.filter((entry) => isTsOnlyRequirement(entry.requirement_id));
+    expect(tsOnly.length).toBeGreaterThan(0);
+    for (const entry of tsOnly) {
+      expect(entry.gate).toBe("required");
+      expect(entry.status).toBe("active");
+    }
+    const mirrored = local.filter(
+      (entry) => !isTsOnlyRequirement(entry.requirement_id),
+    );
+    expect(mirrored).toEqual(expectedMatrixFromOracle());
   },
 );
 

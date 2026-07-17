@@ -47,6 +47,12 @@ const TOOL_NAMES = [
   "autoclanker_compare_frontier",
   "autoclanker_merge_pathways",
   "autoclanker_recommend_commit",
+  "goalloop_init",
+  "goalloop_status",
+  "goalloop_gate",
+  "goalloop_goal",
+  "goalloop_handoff",
+  "goalloop_audit",
 ] as const;
 
 const COMMAND_NAMES = [
@@ -65,9 +71,16 @@ const COMMAND_NAMES = [
 type ToolName = (typeof TOOL_NAMES)[number];
 type CommandName = (typeof COMMAND_NAMES)[number];
 type AutoclankerPayload = JsonObject & {
+  action?: string;
   allowBilledLive?: boolean;
+  auditor?: string;
   autoclankerBinary?: string;
   autoclankerRepo?: string;
+  findingsPath?: string;
+  gates?: string[];
+  maxAuditRounds?: number;
+  root?: string;
+  selectors?: string[];
   bundle?: unknown;
   canonicalizationModel?: string;
   baselineCandidateId?: string;
@@ -279,6 +292,54 @@ const COMMON_PROPERTIES = {
   },
 } as const satisfies Readonly<Record<string, JsonSchema>>;
 
+const GOALLOOP_PROPERTIES = {
+  action: {
+    type: "string",
+    description: 'Audit action: "prompt", "ingest", or "status" (default).',
+    enum: ["prompt", "ingest", "status"],
+  },
+  auditor: {
+    type: "string",
+    description:
+      "Command that runs an independent read-only adversarial audit (init only).",
+  },
+  autoclankerBinary: COMMON_PROPERTIES.autoclankerBinary,
+  autoclankerRepo: COMMON_PROPERTIES.autoclankerRepo,
+  findingsPath: {
+    type: "string",
+    description: "Path to the triaged findings JSON array consumed by audit ingest.",
+  },
+  gates: {
+    type: "array",
+    description:
+      "Gate commands recorded at init: the deterministic definition of green.",
+    items: {
+      type: "string",
+    },
+  },
+  maxAuditRounds: {
+    type: "number",
+    description:
+      "Maximum adversarial audit rounds before escalating to a human (init only).",
+  },
+  name: {
+    type: "string",
+    description: "Loop name recorded in the goalloop charter (init only).",
+  },
+  root: {
+    type: "string",
+    description: "Goal-loop root directory; defaults to the workspace root.",
+  },
+  selectors: {
+    type: "array",
+    description: "Optional row or wave ids to assert finished alongside status/goal.",
+    items: {
+      type: "string",
+    },
+  },
+  workspace: COMMON_PROPERTIES.workspace,
+} as const satisfies Readonly<Record<string, JsonSchema>>;
+
 const TOOL_DEFINITIONS: readonly ToolRegistration[] = [
   {
     name: "autoclanker_init_session",
@@ -396,6 +457,72 @@ const TOOL_DEFINITIONS: readonly ToolRegistration[] = [
       type: "object",
       additionalProperties: false,
       properties: COMMON_PROPERTIES,
+    },
+  },
+  {
+    name: "goalloop_init",
+    label: "Goal Loop Init",
+    description:
+      "Scaffold a goalloop charter and requirement tracker through the autoclanker umbrella CLI.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: GOALLOOP_PROPERTIES,
+      required: ["name"],
+    },
+  },
+  {
+    name: "goalloop_status",
+    label: "Goal Loop Status",
+    description:
+      "Read goal-loop progress (waves, gates, contract lock, audit state), optionally asserting selected rows or waves are finished.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: GOALLOOP_PROPERTIES,
+    },
+  },
+  {
+    name: "goalloop_gate",
+    label: "Goal Loop Gate",
+    description: "Run the goal-loop charter gates with real exit-code propagation.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: GOALLOOP_PROPERTIES,
+    },
+  },
+  {
+    name: "goalloop_goal",
+    label: "Goal Loop Goal",
+    description:
+      "Run the deterministic goal-loop completion check; not-met is a structured result, never an error.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: GOALLOOP_PROPERTIES,
+    },
+  },
+  {
+    name: "goalloop_handoff",
+    label: "Goal Loop Handoff",
+    description:
+      "Emit the goal-loop next-iteration handoff prompt as passthrough text.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: GOALLOOP_PROPERTIES,
+    },
+  },
+  {
+    name: "goalloop_audit",
+    label: "Goal Loop Audit",
+    description:
+      "Drive the adversarial audit phase: emit the auditor prompt, ingest triaged findings, or report convergence.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: GOALLOOP_PROPERTIES,
     },
   },
 ] as const;

@@ -21,6 +21,12 @@ const EXPECTED_TOOL_NAMES = [
   "autoclanker_compare_frontier",
   "autoclanker_merge_pathways",
   "autoclanker_recommend_commit",
+  "goalloop_init",
+  "goalloop_status",
+  "goalloop_gate",
+  "goalloop_goal",
+  "goalloop_handoff",
+  "goalloop_audit",
 ] as const;
 
 coveredTest(
