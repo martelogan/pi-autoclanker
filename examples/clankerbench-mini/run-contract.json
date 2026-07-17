@@ -1,0 +1,17 @@
+{
+  "schema_version": "clankerbench.run_contract.v1",
+  "goal": "Improve request throughput while preserving response correctness.",
+  "acceptance_gates": [
+    "Canonical eval emits valid JSON for every measured candidate.",
+    "correctness_failures remains at zero before promotion."
+  ],
+  "promotion_rules": [
+    "Use cheap scout measurements for early filtering.",
+    "Use the locked eval command for final confirmation."
+  ],
+  "stop_conditions": [
+    "A candidate is ready for proposal with acceptance proof.",
+    "All active lanes are rejected with recorded evidence.",
+    "A true hard blocker prevents safe measurement."
+  ]
+}

@@ -34,6 +34,10 @@ The returned JSON includes:
 - `nextActions`: the first loop actions
 - `executionPolicy`: whether questions are allowed after startup
 
+The CLI command prepares or resumes the workspace and returns the execution
+contract. It does not, by itself, perform a long-running code exploration. A
+headless supervisor must execute the returned `handoffPrompt`.
+
 ## Headless Start
 
 For non-Pi supervisors, use the same CLI directly:
@@ -54,6 +58,11 @@ The supervising agent should repeat:
 
 1. Read `autoclanker.md` and `/autoclanker status` or
    `pi-autoclanker command status`.
+   If `run-contract.json` or a manifest-declared run contract is present, read
+   it before candidate edits and preserve its acceptance gates, promotion rules,
+   and stop conditions unless a deviation is recorded.
+   If `lane-ledger.md` or a manifest-declared lane ledger is present, update it
+   before first measurement, after each lane decision, and before stopping.
 2. Apply beliefs if they are still preview-only.
 3. Pick the next candidate lane, comparison query, or merge suggestion from the
    frontier/status surfaces.
@@ -64,7 +73,9 @@ The supervising agent should repeat:
 6. Call `autoclanker_fit`, then `autoclanker_suggest`.
 7. Use pending queries and `merge-pathways` when evidence supports combining,
    splitting, or dropping idea families.
-8. Continue until a proposal is ready, all active lanes are rejected, or a true
+8. Keep the lane ledger current when present so active, rejected, merged, split,
+   and independently shippable lanes remain visible.
+9. Continue until a proposal is ready, all active lanes are rejected, or a true
    hard blocker is recorded.
 
 The isolation rule is per measurement, not per overnight run. A long run should

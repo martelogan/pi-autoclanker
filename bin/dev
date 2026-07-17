@@ -22,6 +22,7 @@ INSTALL_ROOT="${PI_AUTOCLANKER_DEV_INSTALL_ROOT:-${PI_AUTOCLANKER_TS_DEV_INSTALL
 LOCAL_MISE_BIN="${INSTALL_ROOT}/mise/bin/mise"
 LOCAL_BIN_DIR="${INSTALL_ROOT}/bin"
 
+export PNPM_HOME="${PNPM_HOME:-${ROOT_DIR}/.local/dev/pnpm-home}"
 export npm_config_cache="${npm_config_cache:-${ROOT_DIR}/.local/dev/npm-cache}"
 export PATH="${LOCAL_BIN_DIR}:${ROOT_DIR}/node_modules/.bin:${PATH}"
 
@@ -164,7 +165,7 @@ fallback_core_task() {
     local task="$1"
     case "${task}" in
         setup)
-            dev_run_npm ci
+            CI="${CI:-true}" dev_run_pnpm install --frozen-lockfile
             ;;
         format)
             dev_run_tool biome check --config-path configs/biome.jsonc --files-ignore-unknown=true --write AGENTS.md README.md package.json tsconfig.json bin configs docs examples extensions scripts skills src tests
@@ -259,7 +260,7 @@ doctor() {
 
     local python_status="missing"
     local node_status="missing"
-    local npm_status="missing"
+    local pnpm_status="missing"
     local biome_status="missing"
     local tsc_status="missing"
     local knip_status="missing"
@@ -270,7 +271,7 @@ doctor() {
 
     command -v python3 >/dev/null 2>&1 && python_status="$(command -v python3)"
     command -v node >/dev/null 2>&1 && node_status="$(command -v node)"
-    command -v npm >/dev/null 2>&1 && npm_status="$(command -v npm)"
+    command -v pnpm >/dev/null 2>&1 && pnpm_status="$(command -v pnpm)"
     command -v biome >/dev/null 2>&1 && biome_status="$(command -v biome)"
     command -v tsc >/dev/null 2>&1 && tsc_status="$(command -v tsc)"
     command -v knip >/dev/null 2>&1 && knip_status="$(command -v knip)"
@@ -289,7 +290,7 @@ doctor() {
     echo "Capability matrix"
     printf "  %-18s %s\n" "python3(optional)" "${python_status}"
     printf "  %-18s %s\n" "node" "${node_status}"
-    printf "  %-18s %s\n" "npm" "${npm_status}"
+    printf "  %-18s %s\n" "pnpm" "${pnpm_status}"
     printf "  %-18s %s\n" "biome" "${biome_status}"
     printf "  %-18s %s\n" "tsc" "${tsc_status}"
     printf "  %-18s %s\n" "knip" "${knip_status}"

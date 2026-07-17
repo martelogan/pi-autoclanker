@@ -85,6 +85,10 @@
           "type": "string",
           "minLength": 1
         },
+        "lane_ledger_path": {
+          "type": "string",
+          "minLength": 1
+        },
         "max_iterations": {
           "type": "integer",
           "minimum": 1
@@ -113,6 +117,10 @@
           "items": {
             "$ref": "#/$defs/outer_loop_runner"
           }
+        },
+        "run_contract_path": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },
@@ -332,6 +340,8 @@
             "repo",
             "prior_art",
             "codebase_patterns",
+            "run_contract",
+            "lane_ledger",
             "operator_note",
             "clankergraph"
           ]

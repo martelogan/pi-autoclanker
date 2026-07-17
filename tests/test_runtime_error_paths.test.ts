@@ -12,6 +12,7 @@ import { expect } from "vitest";
 
 import {
   BELIEFS_FILENAME,
+  CLANKERBENCH_MANIFEST_FILENAME,
   CONFIG_FILENAME,
   EVAL_FILENAME,
   type InvocationResult,
@@ -29,6 +30,7 @@ type JsonRecord = {
   [key: string]: unknown;
   bundle?: unknown;
   clankerbenchManifestSource?: unknown;
+  checks?: unknown;
   command?: unknown;
   enabled?: unknown;
   evalSurfaceSha256?: unknown;
@@ -37,13 +39,23 @@ type JsonRecord = {
   fit?: unknown;
   goal?: unknown;
   handoff?: unknown;
+  handoffPrompt?: unknown;
+  id?: unknown;
+  laneLedger?: unknown;
+  laneLedgerStatus?: unknown;
+  nextActions?: unknown;
   mode?: unknown;
   present?: unknown;
+  preflight?: unknown;
   primaryMetric?: unknown;
   preview?: unknown;
   previewSummary?: unknown;
   raw?: unknown;
   removed?: unknown;
+  runContract?: unknown;
+  runContractStatus?: unknown;
+  status?: unknown;
+  summary?: unknown;
   suggestion?: unknown;
   upstream?: unknown;
   upstreamArtifacts?: unknown;
@@ -889,6 +901,182 @@ coveredTest(["M0-002", "M1-002"], "missing clankerbench manifest fails clearly",
     }),
   ).toThrowError(/clankerbench manifest does not exist/u);
 });
+
+coveredTest(
+  ["M0-002", "M1-002"],
+  "required clankerbench clankergraph sources fail clearly when missing",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-clankerbench-missing-graph-"),
+    );
+    writeFileSync(
+      resolve(workspace, CLANKERBENCH_MANIFEST_FILENAME),
+      `${JSON.stringify(
+        {
+          schema_version: "clankerbench.pipeline.v1",
+          stages: [{ name: "eval", required: true }],
+          research_sources: [
+            {
+              id: "investigation_evidence",
+              kind: "clankergraph",
+              graph_role: "evidence",
+              path: "graphs/missing.clankergraph.json",
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+
+    expect(() =>
+      dispatchTool("autoclanker_init_session", {
+        autoclankerBinary: "missing-autoclanker",
+        workspace,
+      }),
+    ).toThrowError(
+      /clankerbench clankergraph source does not exist: graphs\/missing\.clankergraph\.json/u,
+    );
+  },
+);
+
+coveredTest(
+  ["M0-002", "M1-002", "M2-003"],
+  "manifest-declared run-control artifacts fail clearly when required paths are missing",
+  () => {
+    const runContractWorkspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-missing-run-contract-"),
+    );
+    writeFileSync(
+      resolve(runContractWorkspace, CLANKERBENCH_MANIFEST_FILENAME),
+      `${JSON.stringify(
+        {
+          schema_version: "clankerbench.pipeline.v1",
+          goal: "Keep long-running optimization bounded by an explicit contract.",
+          stages: [{ name: "eval", required: true }],
+          outer_loop: {
+            run_contract_path: "contracts/missing-run-contract.json",
+          },
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+
+    expect(() =>
+      dispatchTool("autoclanker_init_session", {
+        autoclankerBinary: "missing-autoclanker",
+        workspace: runContractWorkspace,
+      }),
+    ).toThrowError(
+      /clankerbench run_contract artifact does not exist: contracts\/missing-run-contract\.json/u,
+    );
+
+    const laneLedgerWorkspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-missing-lane-ledger-"),
+    );
+    writeFileSync(
+      resolve(laneLedgerWorkspace, CLANKERBENCH_MANIFEST_FILENAME),
+      `${JSON.stringify(
+        {
+          schema_version: "clankerbench.pipeline.v1",
+          goal: "Keep lane state visible across a long-running search.",
+          stages: [{ name: "eval", required: true }],
+          research_sources: [
+            {
+              id: "active_lane_ledger",
+              kind: "lane_ledger",
+              path: "ledgers/missing-lane-ledger.md",
+              description: "Required lane-ledger for multi-lane execution.",
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+
+    expect(() =>
+      dispatchTool("autoclanker_init_session", {
+        autoclankerBinary: "missing-autoclanker",
+        workspace: laneLedgerWorkspace,
+      }),
+    ).toThrowError(
+      /clankerbench lane_ledger artifact does not exist: ledgers\/missing-lane-ledger\.md/u,
+    );
+  },
+);
+
+coveredTest(
+  ["M0-002", "M1-003", "M2-003"],
+  "run-control warnings propagate into status preflight next actions and summaries",
+  () => {
+    const workspace = mkdtempSync(
+      resolve(tmpdir(), "pi-autoclanker-ts-run-control-warnings-"),
+    );
+    const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
+    writeFileSync(resolve(workspace, "run-contract.json"), "[not json\n", "utf-8");
+    writeFileSync(resolve(workspace, "lane-ledger.md"), "TODO: placeholder\n", "utf-8");
+
+    const initResult = asRecord(
+      dispatchTool("autoclanker_init_session", {
+        autoclankerBinary: fakeBinary,
+        workspace,
+        goal: "Exercise warning paths for long-running run controls.",
+        evalCommand: "printf 'run-control\\n'",
+        roughIdeas: ["Measure every viable lane before stopping."],
+      }),
+    );
+    expect(initResult.runContractStatus).toBe("warning");
+    expect(initResult.laneLedgerStatus).toBe("warning");
+
+    const statusResult = asRecord(
+      dispatchTool("autoclanker_session_status", {
+        autoclankerBinary: fakeBinary,
+        workspace,
+      }),
+    );
+    const runContract = asRecord(statusResult.runContract);
+    const laneLedger = asRecord(statusResult.laneLedger);
+    expect(runContract.status).toBe("warning");
+    expect(laneLedger.status).toBe("warning");
+    expect(String(statusResult.handoffPrompt)).toContain(
+      "Run contract: read run-contract.json before edits",
+    );
+    expect(String(statusResult.handoffPrompt)).toContain(
+      "Lane ledger: update lane-ledger.md before first measurement",
+    );
+
+    const nextActions = statusResult.nextActions as unknown[];
+    expect(nextActions).toEqual(
+      expect.arrayContaining([
+        "Read run-contract.json before edits and keep deviations explicit.",
+        "Update lane-ledger.md before first measurement and after each lane decision.",
+      ]),
+    );
+
+    const preflight = asRecord(statusResult.preflight);
+    const checks = preflight.checks as unknown[];
+    const runContractCheck = checks
+      .map((check) => asRecord(check))
+      .find((check) => check.id === "run_contract");
+    const laneLedgerCheck = checks
+      .map((check) => asRecord(check))
+      .find((check) => check.id === "lane_ledger");
+    expect(runContractCheck?.status).toBe("warning");
+    expect(String(runContractCheck?.summary)).toContain("not valid JSON");
+    expect(laneLedgerCheck?.status).toBe("warning");
+    expect(String(laneLedgerCheck?.summary)).toContain("placeholder");
+
+    const summary = readFileSync(resolve(workspace, "autoclanker.md"), "utf-8");
+    expect(summary).toContain("## Run Contract & Lane Ledger");
+    expect(summary).toContain("- run contract warning: Run contract is not valid JSON");
+    expect(summary).toContain("- lane ledger warning: Lane ledger still looks like");
+  },
+);
 
 coveredTest(["M1-002", "M1-003"], "unknown mode returns a clear non-JSON error", () => {
   const result = runPortAllowFailure(["opaque"]);

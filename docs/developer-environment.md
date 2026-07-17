@@ -47,7 +47,7 @@ bin/dev strict-env validate
 
 | Mode | Best for | Requires | Activation owner |
 | --- | --- | --- | --- |
-| Default (`bin/dev`) | Most contributors | Node + npm; Python 3 optional for oracle and live helpers | none |
+| Default (`bin/dev`) | Most contributors | Node + pnpm; Python 3 optional for oracle and live helpers | none |
 | Default + `mise activate` | Auto-activation on repo entry | `mise` | `mise` |
 | Strict `devenv + direnv` | Nix-first reproducibility | `devenv` + `direnv` | `direnv` |
 | `.devcontainer` | Containerized editor workflows | container runtime + devcontainer support | container runtime |
@@ -63,7 +63,7 @@ same repository environment at the same time.
 2. Project-local mise at `.local/dev/mise/bin/mise`
 3. System `mise` on `PATH`
 4. Best-effort bootstrap via `scripts/dev/bootstrap-mise.sh`
-5. Direct fallback commands (`npm`, `node`, and repo scripts)
+5. Direct fallback commands (`pnpm`, `node`, and repo scripts)
 
 This keeps core workflows usable even when `mise` is unavailable.
 `PI_AUTOCLANKER_TS_DEV_*` environment names remain accepted as compatibility
@@ -92,7 +92,8 @@ stable operator workflow even if those lanes diverge later.
 - Install root: `.local/dev`
 - Local bin directory: `.local/dev/bin`
 - Local Node bin directory: `node_modules/.bin`
-- npm cache: `.local/dev/npm-cache`
+- pnpm home: `.local/dev/pnpm-home`
+- npm cache used by npm-compatible tooling: `.local/dev/npm-cache`
 
 `bin/dev exec -- <command...>` prepends `.local/dev/bin` and
 `node_modules/.bin` to `PATH`.

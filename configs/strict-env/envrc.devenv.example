@@ -8,7 +8,7 @@
 # - In this mode, direnv owns activation.
 # - Do not also enable `mise activate` for this repo.
 
-export PATH="$PWD/.local/dev/bin:$PWD/node_modules/.bin:$PATH"
+export PATH="$PWD/.local/dev/bin:$PWD/.local/dev/pnpm-home:$PWD/node_modules/.bin:$PATH"
 
 if ! command -v devenv >/dev/null 2>&1; then
   echo "devenv not found. Install devenv or use default bin/dev workflow." >&2
@@ -22,3 +22,4 @@ dotenv_if_exists .env
 dotenv_if_exists .env.local
 
 export npm_config_cache="$PWD/.local/dev/npm-cache"
+export PNPM_HOME="$PWD/.local/dev/pnpm-home"

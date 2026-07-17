@@ -15,6 +15,15 @@ non-Pi/headless agent to drive `pi-autoclanker`.
 - After `/autoclanker run` or `pi-autoclanker command run`, never stop for a
   clarification question. Persist uncertainty as assumptions, risks, pending
   queries, or proposal notes and keep moving.
+- Treat the returned `handoffPrompt` as the execution prompt. The CLI initializes
+  or resumes the workspace; the long-running supervisor must still execute that
+  prompt by reading the workspace, editing candidates, measuring, fitting,
+  suggesting, and repeating.
+- If `run-contract.json` or a manifest-declared run contract is present, read it
+  before candidate edits and preserve its acceptance gates, promotion rules, and
+  stop conditions unless a deviation is recorded.
+- If `lane-ledger.md` or a manifest-declared lane ledger is present, update it
+  before first measurement, after each lane decision, and before stopping.
 - Stop only for true hard blockers: locked eval-contract drift, missing
   required credentials with no fallback, destructive action required, or
   repeated unrepaired infrastructure failure after the configured repair budget.
@@ -53,7 +62,9 @@ important fields are:
 6. Call `autoclanker_fit`, then `autoclanker_suggest`.
 7. Use pending queries and `autoclanker_merge_pathways` when evidence suggests
    combinations, splits, or family-level exploration.
-8. Repeat until a proposal is recommended, all active lanes are rejected, or a
+8. Update the lane ledger when present so active, rejected, merged, split, and
+   independently shippable lanes remain visible.
+9. Repeat until a proposal is recommended, all active lanes are rejected, or a
    true hard blocker is recorded.
 
 ## Rules

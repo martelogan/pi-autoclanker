@@ -63,7 +63,7 @@ A project can write a `clankerbench.manifest.json` with:
 - `goal`: human-readable optimization target
 - `providers`: command, module, or manual stage providers
 - `stages`: stage definitions with commands, dependencies, inputs, and outputs
-- `research_sources`: local artifacts, papers, docs, repos, web queries, prior art, codebase-pattern briefs, or operator notes that the context stage may consult
+- `research_sources`: local artifacts, papers, docs, repos, web queries, prior art, codebase-pattern briefs, run contracts, lane ledgers, or operator notes that the context stage may consult
 - `clankergraph` research sources: typed evidence, belief, benchmark, or context graphs declared with `graph_role`
 - `metrics`: primary and supporting metric definitions
 - `outer_loop`: paths, commands, guardrails, hooks, and stop conditions that let a compatible engine start the measured loop
@@ -227,7 +227,11 @@ stop-or-coordinate gate before candidate search starts unless an operator
 explicitly overrides it. If `codebase_patterns.md` is present, the session turns
 that brief into a generic `codebase_patterns` belief so design scoring and
 pre-PR review prefer repo-native plumb points, idioms, and tests over a merely
-passing patch.
+passing patch. If a run contract or lane ledger is present, the session records
+them in status, preflight, the generated handoff prompt, and `autoclanker.md`.
+The run contract carries acceptance gates, promotion rules, and stop
+conditions; the lane ledger keeps active, rejected, merged, split, and
+independently shippable lanes visible throughout a long run.
 
 A model-backed supervisor may use browser, paper-search, or repo-search tools to
 fill that context pass when the sources are relevant. A deterministic or offline
@@ -235,12 +239,13 @@ supervisor should leave those sources as queued context work rather than
 pretending they were read.
 
 Outer loops may also declare `hooks_dir`, `context_path`, `evidence_path`,
-`guardrails`, `max_iterations`, `max_wall_time_sec`, and explicit
-`stop_conditions`. They may also declare `runners`, which are generic execution
-surfaces such as a local shell runner or a remote CI runner. These fields let an
-engine surface progress, avoid repeated dead-end loops, and stop cleanly when a
-candidate is confirmed, all active lanes are rejected, or the run is blocked by
-a missing proof surface.
+`guardrails`, `run_contract_path`, `lane_ledger_path`, `max_iterations`,
+`max_wall_time_sec`, and explicit `stop_conditions`. They may also declare
+`runners`, which are generic execution surfaces such as a local shell runner or
+a remote CI runner. These fields let an engine surface progress, avoid repeated
+dead-end loops, avoid stopping after one small local optimum while plausible
+high-value lanes remain, and stop cleanly when a candidate is confirmed, all
+active lanes are rejected, or the run is blocked by a missing proof surface.
 
 That bundle should be self-contained enough that a local pi session, a remote
 agent, or a human reviewer can understand what was measured and why without
@@ -256,6 +261,7 @@ shape a provider should expose before project-specific commands are wired in:
 - the full stage list,
 - primary and supporting metrics,
 - declared artifacts,
+- run-contract and lane-ledger handoff files,
 - and an outer-loop handoff to a generic eval command.
 
 Use that example as a shape reference, not as a scoring model.

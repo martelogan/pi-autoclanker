@@ -4,27 +4,27 @@ node = "22"
 
 [tasks.setup]
 description = "Install TypeScript development dependencies"
-run = "npm ci"
+run = "CI=${CI:-true} pnpm install --frozen-lockfile"
 
 [tasks.format]
 description = "Auto-format and apply safe lint fixes"
-run = "npm exec -- biome check --config-path configs/biome.jsonc --files-ignore-unknown=true --write AGENTS.md README.md package.json tsconfig.json bin configs docs examples extensions scripts skills src tests"
+run = "pnpm exec biome check --config-path configs/biome.jsonc --files-ignore-unknown=true --write AGENTS.md README.md package.json tsconfig.json bin configs docs examples extensions scripts skills src tests"
 
 [tasks.lint]
 description = "Run lint checks"
-run = "npm exec -- biome check --config-path configs/biome.jsonc --files-ignore-unknown=true AGENTS.md README.md package.json tsconfig.json bin configs docs examples extensions scripts skills src tests"
+run = "pnpm exec biome check --config-path configs/biome.jsonc --files-ignore-unknown=true AGENTS.md README.md package.json tsconfig.json bin configs docs examples extensions scripts skills src tests"
 
 [tasks.tscheck]
 description = "Run strict compiler validation for the TypeScript runtime surface"
-run = "npm exec -- tsc --noEmit -p tsconfig.json"
+run = "pnpm exec tsc --noEmit -p tsconfig.json"
 
 [tasks.typecheck]
 description = "Run the primary TypeScript typecheck lane"
-run = "npm exec -- tsc --noEmit -p tsconfig.json"
+run = "pnpm exec tsc --noEmit -p tsconfig.json"
 
 [tasks.unused]
 description = "Run dead-code and unused-dependency checks"
-run = "npm exec -- knip --config configs/knip.json"
+run = "pnpm exec knip --config configs/knip.json"
 
 [tasks.test]
 description = "Run the default test lane"
@@ -48,11 +48,11 @@ run = "bash scripts/test-parity.sh"
 
 [tasks.build]
 description = "Build distributable artifacts"
-run = "npm exec -- tsc -p configs/tsconfig.build.json"
+run = "pnpm exec tsc -p configs/tsconfig.build.json"
 
 [tasks."package-check"]
 description = "Run package-surface validation"
-run = "npm exec -- publint --strict"
+run = "pnpm exec publint --strict"
 
 [tasks.check]
 description = "Run the main deterministic validation lane"
