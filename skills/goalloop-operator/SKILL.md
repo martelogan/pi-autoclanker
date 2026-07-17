@@ -24,9 +24,16 @@ harness or a human can continue the same loop.
    `goalloop.charter.md` to a real goal definition: concrete Outcome, the
    Evidence that proves it, explicit Scope bounds, and Stop conditions that
    escalate instead of iterating. The charter contract (name, gates, audit
-   policy) is digest-locked at init; if you change it, re-lock with
-   `goalloop lock` (via the CLI) — `goalloop_status` surfaces
+   policy) is digest-locked at init; if you change it, re-lock deliberately
+   with the `goalloop_lock` tool: first read `goalloop_status` and echo its
+   `contract.digest` as `expectedDigest` — the tool refuses a stale or
+   unread digest, so a re-lock is always a two-step, eyes-open act (the CLI
+   equivalent is `goalloop lock`). `goalloop_status` surfaces
    `contract.drifted`, and a drifted contract blocks `goalloop_goal`.
+   Optionally pass `pinFiles` (loop-root-relative paths) so the named files'
+   content hashes join the locked contract — referent pinning; `clearPins`
+   removes the manifest. Both are opt-in and need a goalloop CLI recent
+   enough to support `lock --pin-files`.
 2. **Enumerate requirements** in `goalloop.tracker.md`: wave-grouped rows
    (`A-01`, `A-02`, … `B-01`), one checkable requirement per row with a
    deterministic Verify command. The tracker is the single source of

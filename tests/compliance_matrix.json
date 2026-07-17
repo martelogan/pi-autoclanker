@@ -202,5 +202,11 @@
     "gate": "required",
     "description": "goalloop handoff and audit-prompt text artifacts pass through unmodified as prompt payloads, audit ingest forwards the triaged findings path and records the round outcome, and the goalloop-operator skill is packaged in the pi surface.",
     "status": "active"
+  },
+  {
+    "requirement_id": "M6-004",
+    "gate": "required",
+    "description": "goalloop_lock re-locks the loop contract only as a deliberate act: the tool requires an expectedDigest echoed from the goalloop_status contract digest, refuses with a structured digest-mismatch result when the echo does not match the current contract, forwards optional referent pinning (pinFiles/clearPins) to the goalloop CLI verbatim, and records the re-lock outcome in autoclanker.history.jsonl.",
+    "status": "active"
   }
 ]

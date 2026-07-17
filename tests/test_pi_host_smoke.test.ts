@@ -27,6 +27,7 @@ const EXPECTED_TOOL_NAMES = [
   "goalloop_goal",
   "goalloop_handoff",
   "goalloop_audit",
+  "goalloop_lock",
 ] as const;
 
 coveredTest(

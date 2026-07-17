@@ -53,6 +53,7 @@ const TOOL_NAMES = [
   "goalloop_goal",
   "goalloop_handoff",
   "goalloop_audit",
+  "goalloop_lock",
 ] as const;
 
 const COMMAND_NAMES = [
@@ -76,9 +77,12 @@ type AutoclankerPayload = JsonObject & {
   auditor?: string;
   autoclankerBinary?: string;
   autoclankerRepo?: string;
+  clearPins?: boolean;
+  expectedDigest?: string;
   findingsPath?: string;
   gates?: string[];
   maxAuditRounds?: number;
+  pinFiles?: string[];
   root?: string;
   selectors?: string[];
   bundle?: unknown;
@@ -305,6 +309,16 @@ const GOALLOOP_PROPERTIES = {
   },
   autoclankerBinary: COMMON_PROPERTIES.autoclankerBinary,
   autoclankerRepo: COMMON_PROPERTIES.autoclankerRepo,
+  clearPins: {
+    type: "boolean",
+    description:
+      "Remove the charter's pinned-file manifest before re-locking (goalloop_lock only).",
+  },
+  expectedDigest: {
+    type: "string",
+    description:
+      "Current charter contract digest echoed from goalloop_status contract.digest, confirming a deliberate re-lock (goalloop_lock only).",
+  },
   findingsPath: {
     type: "string",
     description: "Path to the triaged findings JSON array consumed by audit ingest.",
@@ -325,6 +339,14 @@ const GOALLOOP_PROPERTIES = {
   name: {
     type: "string",
     description: "Loop name recorded in the goalloop charter (init only).",
+  },
+  pinFiles: {
+    type: "array",
+    description:
+      "Optional loop-root-relative files whose content hashes join the locked contract (opt-in referent pinning; goalloop_lock only, requires a goalloop CLI with lock --pin-files support).",
+    items: {
+      type: "string",
+    },
   },
   root: {
     type: "string",
@@ -523,6 +545,18 @@ const TOOL_DEFINITIONS: readonly ToolRegistration[] = [
       type: "object",
       additionalProperties: false,
       properties: GOALLOOP_PROPERTIES,
+    },
+  },
+  {
+    name: "goalloop_lock",
+    label: "Goal Loop Lock",
+    description:
+      "Deliberately re-lock the goal-loop contract by echoing the current contract digest from goalloop_status, optionally pinning referent files into the locked contract.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      properties: GOALLOOP_PROPERTIES,
+      required: ["expectedDigest"],
     },
   },
 ] as const;

@@ -65,6 +65,7 @@ export const TOOL_NAMES = [
   "goalloop_goal",
   "goalloop_handoff",
   "goalloop_audit",
+  "goalloop_lock",
 ] as const;
 export const COMMAND_NAMES = [
   "run",
@@ -1071,10 +1072,13 @@ type RuntimePayload = {
   auditor?: string;
   autoclankerBinary?: string;
   autoclankerRepo?: string | null;
+  clearPins?: boolean;
+  expectedDigest?: string;
   findingsPath?: string;
   gates?: string[];
   maxAuditRounds?: number;
   name?: string;
+  pinFiles?: string[];
   root?: string;
   selectors?: string[];
   canonicalizationModel?: string;
@@ -2243,7 +2247,10 @@ function invokeAutoclanker(options: {
 
 type GoalloopPayload = {
   argv?: unknown;
+  changed?: unknown;
   confirmed?: unknown;
+  contract?: unknown;
+  contract_digest?: unknown;
   converged?: unknown;
   error?: unknown;
   exitCode?: unknown;
@@ -2561,6 +2568,84 @@ function toolGoalloopAudit(
     return goalloopToolResult("goalloop_audit", root, result, { action });
   }
   throw new Error('action must be one of "prompt", "ingest", "status".');
+}
+
+function goalloopStatusContractDigest(status: GoalloopPayload): string | null {
+  const contract = status.contract;
+  if (contract === null || typeof contract !== "object" || Array.isArray(contract)) {
+    return null;
+  }
+  const digest = (contract as { digest?: unknown }).digest;
+  return typeof digest === "string" && digest.trim().length > 0 ? digest : null;
+}
+
+function toolGoalloopLock(
+  workspace: string,
+  payload: RuntimePayload,
+  runner: Runner,
+): JsonObject {
+  const { config, paths } = runtimeContext(workspace, payload);
+  const root = goalloopRootFor(workspace, payload);
+  const expectedDigest = requireNonEmptyString(
+    payload.expectedDigest,
+    "expectedDigest",
+  );
+  const pinFiles =
+    payload.pinFiles === undefined ? null : stringList(payload.pinFiles, "pinFiles");
+  const clearPins =
+    payload.clearPins === undefined
+      ? false
+      : coerceBool(payload.clearPins, "clearPins");
+  if (pinFiles !== null && clearPins) {
+    throw new Error("pinFiles and clearPins are mutually exclusive.");
+  }
+  if (pinFiles !== null && pinFiles.length === 0) {
+    throw new Error("pinFiles must not be empty; use clearPins to remove pins.");
+  }
+  const status = invokeGoalloop({
+    config,
+    workspace,
+    root,
+    args: ["status"],
+    runner,
+  });
+  if (status.mode === "deferred") {
+    return goalloopToolResult("goalloop_lock", root, status);
+  }
+  const currentDigest = goalloopStatusContractDigest(status);
+  if (currentDigest === null || currentDigest !== expectedDigest) {
+    // Mirrors the upstream preview-then-apply digest gate: a re-lock must
+    // echo the digest it intends to bless, so an agent cannot one-shot
+    // weaken-gates-then-relock without first reading the drifted contract
+    // through goalloop_status. This refusal is wrapper-side and never
+    // reaches the CLI, so the result carries no exitCode.
+    return goalloopToolResult("goalloop_lock", root, {
+      ok: false,
+      reason:
+        "digest mismatch — read goalloop_status and echo contract.digest " +
+        "to confirm an intentional re-lock",
+      expectedDigest,
+      currentDigest,
+    });
+  }
+  const args = ["lock"];
+  if (pinFiles !== null) {
+    args.push("--pin-files", ...pinFiles);
+  }
+  if (clearPins) {
+    args.push("--clear-pins");
+  }
+  const result = invokeGoalloop({ config, workspace, root, args, runner });
+  if (result.mode !== "deferred") {
+    appendHistory(paths.historyPath, {
+      event: "goalloop_lock",
+      changed: result.changed ?? null,
+      contractDigest: result.contract_digest ?? null,
+      ok: result.ok === true,
+      root,
+    });
+  }
+  return goalloopToolResult("goalloop_lock", root, result);
 }
 
 function canonicalizeIdeasPayload(options: {
@@ -9394,6 +9479,9 @@ export function dispatchTool(
   }
   if (name === "goalloop_audit") {
     return toolGoalloopAudit(workspace, normalized, runner);
+  }
+  if (name === "goalloop_lock") {
+    return toolGoalloopLock(workspace, normalized, runner);
   }
   throw new Error(`Unknown tool: ${name}`);
 }
