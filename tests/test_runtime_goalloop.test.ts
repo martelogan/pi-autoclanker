@@ -231,6 +231,51 @@ coveredTest(
 
 coveredTest(
   ["M6-002"],
+  "goalloop goal surfaces the CLI structural-block verdict for contract drift",
+  () => {
+    // The drift check itself lives in the sibling goalloop CLI (run_goal
+    // verifies the locked contract digest before anything else), and the CLI
+    // owns both the machine-readable reason string and the exit-code
+    // namespace: structural blocks such as contract drift use a dedicated
+    // nonzero exit code chosen by the CLI (planned: 3), gate failures
+    // propagate their own exit codes verbatim, and validation errors exit 2.
+    // M6-001 forbids reimplementing any of that in TypeScript, so this test
+    // pins only the bridge propagation: ok:false, the JSON reason field, and
+    // whatever nonzero exit code the CLI returned, surfaced unmodified.
+    const { workspace, binary } = goalloopWorkspace("pi-goalloop-drift-");
+    const { runner } = recordingRunner([
+      jsonResponse(3, {
+        ok: false,
+        reason: "contract drifted",
+        contract: { drifted: true, locked: true },
+        next: "Re-lock intentionally with goalloop lock.",
+      }),
+    ]);
+    const goal = asRecord(
+      dispatchTool(
+        "goalloop_goal",
+        { autoclankerBinary: binary, workspace },
+        { runner },
+      ),
+    );
+    expect(goal.ok).toBe(false);
+    expect(goal.deferred).toBe(false);
+    const payload = asRecord(goal.result);
+    expect(payload.reason).toBe("contract drifted");
+    expect(payload.exitCode).not.toBe(0);
+    // Propagated verbatim from the mocked CLI; do not treat the specific
+    // number as a wrapper contract — the CLI may renumber its namespace.
+    expect(payload.exitCode).toBe(3);
+    expect(asRecord(payload.contract).drifted).toBe(true);
+    const events = historyEvents(workspace);
+    const goalEvent = events.find((entry) => entry.event === "goalloop_goal");
+    expect(goalEvent?.ok).toBe(false);
+    expect(goalEvent?.reason).toBe("contract drifted");
+  },
+);
+
+coveredTest(
+  ["M6-002"],
   "goalloop goal honors selector asserts and success history records the reason",
   () => {
     const { workspace, binary } = goalloopWorkspace("pi-goalloop-goal-ok-");
