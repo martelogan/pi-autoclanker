@@ -2436,7 +2436,7 @@ function toolGoalloopGate(
   if (result.mode !== "deferred") {
     appendHistory(paths.historyPath, {
       event: "goalloop_gate",
-      exitCode: result.exitCode ?? null,
+      exitCode: result.exitCode,
       ok: result.ok === true,
       root,
     });
@@ -2475,7 +2475,7 @@ function toolGoalloopGoal(
   if (result.mode !== "deferred") {
     appendHistory(paths.historyPath, {
       event: "goalloop_goal",
-      exitCode: result.exitCode ?? null,
+      exitCode: result.exitCode,
       ok: result.ok === true,
       reason: result.reason ?? null,
       root,

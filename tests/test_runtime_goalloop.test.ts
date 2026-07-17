@@ -526,3 +526,123 @@ coveredTest(
     expect(status.deferred).toBe(true);
   },
 );
+
+coveredTest(
+  ["M6-002"],
+  "goalloop invocation mapping covers spawn fallbacks and non-JSON output",
+  () => {
+    const failedWithStatus = {
+      error: Object.assign(new Error("spawn failed late"), { code: "EIO" }),
+      output: [],
+      pid: 0,
+      signal: null,
+      status: 3,
+      stderr: "boom",
+      stdout: "partial",
+    };
+    expect(__testHooks.goalloopInvocationFromSpawn(failedWithStatus)).toEqual({
+      returncode: 3,
+      stderr: "boom",
+      stdout: "partial",
+    });
+
+    const nullFields = {
+      output: [],
+      pid: 0,
+      signal: null,
+      status: null,
+      stderr: null,
+      stdout: null,
+    } as unknown as Parameters<typeof __testHooks.goalloopInvocationFromSpawn>[0];
+    expect(__testHooks.goalloopInvocationFromSpawn(nullFields)).toEqual({
+      returncode: 0,
+      stderr: "",
+      stdout: "",
+    });
+
+    const { workspace, binary } = goalloopWorkspace("pi-goalloop-mapping-");
+    const emptyFailure = recordingRunner([{ returncode: 1, stdout: "", stderr: "" }]);
+    expect(() =>
+      dispatchTool(
+        "goalloop_handoff",
+        { autoclankerBinary: binary, workspace },
+        { runner: emptyFailure.runner },
+      ),
+    ).toThrowError(/goalloop command failed/u);
+
+    const textFailure = recordingRunner([
+      { returncode: 1, stdout: "failure text artifact", stderr: "" },
+    ]);
+    expect(() =>
+      dispatchTool(
+        "goalloop_handoff",
+        { autoclankerBinary: binary, workspace },
+        { runner: textFailure.runner },
+      ),
+    ).toThrowError(/failure text artifact/u);
+
+    const nonJson = recordingRunner([
+      { returncode: 0, stdout: "not-json", stderr: "" },
+    ]);
+    expect(() =>
+      dispatchTool(
+        "goalloop_status",
+        { autoclankerBinary: binary, workspace },
+        { runner: nonJson.runner },
+      ),
+    ).toThrowError(/not-json/u);
+  },
+);
+
+coveredTest(
+  ["M6-003"],
+  "goalloop audit defaults to status and tolerates sparse payloads",
+  () => {
+    const { workspace, binary } = goalloopWorkspace("pi-goalloop-sparse-");
+    const { runner, calls } = recordingRunner([
+      jsonResponse(0, { enabled: false, converged: true }),
+      jsonResponse(0, { ok: true }),
+      jsonResponse(0, { ok: true }),
+    ]);
+    const defaulted = asRecord(
+      dispatchTool(
+        "goalloop_audit",
+        { autoclankerBinary: binary, workspace },
+        { runner },
+      ),
+    );
+    expect(defaulted.action).toBe("status");
+    expect(calls[0]?.slice(1, 4)).toEqual(["goalloop", "audit", "status"]);
+
+    const sparseIngest = asRecord(
+      dispatchTool(
+        "goalloop_audit",
+        {
+          action: "ingest",
+          autoclankerBinary: binary,
+          findingsPath: "findings.json",
+          workspace,
+        },
+        { runner },
+      ),
+    );
+    expect(sparseIngest.ok).toBe(true);
+
+    const sparseGoal = asRecord(
+      dispatchTool(
+        "goalloop_goal",
+        { autoclankerBinary: binary, workspace },
+        { runner },
+      ),
+    );
+    expect(sparseGoal.ok).toBe(true);
+
+    const events = historyEvents(workspace);
+    const ingestEvent = events.find((entry) => entry.event === "goalloop_audit_ingest");
+    expect(ingestEvent?.round).toBeNull();
+    expect(ingestEvent?.confirmed).toBeNull();
+    expect(ingestEvent?.converged).toBeNull();
+    const goalEvent = events.find((entry) => entry.event === "goalloop_goal");
+    expect(goalEvent?.reason).toBeNull();
+  },
+);
