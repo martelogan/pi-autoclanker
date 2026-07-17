@@ -90,6 +90,16 @@ export function readRepoText(relativePath: string): string {
   return readFileSync(resolve(repoRoot(), relativePath), "utf-8");
 }
 
+function pythonOraclePath(relativePath: string): string {
+  return relativePath
+    .replaceAll(
+      "pi-autoclanker.config.schema.json",
+      "pi-autoclanker-python.config.schema.json",
+    )
+    .replaceAll("pi-autoclanker.example.json", "pi-autoclanker-python.example.json")
+    .replaceAll("extensions/pi-autoclanker/", "extensions/pi-autoclanker-python/");
+}
+
 export function readOracleRepoText(relativePath: string): string | null {
   const repo = oracleRepo();
   if (!repo) {
@@ -98,14 +108,24 @@ export function readOracleRepoText(relativePath: string): string | null {
   if (relativePath === ".env.example") {
     return null;
   }
-  const pythonPath = relativePath
-    .replaceAll(
-      "pi-autoclanker.config.schema.json",
-      "pi-autoclanker-python.config.schema.json",
-    )
-    .replaceAll("pi-autoclanker.example.json", "pi-autoclanker-python.example.json")
-    .replaceAll("extensions/pi-autoclanker/", "extensions/pi-autoclanker-python/");
-  return normalizePythonOracleString(readFileSync(resolve(repo, pythonPath), "utf-8"));
+  return normalizePythonOracleString(
+    readFileSync(resolve(repo, pythonOraclePath(relativePath)), "utf-8"),
+  );
+}
+
+export function oracleRepoTextIfPresent(relativePath: string): string | null {
+  const repo = oracleRepo();
+  if (!repo) {
+    return null;
+  }
+  if (relativePath === ".env.example") {
+    return null;
+  }
+  const fullPath = resolve(repo, pythonOraclePath(relativePath));
+  if (!existsSync(fullPath)) {
+    return null;
+  }
+  return normalizePythonOracleString(readFileSync(fullPath, "utf-8"));
 }
 
 export function maybeRunOracle(args: string[]): string | null {
