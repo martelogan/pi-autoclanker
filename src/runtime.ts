@@ -93,6 +93,19 @@ const CONFIG_OVERRIDE_KEYS = [
   "runIntensity",
   "executionPolicy",
 ] as const;
+// Keys that repoint the wrapper itself (which binary it spawns, where session
+// state lives). On the model-facing tool surface these are stripped from the
+// payload and honored only through the trusted operator channel
+// (autoclanker.config.json, or dispatchTool options.operatorOverrides fed by
+// CLI argv flags typed outside the governed conversation) — otherwise the
+// governed agent could point goalloop_goal or eval ingest at an arbitrary
+// executable per tool call and spoof its own exit oracle. Slash commands stay
+// operator-typed, so dispatchCommand keeps honoring payload-level overrides.
+const OPERATOR_CONFIG_ONLY_KEYS = [
+  "autoclankerBinary",
+  "autoclankerRepo",
+  "sessionRoot",
+] as const;
 const BILLED_LIVE_ENV_KEY = "PI_AUTOCLANKER_ALLOW_BILLED_LIVE";
 const UPSTREAM_LLM_LIVE_ENV_KEY = "AUTOCLANKER_ENABLE_LLM_LIVE";
 const DEFAULT_BILLED_CANONICALIZATION_MODEL = "anthropic";
@@ -9500,12 +9513,39 @@ export const __testHooks = {
   validateProposalsMirrorDocument,
 } as const;
 
+export type OperatorConfigOverrides = {
+  autoclankerBinary?: string;
+  autoclankerRepo?: string | null;
+  sessionRoot?: string;
+};
+
 export function dispatchTool(
   name: ToolName | string,
   payload?: Record<string, unknown> | null,
-  options?: { workspace?: string; runner?: Runner },
+  options?: {
+    workspace?: string;
+    runner?: Runner;
+    operatorOverrides?: OperatorConfigOverrides;
+  },
 ): JsonObject {
   const normalized = normalizedPayload(payload);
+  // Model-facing enforcement boundary: payload-level binary/repo/session-root
+  // overrides are ignored; only the operator channel may repoint the wrapper.
+  for (const key of OPERATOR_CONFIG_ONLY_KEYS) {
+    delete normalized[key];
+  }
+  const operatorOverrides = options?.operatorOverrides;
+  if (operatorOverrides) {
+    if (operatorOverrides.autoclankerBinary !== undefined) {
+      normalized.autoclankerBinary = operatorOverrides.autoclankerBinary;
+    }
+    if (operatorOverrides.autoclankerRepo !== undefined) {
+      normalized.autoclankerRepo = operatorOverrides.autoclankerRepo;
+    }
+    if (operatorOverrides.sessionRoot !== undefined) {
+      normalized.sessionRoot = operatorOverrides.sessionRoot;
+    }
+  }
   const workspace = resolveWorkspace(normalized, options?.workspace);
   const runner =
     options?.runner ??

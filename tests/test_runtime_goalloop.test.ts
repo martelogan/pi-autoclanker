@@ -15,6 +15,7 @@ import { HISTORY_FILENAME, __testHooks, dispatchTool } from "../src/runtime.js";
 import type { InvocationResult, Runner } from "../src/runtime.js";
 import { surfaceManifest } from "../src/surface.js";
 import { coveredTest } from "./compliance.js";
+import { dispatchToolAsOperator } from "./operator_dispatch.js";
 import { repoRoot } from "./oracle.js";
 
 const GOALLOOP_TOOL_NAMES = [
@@ -114,7 +115,7 @@ coveredTest(
       }),
     ]);
     const result = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_init",
         {
           autoclankerBinary: binary,
@@ -173,7 +174,7 @@ coveredTest(
       jsonResponse(1, { ok: false, not_done: [{ id: "A-02", status: "todo" }] }),
     ]);
     const result = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_status",
         { autoclankerBinary: binary, selectors: ["A-02", "B"], workspace },
         { runner },
@@ -201,7 +202,7 @@ coveredTest(
       }),
     ]);
     const goal = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_goal",
         { autoclankerBinary: binary, workspace },
         { runner: goalRunner.runner },
@@ -220,7 +221,7 @@ coveredTest(
       }),
     ]);
     const gate = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_gate",
         { autoclankerBinary: binary, workspace },
         { runner: gateRunner.runner },
@@ -261,7 +262,7 @@ coveredTest(
       }),
     ]);
     const goal = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_goal",
         { autoclankerBinary: binary, workspace },
         { runner },
@@ -293,7 +294,7 @@ coveredTest(
       jsonResponse(0, { ok: true, reason: "goal met", results: [] }),
     ]);
     const result = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_goal",
         { autoclankerBinary: binary, selectors: ["A"], workspace },
         { runner },
@@ -323,7 +324,7 @@ coveredTest(
       },
     ]);
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_init",
         { autoclankerBinary: binary, name: "demo-loop", workspace },
         { runner },
@@ -334,7 +335,7 @@ coveredTest(
       { returncode: 2, stdout: "", stderr: "plain failure text" },
     ]);
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_status",
         { autoclankerBinary: binary, workspace },
         { runner: rawRunner.runner },
@@ -355,11 +356,13 @@ coveredTest(
       name: "demo-loop",
       workspace,
     };
-    const init = asRecord(dispatchTool("goalloop_init", payload, { runner }));
+    const init = asRecord(dispatchToolAsOperator("goalloop_init", payload, { runner }));
     expect(init.ok).toBe(false);
     expect(init.deferred).toBe(true);
     expect(asRecord(init.result).mode).toBe("deferred");
-    const handoff = asRecord(dispatchTool("goalloop_handoff", payload, { runner }));
+    const handoff = asRecord(
+      dispatchToolAsOperator("goalloop_handoff", payload, { runner }),
+    );
     expect(handoff.deferred).toBe(true);
     expect(handoff.prompt).toBeUndefined();
     expect(calls).toEqual([]);
@@ -377,7 +380,7 @@ coveredTest(
       { returncode: 0, stdout: handoffText, stderr: "" },
     ]);
     const handoff = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_handoff",
         { autoclankerBinary: binary, workspace },
         { runner: handoffRunner.runner },
@@ -392,7 +395,7 @@ coveredTest(
       { returncode: 0, stdout: auditText, stderr: "" },
     ]);
     const audit = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_audit",
         { action: "prompt", autoclankerBinary: binary, workspace },
         { runner: auditRunner.runner },
@@ -427,7 +430,7 @@ coveredTest(
       }),
     ]);
     const ingest = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_audit",
         {
           action: "ingest",
@@ -444,7 +447,7 @@ coveredTest(
     expect(calls[0]).toContain(resolve(workspace, "findings.json"));
 
     const status = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_audit",
         { action: "status", autoclankerBinary: binary, workspace },
         { runner },
@@ -455,7 +458,7 @@ coveredTest(
     expect(calls[1]?.slice(1, 4)).toEqual(["goalloop", "audit", "status"]);
 
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_audit",
         { action: "bogus", autoclankerBinary: binary, workspace },
         { runner },
@@ -507,6 +510,75 @@ coveredTest(
 );
 
 coveredTest(
+  ["M2-004"],
+  "a payload-level autoclankerBinary override is ignored by the model-facing tool dispatch",
+  () => {
+    const { workspace, binary } = goalloopWorkspace("pi-goalloop-repoint-");
+    // Operator-trusted configuration: the resolvable binary lives in
+    // autoclanker.config.json, the channel a governed model cannot rewrite
+    // per tool call.
+    writeFileSync(
+      resolve(workspace, "autoclanker.config.json"),
+      `${JSON.stringify(
+        {
+          autoclankerBinary: binary,
+          sessionRoot: ".autoclanker",
+          defaultIdeasMode: "canonicalize",
+        },
+        null,
+        2,
+      )}\n`,
+      "utf-8",
+    );
+    const poison = touchExecutable(resolve(workspace, "poison-autoclanker"));
+    const { runner, calls } = recordingRunner([jsonResponse(0, { ok: true })]);
+    // Raw dispatchTool (NOT the operator helper): the poison binary and a
+    // rogue sessionRoot arrive as a MODEL payload and must be stripped.
+    const result = asRecord(
+      dispatchTool(
+        "goalloop_status",
+        {
+          autoclankerBinary: poison,
+          sessionRoot: "/tmp/rogue-session-root",
+          workspace,
+        },
+        { runner },
+      ),
+    );
+    expect(result.ok).toBe(true);
+    // The invoked command prefix is the operator-config binary, never the
+    // model's poison override.
+    expect(calls[0]?.[0]).toBe(binary);
+    expect(calls[0]?.[0]).not.toBe(poison);
+    for (const argv of calls) {
+      expect(argv).not.toContain(poison);
+      expect(argv).not.toContain("/tmp/rogue-session-root");
+    }
+  },
+);
+
+coveredTest(
+  ["M2-004"],
+  "operator-channel overrides still repoint the wrapper binary",
+  () => {
+    const { workspace, binary } = goalloopWorkspace("pi-goalloop-operator-repoint-");
+    const { runner, calls } = recordingRunner([jsonResponse(0, { ok: true })]);
+    // The operator helper mirrors src/cli.ts: binary supplied via the trusted
+    // channel is honored, so live-lane scripts and human operators keep
+    // working.
+    const result = asRecord(
+      dispatchToolAsOperator(
+        "goalloop_status",
+        { autoclankerBinary: binary, workspace },
+        { runner },
+      ),
+    );
+    expect(result.ok).toBe(true);
+    expect(calls[0]?.[0]).toBe(binary);
+  },
+);
+
+coveredTest(
   ["M6-004"],
   "goalloop lock re-locks only after the caller echoes the current contract digest",
   () => {
@@ -525,7 +597,7 @@ coveredTest(
       }),
     ]);
     const result = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_lock",
         { autoclankerBinary: binary, expectedDigest: "digest-live", workspace },
         { runner },
@@ -559,7 +631,7 @@ coveredTest(
       }),
     ]);
     const result = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_lock",
         { autoclankerBinary: binary, expectedDigest: "digest-stale", workspace },
         { runner },
@@ -588,7 +660,7 @@ coveredTest(
     const { workspace, binary } = goalloopWorkspace("pi-goalloop-lock-nodigest-");
     const noContract = recordingRunner([jsonResponse(0, { ok: true })]);
     const missing = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_lock",
         { autoclankerBinary: binary, expectedDigest: "digest-live", workspace },
         { runner: noContract.runner },
@@ -601,7 +673,7 @@ coveredTest(
       jsonResponse(0, { ok: true, contract: { digest: "  ", locked: false } }),
     ]);
     const blank = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_lock",
         { autoclankerBinary: binary, expectedDigest: "digest-live", workspace },
         { runner: blankDigest.runner },
@@ -614,7 +686,7 @@ coveredTest(
       jsonResponse(0, { ok: true, contract: ["not-an-object"] }),
     ]);
     const arrayResult = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_lock",
         { autoclankerBinary: binary, expectedDigest: "digest-live", workspace },
         { runner: arrayContract.runner },
@@ -644,7 +716,7 @@ coveredTest(
       }),
     ]);
     const pinned = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_lock",
         {
           autoclankerBinary: binary,
@@ -677,7 +749,7 @@ coveredTest(
       }),
     ]);
     const cleared = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_lock",
         {
           autoclankerBinary: binary,
@@ -704,14 +776,14 @@ coveredTest(
     const { workspace, binary } = goalloopWorkspace("pi-goalloop-lock-invalid-");
     const { runner, calls } = recordingRunner([]);
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_lock",
         { autoclankerBinary: binary, workspace },
         { runner },
       ),
     ).toThrowError(/expectedDigest/u);
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_lock",
         {
           autoclankerBinary: binary,
@@ -724,7 +796,7 @@ coveredTest(
       ),
     ).toThrowError(/mutually exclusive/u);
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_lock",
         {
           autoclankerBinary: binary,
@@ -746,7 +818,7 @@ coveredTest(
     const workspace = mkdtempSync(resolve(tmpdir(), "pi-goalloop-lock-deferred-"));
     const { runner, calls } = recordingRunner([]);
     const result = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_lock",
         {
           autoclankerBinary: "definitely-missing-goalloop-binary",
@@ -777,7 +849,7 @@ coveredTest(
       jsonResponse(0, { ok: true }),
     ]);
     const result = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_lock",
         { autoclankerBinary: binary, expectedDigest: "digest-live", workspace },
         { runner },
@@ -863,7 +935,7 @@ coveredTest(
       autoclankerRepo: null,
       workspace,
     };
-    const status = asRecord(dispatchTool("goalloop_status", deferredPayload));
+    const status = asRecord(dispatchToolAsOperator("goalloop_status", deferredPayload));
     expect(status.deferred).toBe(true);
   },
 );
@@ -904,7 +976,7 @@ coveredTest(
     const { workspace, binary } = goalloopWorkspace("pi-goalloop-mapping-");
     const emptyFailure = recordingRunner([{ returncode: 1, stdout: "", stderr: "" }]);
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_handoff",
         { autoclankerBinary: binary, workspace },
         { runner: emptyFailure.runner },
@@ -915,7 +987,7 @@ coveredTest(
       { returncode: 1, stdout: "failure text artifact", stderr: "" },
     ]);
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_handoff",
         { autoclankerBinary: binary, workspace },
         { runner: textFailure.runner },
@@ -926,7 +998,7 @@ coveredTest(
       { returncode: 0, stdout: "not-json", stderr: "" },
     ]);
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_status",
         { autoclankerBinary: binary, workspace },
         { runner: nonJson.runner },
@@ -946,7 +1018,7 @@ coveredTest(
       jsonResponse(0, { ok: true }),
     ]);
     const defaulted = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_audit",
         { autoclankerBinary: binary, workspace },
         { runner },
@@ -956,7 +1028,7 @@ coveredTest(
     expect(calls[0]?.slice(1, 4)).toEqual(["goalloop", "audit", "status"]);
 
     const sparseIngest = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_audit",
         {
           action: "ingest",
@@ -970,7 +1042,7 @@ coveredTest(
     expect(sparseIngest.ok).toBe(true);
 
     const sparseGoal = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_goal",
         { autoclankerBinary: binary, workspace },
         { runner },

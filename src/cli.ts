@@ -7,6 +7,7 @@ import {
   type CommandName,
   IDEAS_MODES,
   type IdeasMode,
+  type OperatorConfigOverrides,
   RUN_INTENSITIES,
   type RunIntensity,
   TOOL_NAMES,
@@ -230,15 +231,19 @@ function parseCommonFlags(tokens: string[], payload: CliPayload): string[] {
   return remaining;
 }
 
-function parseToolInvocation(argv: string[]): { name: ToolName; payload: CliPayload } {
+function parseToolInvocation(argv: string[]): {
+  name: ToolName;
+  payload: CliPayload;
+  operatorOverrides: OperatorConfigOverrides;
+} {
   const name = argv[0] as ToolName | undefined;
   if (!name || !(TOOL_NAMES as readonly string[]).includes(name)) {
     throw new Error(`Unknown tool ${argv[0] ?? "<missing>"}.`);
   }
   let payloadRaw: string | null = null;
   let payloadFile: string | null = null;
-  const payload: CliPayload = {};
-  const flags = parseCommonFlags(argv.slice(1), payload);
+  const flagPayload: CliPayload = {};
+  const flags = parseCommonFlags(argv.slice(1), flagPayload);
   let index = 0;
   while (index < flags.length) {
     const token = flags[index];
@@ -266,9 +271,32 @@ function parseToolInvocation(argv: string[]): { name: ToolName; payload: CliPayl
     name,
     payload: {
       ...parseJsonPayload(payloadRaw, payloadFile),
-      ...payload,
+      ...flagPayload,
     },
+    operatorOverrides: operatorOverridesFromFlags(flagPayload),
   };
+}
+
+// The wrapper-repointing keys (binary/repo/session-root) are ignored by
+// dispatchTool when they arrive inside a tool payload — the governed model
+// must not be able to spoof the exit oracle by pointing it at an arbitrary
+// executable. CLI flags like --autoclanker-binary are operator-typed argv
+// outside any governed conversation, so their values are collected here from
+// the flag-parsed payload only (never from the model's --payload JSON) and
+// re-supplied through the trusted operatorOverrides channel, keeping live-lane
+// scripts and human operators working.
+function operatorOverridesFromFlags(flagPayload: CliPayload): OperatorConfigOverrides {
+  const overrides: OperatorConfigOverrides = {};
+  if (flagPayload.autoclankerBinary !== undefined) {
+    overrides.autoclankerBinary = flagPayload.autoclankerBinary;
+  }
+  if (flagPayload.autoclankerRepo !== undefined) {
+    overrides.autoclankerRepo = flagPayload.autoclankerRepo;
+  }
+  if (flagPayload.sessionRoot !== undefined) {
+    overrides.sessionRoot = flagPayload.sessionRoot;
+  }
+  return overrides;
 }
 
 function parseCommandInvocation(argv: string[]): {
@@ -441,7 +469,11 @@ function main(argv: string[]): number {
   }
   if (argv[0] === "tool") {
     const invocation = parseToolInvocation(argv.slice(1));
-    printJson(dispatchTool(invocation.name, invocation.payload));
+    printJson(
+      dispatchTool(invocation.name, invocation.payload, {
+        operatorOverrides: invocation.operatorOverrides,
+      }),
+    );
     return 0;
   }
   if (argv[0] === "command") {

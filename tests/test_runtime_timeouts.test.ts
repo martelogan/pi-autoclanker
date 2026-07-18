@@ -4,9 +4,10 @@ import { resolve } from "node:path";
 
 import { expect } from "vitest";
 
-import { __testHooks, dispatchTool } from "../src/runtime.js";
+import { __testHooks } from "../src/runtime.js";
 import type { InvocationResult, Runner } from "../src/runtime.js";
 import { coveredTest } from "./compliance.js";
+import { dispatchToolAsOperator } from "./operator_dispatch.js";
 
 type JsonRecord = {
   [key: string]: unknown;
@@ -151,7 +152,7 @@ coveredTest(
       { returncode: 0, stdout: '{"ok": true}', stderr: "" },
     ]);
     const status = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_status",
         { autoclankerBinary: binary, workspace },
         { runner: defaulted.runner },
@@ -163,7 +164,7 @@ coveredTest(
     const overridden = timeoutCapturingRunner([
       { returncode: 0, stdout: '{"ok": true}', stderr: "" },
     ]);
-    dispatchTool(
+    dispatchToolAsOperator(
       "goalloop_status",
       {
         autoclankerBinary: binary,
@@ -177,7 +178,7 @@ coveredTest(
     const unbounded = timeoutCapturingRunner([
       { returncode: 0, stdout: '{"ok": true}', stderr: "" },
     ]);
-    dispatchTool(
+    dispatchToolAsOperator(
       "goalloop_status",
       {
         autoclankerBinary: binary,
@@ -189,7 +190,7 @@ coveredTest(
     expect(unbounded.timeouts).toEqual([null]);
 
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "goalloop_status",
         {
           autoclankerBinary: binary,

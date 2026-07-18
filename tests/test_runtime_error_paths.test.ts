@@ -18,12 +18,12 @@ import {
   type InvocationResult,
   type RuntimeConfig,
   dispatchCommand,
-  dispatchTool,
   loadWorkspaceConfig,
   resolveAutoclankerCommand,
   validateConfigDocument,
 } from "../src/runtime.js";
 import { coveredTest } from "./compliance.js";
+import { dispatchToolAsOperator } from "./operator_dispatch.js";
 import { runPortAllowFailure } from "./oracle.js";
 
 type JsonRecord = {
@@ -205,7 +205,7 @@ coveredTest(
   () => {
     const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-deferred-"));
     const initResult = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_init_session",
         {
           autoclankerBinary: "./missing-autoclanker",
@@ -219,7 +219,7 @@ coveredTest(
     expect(asRecord(initResult.upstream).mode).toBe("deferred");
 
     const statusResult = asRecord(
-      dispatchTool("autoclanker_session_status", undefined, { workspace }),
+      dispatchToolAsOperator("autoclanker_session_status", undefined, { workspace }),
     );
     expect(statusResult.workspace).toBe(resolve(workspace));
 
@@ -253,12 +253,14 @@ coveredTest(
         unexpected: true,
       }),
     ).toThrowError();
-    expect(() => dispatchTool("unknown_tool", undefined, { workspace })).toThrowError();
+    expect(() =>
+      dispatchToolAsOperator("unknown_tool", undefined, { workspace }),
+    ).toThrowError();
     expect(() =>
       dispatchCommand("unknown_command", undefined, { workspace }),
     ).toThrowError();
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_init_session",
         {
           goal: "bad mode",
@@ -271,7 +273,7 @@ coveredTest(
     ).toThrowError();
     expect(() => dispatchCommand("start", { workspace })).toThrowError();
     expect(() =>
-      dispatchTool("autoclanker_session_status", {
+      dispatchToolAsOperator("autoclanker_session_status", {
         defaultIdeasMode: "opaque",
         workspace,
       }),
@@ -310,7 +312,7 @@ coveredTest(["M2-004"], "repo fallback and preview overrides are supported", () 
   expect(resolved).toEqual(["uv", "run", "--project", repoPath, "autoclanker"]);
 
   const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
-  dispatchTool("autoclanker_init_session", {
+  dispatchToolAsOperator("autoclanker_init_session", {
     autoclankerBinary: fakeBinary,
     workspace,
     goal: "Support preview overrides.",
@@ -319,7 +321,7 @@ coveredTest(["M2-004"], "repo fallback and preview overrides are supported", () 
   });
 
   const previewResult = asRecord(
-    dispatchTool(
+    dispatchToolAsOperator(
       "autoclanker_preview_beliefs",
       {
         workspace,
@@ -350,7 +352,7 @@ coveredTest(
 
     const validWorkspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-runner-"));
     const fakeBinary = touchExecutable(resolve(validWorkspace, "fake-autoclanker"));
-    dispatchTool("autoclanker_init_session", {
+    dispatchToolAsOperator("autoclanker_init_session", {
       autoclankerBinary: fakeBinary,
       workspace: validWorkspace,
       goal: "Allow upstream runner tests.",
@@ -359,7 +361,7 @@ coveredTest(
     });
 
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_session_status",
         {
           autoclankerBinary: fakeBinary,
@@ -379,16 +381,16 @@ coveredTest(
   () => {
     const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-shapes-"));
     const statusResult = asRecord(
-      dispatchTool("autoclanker_session_status", undefined, { workspace }),
+      dispatchToolAsOperator("autoclanker_session_status", undefined, { workspace }),
     );
     expect(asRecord(statusResult.upstream).mode).toBe("missing-session");
 
     expect(() =>
-      dispatchTool("autoclanker_preview_beliefs", { workspace }),
+      dispatchToolAsOperator("autoclanker_preview_beliefs", { workspace }),
     ).toThrowError();
 
     const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
-    dispatchTool("autoclanker_init_session", {
+    dispatchToolAsOperator("autoclanker_init_session", {
       autoclankerBinary: fakeBinary,
       workspace,
       goal: "Exercise parse fallbacks.",
@@ -397,7 +399,7 @@ coveredTest(
     });
 
     const suggestResult = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_suggest",
         {
           autoclankerBinary: fakeBinary,
@@ -411,7 +413,7 @@ coveredTest(
     expect(asRecord(suggestResult.suggestion).value).toEqual(["next"]);
 
     const fitResult = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_fit",
         {
           autoclankerBinary: fakeBinary,
@@ -434,7 +436,7 @@ coveredTest(
       resolve(tmpdir(), "pi-autoclanker-ts-frontier-status-error-"),
     );
     const fakeBinary = writeBrokenFrontierStatusAutoclanker(workspace);
-    dispatchTool("autoclanker_init_session", {
+    dispatchToolAsOperator("autoclanker_init_session", {
       autoclankerBinary: fakeBinary,
       workspace,
       goal: "Exercise frontier status error propagation.",
@@ -443,7 +445,7 @@ coveredTest(
     });
 
     expect(() =>
-      dispatchTool("autoclanker_session_status", {
+      dispatchToolAsOperator("autoclanker_session_status", {
         autoclankerBinary: fakeBinary,
         workspace,
       }),
@@ -460,7 +462,7 @@ coveredTest(
     );
     const fakeBinary = writeMissingContractAutoclanker(workspace);
 
-    dispatchTool("autoclanker_init_session", {
+    dispatchToolAsOperator("autoclanker_init_session", {
       autoclankerBinary: fakeBinary,
       workspace,
       goal: "Exercise missing eval-contract status failures.",
@@ -468,10 +470,12 @@ coveredTest(
         'printf \'{"era_id":"${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"cand_demo","status":"valid"}\\n\'',
       roughIdeas: [],
     });
-    dispatchTool("autoclanker_preview_beliefs", { workspace });
-    dispatchTool("autoclanker_apply_beliefs", { workspace });
+    dispatchToolAsOperator("autoclanker_preview_beliefs", { workspace });
+    dispatchToolAsOperator("autoclanker_apply_beliefs", { workspace });
 
-    expect(() => dispatchTool("autoclanker_ingest_eval", { workspace })).toThrowError(
+    expect(() =>
+      dispatchToolAsOperator("autoclanker_ingest_eval", { workspace }),
+    ).toThrowError(
       "Upstream autoclanker session status did not include a locked eval contract.",
     );
   },
@@ -485,7 +489,7 @@ coveredTest(
       resolve(tmpdir(), "pi-autoclanker-ts-merge-conflict-"),
     );
     const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
-    dispatchTool("autoclanker_init_session", {
+    dispatchToolAsOperator("autoclanker_init_session", {
       autoclankerBinary: fakeBinary,
       workspace,
       goal: "Keep conflicting candidates separate until explicitly resolved.",
@@ -522,7 +526,7 @@ coveredTest(
       resolve(tmpdir(), "pi-autoclanker-ts-merge-missing-"),
     );
     const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
-    dispatchTool("autoclanker_init_session", {
+    dispatchToolAsOperator("autoclanker_init_session", {
       autoclankerBinary: fakeBinary,
       workspace,
       goal: "Reject merge requests that reference missing candidates.",
@@ -555,7 +559,7 @@ coveredTest(
       resolve(tmpdir(), "pi-autoclanker-ts-merge-no-frontier-"),
     );
     const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
-    dispatchTool("autoclanker_init_session", {
+    dispatchToolAsOperator("autoclanker_init_session", {
       autoclankerBinary: fakeBinary,
       workspace,
       goal: "Do not merge until a frontier exists.",
@@ -577,7 +581,7 @@ coveredTest(
       resolve(tmpdir(), "pi-autoclanker-ts-merge-missing-ids-"),
     );
     const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
-    dispatchTool("autoclanker_init_session", {
+    dispatchToolAsOperator("autoclanker_init_session", {
       autoclankerBinary: fakeBinary,
       workspace,
       goal: "Reject ambiguous merge requests without selected parents.",
@@ -607,7 +611,7 @@ coveredTest(
       resolve(tmpdir(), "pi-autoclanker-ts-merge-family-missing-"),
     );
     const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
-    dispatchTool("autoclanker_init_session", {
+    dispatchToolAsOperator("autoclanker_init_session", {
       autoclankerBinary: fakeBinary,
       workspace,
       goal: "Reject family merges when the requested family is absent.",
@@ -642,7 +646,7 @@ coveredTest(
       resolve(tmpdir(), "pi-autoclanker-ts-merge-family-ambiguous-"),
     );
     const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
-    dispatchTool("autoclanker_init_session", {
+    dispatchToolAsOperator("autoclanker_init_session", {
       autoclankerBinary: fakeBinary,
       workspace,
       goal: "Reject ambiguous family merges until the user picks explicit candidates.",
@@ -676,7 +680,7 @@ coveredTest(
 coveredTest(["M1-002", "M2-007"], "suggest candidate-pool errors are explicit", () => {
   const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-candidate-"));
   const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
-  dispatchTool("autoclanker_init_session", {
+  dispatchToolAsOperator("autoclanker_init_session", {
     autoclankerBinary: fakeBinary,
     workspace,
     goal: "Exercise candidate-pool validation.",
@@ -685,14 +689,14 @@ coveredTest(["M1-002", "M2-007"], "suggest candidate-pool errors are explicit", 
   });
 
   expect(() =>
-    dispatchTool("autoclanker_suggest", {
+    dispatchToolAsOperator("autoclanker_suggest", {
       workspace,
       candidatesInputPath: resolve(workspace, "missing-candidates.json"),
     }),
   ).toThrowError();
 
   expect(() =>
-    dispatchTool("autoclanker_suggest", {
+    dispatchToolAsOperator("autoclanker_suggest", {
       workspace,
       candidates: { candidates: [] },
       candidatesInputPath: resolve(workspace, "candidates.json"),
@@ -700,7 +704,7 @@ coveredTest(["M1-002", "M2-007"], "suggest candidate-pool errors are explicit", 
   ).toThrowError();
 
   expect(() =>
-    dispatchTool("autoclanker_suggest", {
+    dispatchToolAsOperator("autoclanker_suggest", {
       workspace,
       candidates: {
         candidates: [
@@ -717,7 +721,7 @@ coveredTest(["M1-002", "M2-007"], "suggest candidate-pool errors are explicit", 
 coveredTest(["M1-002", "M2-008"], "eval ingest rejects a drifted eval surface", () => {
   const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-drift-"));
   const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
-  dispatchTool("autoclanker_init_session", {
+  dispatchToolAsOperator("autoclanker_init_session", {
     autoclankerBinary: fakeBinary,
     workspace,
     goal: "Reject local eval drift.",
@@ -736,7 +740,7 @@ coveredTest(["M1-002", "M2-008"], "eval ingest rejects a drifted eval surface", 
   );
 
   expect(() =>
-    dispatchTool(
+    dispatchToolAsOperator(
       "autoclanker_ingest_eval",
       {
         autoclankerBinary: fakeBinary,
@@ -760,7 +764,7 @@ coveredTest(
   () => {
     const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-missing-lock-"));
     const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
-    dispatchTool("autoclanker_init_session", {
+    dispatchToolAsOperator("autoclanker_init_session", {
       autoclankerBinary: fakeBinary,
       workspace,
       goal: "Reject missing eval lock state.",
@@ -780,7 +784,7 @@ coveredTest(
     );
 
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_ingest_eval",
         {
           autoclankerBinary: fakeBinary,
@@ -866,7 +870,7 @@ coveredTest(
     );
 
     const result = asRecord(
-      dispatchTool("autoclanker_init_session", {
+      dispatchToolAsOperator("autoclanker_init_session", {
         autoclankerBinary: "missing-autoclanker",
         clankerbenchManifestPath: manifestPath,
         workspace,
@@ -895,7 +899,7 @@ coveredTest(["M0-002", "M1-002"], "missing clankerbench manifest fails clearly",
     resolve(tmpdir(), "pi-autoclanker-ts-clankerbench-missing-"),
   );
   expect(() =>
-    dispatchTool("autoclanker_init_session", {
+    dispatchToolAsOperator("autoclanker_init_session", {
       autoclankerBinary: "missing-autoclanker",
       clankerbenchManifestPath: "missing-manifest.json",
       workspace,
@@ -932,7 +936,7 @@ coveredTest(
     );
 
     expect(() =>
-      dispatchTool("autoclanker_init_session", {
+      dispatchToolAsOperator("autoclanker_init_session", {
         autoclankerBinary: "missing-autoclanker",
         workspace,
       }),
@@ -967,7 +971,7 @@ coveredTest(
     );
 
     expect(() =>
-      dispatchTool("autoclanker_init_session", {
+      dispatchToolAsOperator("autoclanker_init_session", {
         autoclankerBinary: "missing-autoclanker",
         workspace: runContractWorkspace,
       }),
@@ -1001,7 +1005,7 @@ coveredTest(
     );
 
     expect(() =>
-      dispatchTool("autoclanker_init_session", {
+      dispatchToolAsOperator("autoclanker_init_session", {
         autoclankerBinary: "missing-autoclanker",
         workspace: laneLedgerWorkspace,
       }),
@@ -1023,7 +1027,7 @@ coveredTest(
     writeFileSync(resolve(workspace, "lane-ledger.md"), "TODO: placeholder\n", "utf-8");
 
     const initResult = asRecord(
-      dispatchTool("autoclanker_init_session", {
+      dispatchToolAsOperator("autoclanker_init_session", {
         autoclankerBinary: fakeBinary,
         workspace,
         goal: "Exercise warning paths for long-running run controls.",
@@ -1035,7 +1039,7 @@ coveredTest(
     expect(initResult.laneLedgerStatus).toBe("warning");
 
     const statusResult = asRecord(
-      dispatchTool("autoclanker_session_status", {
+      dispatchToolAsOperator("autoclanker_session_status", {
         autoclankerBinary: fakeBinary,
         workspace,
       }),
