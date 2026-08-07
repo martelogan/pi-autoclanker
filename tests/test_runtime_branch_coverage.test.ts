@@ -20,13 +20,13 @@ import {
   type RuntimeConfig,
   SUMMARY_FILENAME,
   dispatchCommand,
-  dispatchTool,
   loadConfigSchema,
   loadWorkspaceConfig,
   resolveAutoclankerCommand,
   validateConfigDocument,
 } from "../src/runtime.js";
 import { coveredTest } from "./compliance.js";
+import { dispatchToolAsOperator } from "./operator_dispatch.js";
 
 type JsonRecord = {
   [key: string]: unknown;
@@ -212,6 +212,7 @@ function baseConfig(
       targetWallTimeHours: null,
       minorRepairBudget: 3,
       selfDebugMinorIssues: false,
+      toolTimeoutSec: 900,
     },
     goal: null,
     evalCommand: null,
@@ -248,7 +249,7 @@ function initEvalWorkspace(options: {
 }): string {
   const workspace = mkdtempSync(resolve(tmpdir(), options.prefix));
   const autoclankerBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
-  dispatchTool(
+  dispatchToolAsOperator(
     "autoclanker_init_session",
     {
       autoclankerBinary,
@@ -481,7 +482,7 @@ coveredTest(
     writeConfig(statusWorkspace, { autoclankerBinary: statusBinary });
 
     const missingUpstreamStatus = asRecord(
-      dispatchTool("autoclanker_session_status", undefined, {
+      dispatchToolAsOperator("autoclanker_session_status", undefined, {
         workspace: statusWorkspace,
         runner: () => ({
           returncode: 1,
@@ -587,7 +588,7 @@ coveredTest(
       return { returncode: 0, stdout: "{}", stderr: "" };
     };
 
-    dispatchTool(
+    dispatchToolAsOperator(
       "autoclanker_init_session",
       {
         autoclankerBinary: fakeBinary,
@@ -663,7 +664,7 @@ coveredTest(
     const missingEvalBinary = touchExecutable(
       resolve(missingEvalWorkspace, "fake-autoclanker"),
     );
-    dispatchTool(
+    dispatchToolAsOperator(
       "autoclanker_init_session",
       {
         autoclankerBinary: missingEvalBinary,
@@ -676,7 +677,7 @@ coveredTest(
     );
     rmSync(resolve(missingEvalWorkspace, EVAL_FILENAME), { force: true });
     expect(() =>
-      dispatchTool("autoclanker_ingest_eval", undefined, {
+      dispatchToolAsOperator("autoclanker_ingest_eval", undefined, {
         workspace: missingEvalWorkspace,
         runner: initRunner,
       }),
@@ -688,7 +689,7 @@ coveredTest(
     const failingEvalBinary = touchExecutable(
       resolve(failingEvalWorkspace, "fake-autoclanker"),
     );
-    dispatchTool(
+    dispatchToolAsOperator(
       "autoclanker_init_session",
       {
         autoclankerBinary: failingEvalBinary,
@@ -700,7 +701,7 @@ coveredTest(
       { runner: initRunner },
     );
     expect(() =>
-      dispatchTool("autoclanker_ingest_eval", undefined, {
+      dispatchToolAsOperator("autoclanker_ingest_eval", undefined, {
         workspace: failingEvalWorkspace,
         runner: initRunner,
       }),
@@ -717,7 +718,7 @@ coveredTest(
       evalCommand: JSON_EVAL_COMMAND,
     });
     const initFromConfig = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_init_session",
         {
           goal: "Use the config-provided eval command.",
@@ -734,7 +735,7 @@ coveredTest(
     expect(configAfterInit.evalCommand).toBe(JSON_EVAL_COMMAND);
 
     const ingestResult = asRecord(
-      dispatchTool("autoclanker_ingest_eval", undefined, {
+      dispatchToolAsOperator("autoclanker_ingest_eval", undefined, {
         workspace: configEvalWorkspace,
         runner: initRunner,
       }),
@@ -794,7 +795,7 @@ coveredTest(
       runner,
     });
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_ingest_eval",
         { familyIds: ["family_alpha"] },
         { workspace: missingFrontierWorkspace, runner },
@@ -808,7 +809,7 @@ coveredTest(
       runner,
     });
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_ingest_eval",
         {
           candidates: candidatePool,
@@ -819,7 +820,7 @@ coveredTest(
     ).toThrowError(/at most one candidateId/u);
 
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_ingest_eval",
         {
           candidates: candidatePool,
@@ -836,7 +837,7 @@ coveredTest(
       runner,
     });
     const singleFamilyResult = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_ingest_eval",
         {
           candidates: candidatePool,
@@ -854,7 +855,7 @@ coveredTest(
       runner,
     });
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_ingest_eval",
         { candidates: candidatePool },
         { workspace: unselectedWorkspace, runner },
@@ -868,7 +869,7 @@ coveredTest(
       runner,
     });
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_ingest_eval",
         { candidates: candidatePool, candidateIds: [] },
         { workspace: emptyCandidateIdsWorkspace, runner },
@@ -882,7 +883,7 @@ coveredTest(
       runner,
     });
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_ingest_eval",
         {
           baselineCandidateId: "cand_alpha",
@@ -900,7 +901,7 @@ coveredTest(
       runner,
     });
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_ingest_eval",
         {
           baselineCandidateId: "cand_missing",
@@ -940,7 +941,7 @@ coveredTest(["M1-002"], "eval ingest rejects array stdout", () => {
   });
 
   expect(() =>
-    dispatchTool("autoclanker_ingest_eval", undefined, {
+    dispatchToolAsOperator("autoclanker_ingest_eval", undefined, {
       workspace,
       runner: initRunner,
     }),
@@ -974,7 +975,7 @@ coveredTest(["M1-002"], "eval ingest rejects invalid text stdout", () => {
   });
 
   expect(() =>
-    dispatchTool("autoclanker_ingest_eval", undefined, {
+    dispatchToolAsOperator("autoclanker_ingest_eval", undefined, {
       workspace,
       runner: initRunner,
     }),
@@ -1008,7 +1009,7 @@ coveredTest(["M1-002"], "eval ingest rejects empty stdout", () => {
   });
 
   expect(() =>
-    dispatchTool("autoclanker_ingest_eval", undefined, {
+    dispatchToolAsOperator("autoclanker_ingest_eval", undefined, {
       workspace,
       runner: initRunner,
     }),
@@ -1048,7 +1049,7 @@ coveredTest(
       resolve(tmpdir(), "pi-autoclanker-ts-max-iterations-"),
     );
     const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
-    dispatchTool(
+    dispatchToolAsOperator(
       "autoclanker_init_session",
       {
         autoclankerBinary: fakeBinary,
@@ -1061,9 +1062,12 @@ coveredTest(
       { runner },
     );
 
-    dispatchTool("autoclanker_ingest_eval", undefined, { workspace, runner });
+    dispatchToolAsOperator("autoclanker_ingest_eval", undefined, { workspace, runner });
     expect(() =>
-      dispatchTool("autoclanker_ingest_eval", undefined, { workspace, runner }),
+      dispatchToolAsOperator("autoclanker_ingest_eval", undefined, {
+        workspace,
+        runner,
+      }),
     ).toThrowError(/maxIterations=1/u);
   },
 );
@@ -1102,7 +1106,7 @@ coveredTest(
     );
     const fakeBinary = touchExecutable(resolve(workspace, "fake-autoclanker"));
     const startResult = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_init_session",
         {
           autoclankerBinary: fakeBinary,
@@ -1118,8 +1122,8 @@ coveredTest(
     ) as { runIntensity?: unknown };
 
     expect(startResult.runIntensity).toBe("mega");
-    dispatchTool("autoclanker_ingest_eval", undefined, { workspace, runner });
-    dispatchTool("autoclanker_ingest_eval", undefined, { workspace, runner });
+    dispatchToolAsOperator("autoclanker_ingest_eval", undefined, { workspace, runner });
+    dispatchToolAsOperator("autoclanker_ingest_eval", undefined, { workspace, runner });
   },
 );
 
@@ -1437,7 +1441,7 @@ coveredTest(
     });
 
     const ingestResult = asRecord(
-      dispatchTool("autoclanker_ingest_eval", undefined, {
+      dispatchToolAsOperator("autoclanker_ingest_eval", undefined, {
         workspace,
         runner: initRunner,
       }),
@@ -1461,7 +1465,7 @@ coveredTest(
     const gatingWorkspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-gating-"));
     const gatingBinary = touchExecutable(resolve(gatingWorkspace, "fake-autoclanker"));
     expect(() =>
-      dispatchTool("autoclanker_init_session", {
+      dispatchToolAsOperator("autoclanker_init_session", {
         autoclankerBinary: gatingBinary,
         goal: "Require explicit billed-live opt-in.",
         evalCommand: JSON_EVAL_COMMAND,
@@ -1477,7 +1481,7 @@ coveredTest(
     const previewBinary = touchExecutable(
       resolve(previewWorkspace, "fake-autoclanker"),
     );
-    dispatchTool(
+    dispatchToolAsOperator(
       "autoclanker_init_session",
       {
         autoclankerBinary: previewBinary,
@@ -1499,7 +1503,7 @@ coveredTest(
       },
     );
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_preview_beliefs",
         { mode: "advanced_json" },
         {
@@ -1567,7 +1571,7 @@ coveredTest(
           return { returncode: 0, stdout: "{}", stderr: "" };
         };
 
-        dispatchTool(
+        dispatchToolAsOperator(
           "autoclanker_init_session",
           {
             autoclankerBinary: normalizationBinary,
@@ -1618,7 +1622,7 @@ coveredTest(
     withEnv({ PI_AUTOCLANKER_CANONICALIZATION_MODEL: "fallback-model" }, () => {
       let sessionInitArgv: string[] = [];
       const fallbackResult = asRecord(
-        dispatchTool(
+        dispatchToolAsOperator(
           "autoclanker_init_session",
           {
             autoclankerBinary: fallbackBinary,
@@ -1688,7 +1692,7 @@ coveredTest(
       return { returncode: 0, stdout: "{}", stderr: "" };
     };
 
-    dispatchTool(
+    dispatchToolAsOperator(
       "autoclanker_init_session",
       {
         autoclankerBinary: fakeBinary,
@@ -1718,7 +1722,7 @@ coveredTest(
       "utf-8",
     );
     const relativeSuggest = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_suggest",
         { candidatesInputPath: "candidates.json" },
         { workspace, runner },
@@ -1750,7 +1754,7 @@ coveredTest(
       "utf-8",
     );
     const absoluteSuggest = asRecord(
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_suggest",
         { candidatesInputPath: absolutePoolPath },
         { workspace, runner },
@@ -1762,17 +1766,17 @@ coveredTest(
     ).toBeUndefined();
 
     expect(() =>
-      dispatchTool("autoclanker_suggest", { candidates: [] }, { workspace }),
+      dispatchToolAsOperator("autoclanker_suggest", { candidates: [] }, { workspace }),
     ).toThrowError();
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_suggest",
         { candidates: { candidates: "bad" } },
         { workspace },
       ),
     ).toThrowError();
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_suggest",
         {
           candidates: {
@@ -1788,7 +1792,7 @@ coveredTest(
       ),
     ).toThrowError();
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_suggest",
         {
           candidates: {
@@ -1799,7 +1803,7 @@ coveredTest(
       ),
     ).toThrowError();
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_suggest",
         {
           candidates: {
@@ -1810,7 +1814,7 @@ coveredTest(
       ),
     ).toThrowError();
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_suggest",
         {
           candidates: {
@@ -1826,7 +1830,7 @@ coveredTest(
       ),
     ).toThrowError();
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_suggest",
         {
           candidates: {
@@ -1843,7 +1847,7 @@ coveredTest(
       ),
     ).toThrowError();
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_suggest",
         {
           candidatesInputPath: "candidates.json",
@@ -1856,7 +1860,7 @@ coveredTest(
     const invalidPathPayload = resolve(workspace, "invalid-candidates.json");
     writeFileSync(invalidPathPayload, "[]\n", "utf-8");
     expect(() =>
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_suggest",
         { candidatesInputPath: "invalid-candidates.json" },
         { workspace },
@@ -1901,7 +1905,7 @@ coveredTest(
       return { returncode: 0, stdout: "{}", stderr: "" };
     };
     const malformedStatus = asRecord(
-      dispatchTool("autoclanker_session_status", undefined, {
+      dispatchToolAsOperator("autoclanker_session_status", undefined, {
         workspace,
         runner: malformedFrontierRunner,
       }),
@@ -1923,7 +1927,7 @@ coveredTest(
     writeFileSync(badBinary, "#!/usr/bin/env bash\nexit 0\n", "utf-8");
     chmodSync(badBinary, 0o644);
     expect(() =>
-      dispatchTool("autoclanker_init_session", {
+      dispatchToolAsOperator("autoclanker_init_session", {
         autoclankerBinary: badBinary,
         goal: "Surface spawn errors from the default runner.",
         evalCommand: JSON_EVAL_COMMAND,

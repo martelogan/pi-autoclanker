@@ -10,7 +10,7 @@
     },
     {
       "path": "schemas/pi-autoclanker.config.schema.json",
-      "sha256": "75adb7c4802d60f632ac03afe6c8a82ebf66d57c0f0ba6a608a52ccc794e2f80"
+      "sha256": "16032a757f2811e54ee01e554c8959f4ebd56e9c34ace5e23314fe8870d60d66"
     },
     {
       "path": "skills/autoclanker-create/SKILL.md",

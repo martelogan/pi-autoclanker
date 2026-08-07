@@ -11,7 +11,8 @@
     "clarificationPolicy": "allowed",
     "targetWallTimeHours": null,
     "minorRepairBudget": 3,
-    "selfDebugMinorIssues": false
+    "selfDebugMinorIssues": false,
+    "toolTimeoutSec": 900
   },
   "preflight": {
     "ready": false,

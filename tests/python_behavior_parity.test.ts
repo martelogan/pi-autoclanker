@@ -106,6 +106,7 @@ const POST_ARCHIVE_EXPECTED_TOOL_NAMES = [
   "goalloop_goal",
   "goalloop_handoff",
   "goalloop_audit",
+  "goalloop_lock",
 ];
 const POST_ARCHIVE_EXPECTED_SESSION_FILES = [
   "autoclanker.frontier.json",

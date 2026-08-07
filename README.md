@@ -231,6 +231,15 @@ keeps the locked eval surface and candidate binding rules, but disables the
 wrapper's max-iteration stop so the supervisor can continue until all valuable
 lanes have a measured keep/reject/blocker result.
 
+Independently of iteration budgets, every subprocess the wrapper spawns on a
+tool call (upstream `autoclanker` invocations, `goalloop` invocations, and the
+checked-in `autoclanker.eval.sh` surface) is bounded by
+`executionPolicy.toolTimeoutSec` — 900 seconds by default — so a hung gate or
+eval cannot stall an unattended run forever. Set it to `null` in
+`autoclanker.config.json` when a legitimately long billed canonicalization or
+benchmark eval needs an unbounded invocation; a timed-out invocation surfaces
+a clear error naming the timed-out command.
+
 For a preseeded benchmark workspace, start from the directory that contains the
 session files and point at the existing intake file:
 
@@ -436,6 +445,7 @@ These are the extension tools available to pi:
 | `goalloop_goal` | Run the deterministic goal-loop completion check; not-met is a structured result, never an error. |
 | `goalloop_handoff` | Emit the goal-loop next-iteration handoff prompt as passthrough text. |
 | `goalloop_audit` | Drive the adversarial audit phase: auditor prompt, triaged-findings ingest, or convergence status. |
+| `goalloop_lock` | Deliberately re-lock the goal-loop contract by echoing the current `contract.digest` from `goalloop_status`; optional referent pinning via `pinFiles`/`clearPins`. |
 
 The point of these tools is not to reimplement `autoclanker` in TypeScript. The
 extension stays thin and inspectable, while `autoclanker` remains the Bayesian
@@ -451,6 +461,16 @@ configuration is needed beyond `autoclankerBinary`/`autoclankerRepo`. Loop
 events are appended to `autoclanker.history.jsonl` so summaries and compaction
 surface loop activity; the loop keeps its own history at the loop root. The
 `goalloop-operator` skill documents the full workflow.
+
+Re-locking a drifted contract is deliberately stricter through the bridge
+than through the bare CLI: `goalloop_lock` requires the caller to echo the
+current `contract.digest` from a fresh `goalloop_status` read as
+`expectedDigest` (mirroring the upstream preview-then-apply digest gate), so
+a governed agent cannot weaken gates and re-lock in one shot. The optional
+`pinFiles` / `clearPins` payload fields forward the CLI's opt-in referent
+pinning (`goalloop lock --pin-files` / `--clear-pins`) so named files'
+content hashes join the locked definition of done; they require a goalloop
+CLI recent enough to ship those flags.
 
 ## Skills
 

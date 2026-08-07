@@ -27,9 +27,9 @@ import {
   SESSION_FILENAMES,
   SUMMARY_FILENAME,
   dispatchCommand,
-  dispatchTool,
 } from "../src/runtime.js";
 import { coveredTest } from "./compliance.js";
+import { dispatchToolAsOperator } from "./operator_dispatch.js";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 
@@ -1085,7 +1085,10 @@ coveredTest(
     const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-default-"));
     withFakeAutoclanker(workspace, ({ binaryPath, logPath }) => {
       const initResult = asRecord(
-        dispatchTool("autoclanker_init_session", sessionPayload(binaryPath, workspace)),
+        dispatchToolAsOperator(
+          "autoclanker_init_session",
+          sessionPayload(binaryPath, workspace),
+        ),
       );
       expect(initResult.ok).toBe(true);
       expect(initResult.tool).toBe("autoclanker_init_session");
@@ -1099,7 +1102,7 @@ coveredTest(
       expect(existsSync(resolve(workspace, FRONTIER_FILENAME))).toBe(false);
 
       const previewResult = asRecord(
-        dispatchTool("autoclanker_preview_beliefs", { workspace }),
+        dispatchToolAsOperator("autoclanker_preview_beliefs", { workspace }),
       );
       expect(asRecord(previewResult.preview).beliefs_status).toBe("preview_pending");
       expect(
@@ -1107,7 +1110,7 @@ coveredTest(
       ).toBeTruthy();
 
       const applyResult = asRecord(
-        dispatchTool("autoclanker_apply_beliefs", { workspace }),
+        dispatchToolAsOperator("autoclanker_apply_beliefs", { workspace }),
       );
       expect(asRecord(applyResult.apply).beliefs_status).toBe("applied");
       expect(readFileSync(resolve(workspace, SUMMARY_FILENAME), "utf-8")).toContain(
@@ -1115,7 +1118,7 @@ coveredTest(
       );
 
       const ingestResult = asRecord(
-        dispatchTool("autoclanker_ingest_eval", { workspace }),
+        dispatchToolAsOperator("autoclanker_ingest_eval", { workspace }),
       );
       expect(asRecord(ingestResult.ingest).evalSummary).toBe("Eval ingested");
       const evalResultPayload = asRecord(
@@ -1127,31 +1130,33 @@ coveredTest(
         (evalResultPayload.eval_contract as EvalContractRecord).contract_digest,
       ).toBe("sha256:contract-locked");
 
-      const fitResult = asRecord(dispatchTool("autoclanker_fit", { workspace }));
+      const fitResult = asRecord(
+        dispatchToolAsOperator("autoclanker_fit", { workspace }),
+      );
       expect(asRecord(fitResult.fit).fitSummary).toBe("Fit complete");
 
       const postFitStatus = asRecord(
-        dispatchTool("autoclanker_session_status", { workspace }),
+        dispatchToolAsOperator("autoclanker_session_status", { workspace }),
       );
       expect(postFitStatus.objectiveBackend).toBe("exact_joint_linear");
       expect(postFitStatus.acquisitionBackend).toBe("constrained_thompson_sampling");
 
       const suggestResult = asRecord(
-        dispatchTool("autoclanker_suggest", { workspace }),
+        dispatchToolAsOperator("autoclanker_suggest", { workspace }),
       );
       expect(asRecord(suggestResult.suggestion).nextAction).toBe(
         "Run another candidate",
       );
 
       const commitResult = asRecord(
-        dispatchTool("autoclanker_recommend_commit", { workspace }),
+        dispatchToolAsOperator("autoclanker_recommend_commit", { workspace }),
       );
       expect(asRecord(commitResult.recommendation).commitSummary).toBe(
         "Commit the previewed belief set",
       );
 
       const statusResult = asRecord(
-        dispatchTool("autoclanker_session_status", { workspace }),
+        dispatchToolAsOperator("autoclanker_session_status", { workspace }),
       );
       const statusView = statusResult as JsonRecord & {
         followUpQueryType?: unknown;
@@ -1318,7 +1323,7 @@ coveredTest(
         REPO_ROOT,
         "examples/targets/parser-quickstart/autoclanker.eval.sh",
       );
-      dispatchTool("autoclanker_init_session", {
+      dispatchToolAsOperator("autoclanker_init_session", {
         autoclankerBinary: binaryPath,
         evalCommand: `bash "${parserEvalPath}"`,
         goal: "Improve parser throughput without losing context quality.",
@@ -1328,10 +1333,10 @@ coveredTest(
         constraints: ["Keep incident recall stable."],
         workspace,
       });
-      dispatchTool("autoclanker_preview_beliefs", { workspace });
-      dispatchTool("autoclanker_apply_beliefs", { workspace });
+      dispatchToolAsOperator("autoclanker_preview_beliefs", { workspace });
+      dispatchToolAsOperator("autoclanker_apply_beliefs", { workspace });
       const ingestResult = asRecord(
-        dispatchTool("autoclanker_ingest_eval", { workspace }),
+        dispatchToolAsOperator("autoclanker_ingest_eval", { workspace }),
       );
       expect(asRecord(ingestResult.ingest).evalSummary).toBe("Eval ingested");
       const evalResultPayload = asRecord(
@@ -1362,16 +1367,16 @@ coveredTest(
         "utf-8",
       );
 
-      dispatchTool("autoclanker_init_session", {
+      dispatchToolAsOperator("autoclanker_init_session", {
         ...sessionPayload(binaryPath, workspace),
         evalCommand: `cat <<EOF
 {"era_id":"\${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"\${PI_AUTOCLANKER_TARGET_CANDIDATE_ID:-cand_missing}","intended_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"realized_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"patch_hash":"sha256:demo","status":"valid","seed":7,"runtime_sec":1.5,"peak_vram_mb":32.0,"raw_metrics":{"score":0.61},"delta_perf":0.02,"utility":0.01,"replication_index":0,"stdout_digest":"stdout:demo","stderr_digest":"stderr:clean","artifact_paths":[],"failure_metadata":{"family_id":"\${PI_AUTOCLANKER_TARGET_FAMILY_ID:-}"}} 
 EOF`,
       });
-      dispatchTool("autoclanker_preview_beliefs", { workspace });
-      dispatchTool("autoclanker_apply_beliefs", { workspace });
+      dispatchToolAsOperator("autoclanker_preview_beliefs", { workspace });
+      dispatchToolAsOperator("autoclanker_apply_beliefs", { workspace });
 
-      const ingestResult = dispatchTool("autoclanker_ingest_eval", {
+      const ingestResult = dispatchToolAsOperator("autoclanker_ingest_eval", {
         workspace,
         candidateId: "cand_parser_compiled_context",
         candidatesInputPath: frontierPath,
@@ -1420,17 +1425,17 @@ coveredTest(
         "utf-8",
       );
 
-      dispatchTool("autoclanker_init_session", {
+      dispatchToolAsOperator("autoclanker_init_session", {
         ...sessionPayload(binaryPath, workspace),
         evalCommand: `cat <<EOF
 {"era_id":"\${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"\${PI_AUTOCLANKER_TARGET_CANDIDATE_ID:-cand_missing}","intended_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"realized_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"patch_hash":"sha256:paired","status":"valid","seed":12,"runtime_sec":1.5,"peak_vram_mb":32.0,"raw_metrics":{"score":0.71,"empty_samples":[],"noise_multiple":2.5,"baseline_candidate_id":"\${PI_AUTOCLANKER_BASELINE_CANDIDATE_ID:-missing}"},"delta_perf":0.05,"utility":0.04,"replication_index":0,"stdout_digest":"stdout:paired","stderr_digest":"stderr:clean","artifact_paths":[],"failure_metadata":{"baseline_genotype":\${PI_AUTOCLANKER_BASELINE_GENOTYPE_JSON:-[]}}}
 EOF`,
       });
-      dispatchTool("autoclanker_preview_beliefs", { workspace });
-      dispatchTool("autoclanker_apply_beliefs", { workspace });
+      dispatchToolAsOperator("autoclanker_preview_beliefs", { workspace });
+      dispatchToolAsOperator("autoclanker_apply_beliefs", { workspace });
 
       const ingestResult = asRecord(
-        dispatchTool("autoclanker_ingest_eval", {
+        dispatchToolAsOperator("autoclanker_ingest_eval", {
           workspace,
           candidateId: "cand_parser_compiled_context",
           baselineCandidateId: "cand_parser_default",
@@ -1511,17 +1516,17 @@ node -e 'const fs = require("node:fs"); const payload = JSON.parse(fs.readFileSy
       );
       chmodSync(resolve(hooksDir, "after-eval.sh"), 0o755);
 
-      dispatchTool("autoclanker_init_session", {
+      dispatchToolAsOperator("autoclanker_init_session", {
         ...sessionPayload(binaryPath, workspace),
         evalCommand: `cat <<EOF
 {"era_id":"\${PI_AUTOCLANKER_UPSTREAM_ERA_ID}","candidate_id":"\${PI_AUTOCLANKER_TARGET_CANDIDATE_ID:-cand_missing}","intended_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"realized_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"patch_hash":"sha256:hook-demo","status":"valid","seed":11,"runtime_sec":1.25,"peak_vram_mb":24.0,"raw_metrics":{"score":0.72},"delta_perf":0.04,"utility":0.03,"replication_index":0,"stdout_digest":"stdout:hook-demo","stderr_digest":"stderr:clean","artifact_paths":[],"failure_metadata":{}}
 EOF`,
       });
-      dispatchTool("autoclanker_preview_beliefs", { workspace });
-      dispatchTool("autoclanker_apply_beliefs", { workspace });
+      dispatchToolAsOperator("autoclanker_preview_beliefs", { workspace });
+      dispatchToolAsOperator("autoclanker_apply_beliefs", { workspace });
 
       const ingestResult = asRecord(
-        dispatchTool("autoclanker_ingest_eval", {
+        dispatchToolAsOperator("autoclanker_ingest_eval", {
           workspace,
           candidateId: "cand_parser_compiled_context",
           candidatesInputPath: frontierPath,
@@ -1607,16 +1612,16 @@ coveredTest(
         "utf-8",
       );
 
-      dispatchTool("autoclanker_init_session", {
+      dispatchToolAsOperator("autoclanker_init_session", {
         ...sessionPayload(binaryPath, workspace),
         evalCommand: `cat <<EOF
 {"candidate_id":"\${PI_AUTOCLANKER_TARGET_CANDIDATE_ID:-cand_missing}","notes":"\${PI_AUTOCLANKER_TARGET_CANDIDATE_NOTES:-notes_missing}","intended_genotype":\${PI_AUTOCLANKER_TARGET_GENOTYPE_JSON:-[]},"patch_hash":"sha256:demo","status":"valid","seed":9,"runtime_sec":1.0,"peak_vram_mb":16.0,"raw_metrics":{"score":0.64},"delta_perf":0.03,"utility":0.02,"replication_index":0,"stdout_digest":"stdout:demo","stderr_digest":"stderr:clean","artifact_paths":[]}
 EOF`,
       });
-      dispatchTool("autoclanker_preview_beliefs", { workspace });
-      dispatchTool("autoclanker_apply_beliefs", { workspace });
+      dispatchToolAsOperator("autoclanker_preview_beliefs", { workspace });
+      dispatchToolAsOperator("autoclanker_apply_beliefs", { workspace });
 
-      const ingestResult = dispatchTool("autoclanker_ingest_eval", {
+      const ingestResult = dispatchToolAsOperator("autoclanker_ingest_eval", {
         workspace,
         candidatesInputPath: frontierPath,
       }) as {
@@ -1980,7 +1985,7 @@ coveredTest(
     );
     withFakeAutoclanker(workspace, ({ binaryPath }) => {
       const initResult = asRecord(
-        dispatchTool("autoclanker_init_session", {
+        dispatchToolAsOperator("autoclanker_init_session", {
           autoclankerBinary: binaryPath,
           workspace,
         }),
@@ -2044,7 +2049,7 @@ coveredTest(
     );
     withFakeAutoclanker(workspace, ({ binaryPath }) => {
       const initResult = asRecord(
-        dispatchTool("autoclanker_init_session", {
+        dispatchToolAsOperator("autoclanker_init_session", {
           autoclankerBinary: binaryPath,
           workspace,
         }),
@@ -2231,7 +2236,7 @@ EOF`;
 
     withFakeAutoclanker(workspace, ({ binaryPath }) => {
       const initResult = asRecord(
-        dispatchTool("autoclanker_init_session", {
+        dispatchToolAsOperator("autoclanker_init_session", {
           autoclankerBinary: binaryPath,
           workspace,
         }),
@@ -2460,7 +2465,7 @@ coveredTest(
     );
     withFakeAutoclanker(workspace, ({ binaryPath, logPath }) => {
       const initResult = asRecord(
-        dispatchTool("autoclanker_init_session", {
+        dispatchToolAsOperator("autoclanker_init_session", {
           autoclankerBinary: binaryPath,
           workspace,
         }),
@@ -2511,9 +2516,12 @@ coveredTest(
   () => {
     const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-candidates-"));
     withFakeAutoclanker(workspace, ({ binaryPath, logPath }) => {
-      dispatchTool("autoclanker_init_session", sessionPayload(binaryPath, workspace));
+      dispatchToolAsOperator(
+        "autoclanker_init_session",
+        sessionPayload(binaryPath, workspace),
+      );
       const suggestResult = asRecord(
-        dispatchTool("autoclanker_suggest", {
+        dispatchToolAsOperator("autoclanker_suggest", {
           workspace,
           candidates: candidatePool(),
         }),
@@ -2536,7 +2544,7 @@ coveredTest(
       );
       expect(suggestRecord?.argv).toContain("--candidates-input");
       const frontierStatus = asRecord(
-        dispatchTool("autoclanker_frontier_status", { workspace }),
+        dispatchToolAsOperator("autoclanker_frontier_status", { workspace }),
       );
       expect(asRecord(frontierStatus.frontier).candidateCount).toBe(3);
       expect(asRecord(frontierStatus.frontier).familyCount).toBe(3);
@@ -2560,7 +2568,10 @@ coveredTest(
   () => {
     const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-frontier-"));
     withFakeAutoclanker(workspace, ({ binaryPath, logPath }) => {
-      dispatchTool("autoclanker_init_session", sessionPayload(binaryPath, workspace));
+      dispatchToolAsOperator(
+        "autoclanker_init_session",
+        sessionPayload(binaryPath, workspace),
+      );
       const compareResult = asRecord(
         dispatchCommand("compare-frontier", {
           workspace,
@@ -2571,7 +2582,7 @@ coveredTest(
       expect(asRecord(compareResult.frontier).candidate_count).toBe(3);
 
       const mergeResult = asRecord(
-        dispatchTool("autoclanker_merge_pathways", {
+        dispatchToolAsOperator("autoclanker_merge_pathways", {
           workspace,
           candidateIds: ["cand_parser_default", "cand_parser_wide_window"],
           mergedCandidateId: "cand_parser_merged_default_window",
@@ -2646,7 +2657,10 @@ coveredTest(
       resolve(tmpdir(), "pi-autoclanker-ts-frontier-dispatch-"),
     );
     withFakeAutoclanker(workspace, ({ binaryPath }) => {
-      dispatchTool("autoclanker_init_session", sessionPayload(binaryPath, workspace));
+      dispatchToolAsOperator(
+        "autoclanker_init_session",
+        sessionPayload(binaryPath, workspace),
+      );
 
       const compared = asRecord(
         dispatchCommand("compare-frontier", {
@@ -2657,7 +2671,7 @@ coveredTest(
       expect(compared.command).toBe("compare-frontier");
 
       const comparedViaTool = asRecord(
-        dispatchTool("autoclanker_compare_frontier", { workspace }),
+        dispatchToolAsOperator("autoclanker_compare_frontier", { workspace }),
       );
       expect(asRecord(comparedViaTool.frontier).candidate_count).toBe(3);
 
@@ -2695,7 +2709,7 @@ coveredTest(
       );
 
       const initResult = asRecord(
-        dispatchTool("autoclanker_init_session", {
+        dispatchToolAsOperator("autoclanker_init_session", {
           autoclankerBinary: binaryPath,
           workspace,
           goal: "Seed the frontier at init time from a checked-in file.",
@@ -2728,7 +2742,10 @@ coveredTest(
       resolve(tmpdir(), "pi-autoclanker-ts-frontier-family-merge-"),
     );
     withFakeAutoclanker(workspace, ({ binaryPath }) => {
-      dispatchTool("autoclanker_init_session", sessionPayload(binaryPath, workspace));
+      dispatchToolAsOperator(
+        "autoclanker_init_session",
+        sessionPayload(binaryPath, workspace),
+      );
 
       const frontier = candidatePool() as JsonRecord & {
         candidates: Array<{ family_id?: unknown }>;
@@ -2775,7 +2792,7 @@ coveredTest(
     );
     const context = writeSparseStatusAutoclanker(workspace);
     withCustomAutoclanker(workspace, context, () => {
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_init_session",
         sessionPayload(context.binaryPath, workspace),
       );
@@ -2807,7 +2824,7 @@ coveredTest(
     );
     const context = writeEmptyFrontierSummaryAutoclanker(workspace);
     withCustomAutoclanker(workspace, context, () => {
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_init_session",
         sessionPayload(context.binaryPath, workspace),
       );
@@ -2834,7 +2851,7 @@ coveredTest(
     );
     const context = writeDigestMatchStatusAutoclanker(workspace);
     withCustomAutoclanker(workspace, context, () => {
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_init_session",
         sessionPayload(context.binaryPath, workspace),
       );
@@ -2855,7 +2872,7 @@ coveredTest(
     const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-lease-status-"));
     const context = writeLeaseStatusAutoclanker(workspace);
     withCustomAutoclanker(workspace, context, () => {
-      dispatchTool(
+      dispatchToolAsOperator(
         "autoclanker_init_session",
         sessionPayload(context.binaryPath, workspace),
       );
@@ -2877,9 +2894,12 @@ coveredTest(
   () => {
     const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-invalid-mode-"));
     withFakeAutoclanker(workspace, ({ binaryPath }) => {
-      dispatchTool("autoclanker_init_session", sessionPayload(binaryPath, workspace));
+      dispatchToolAsOperator(
+        "autoclanker_init_session",
+        sessionPayload(binaryPath, workspace),
+      );
       expect(() =>
-        dispatchTool("autoclanker_preview_beliefs", {
+        dispatchToolAsOperator("autoclanker_preview_beliefs", {
           workspace,
           mode: "not_a_mode",
         }),
@@ -2993,7 +3013,7 @@ coveredTest(
       resolve(tmpdir(), "pi-autoclanker-ts-upstream-root-"),
     );
     withFakeAutoclanker(workspace, ({ binaryPath }) => {
-      dispatchTool("autoclanker_init_session", {
+      dispatchToolAsOperator("autoclanker_init_session", {
         ...sessionPayload(binaryPath, workspace),
         sessionRoot: absoluteSessionRoot,
       });
@@ -3053,9 +3073,12 @@ coveredTest(
   () => {
     const workspace = mkdtempSync(resolve(tmpdir(), "pi-autoclanker-ts-billed-"));
     withFakeAutoclanker(workspace, ({ binaryPath, logPath }) => {
-      dispatchTool("autoclanker_init_session", sessionPayload(binaryPath, workspace));
+      dispatchToolAsOperator(
+        "autoclanker_init_session",
+        sessionPayload(binaryPath, workspace),
+      );
       const previewResult = asRecord(
-        dispatchTool("autoclanker_preview_beliefs", {
+        dispatchToolAsOperator("autoclanker_preview_beliefs", {
           workspace,
           allowBilledLive: true,
           canonicalizationModel: "anthropic",

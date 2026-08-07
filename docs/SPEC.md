@@ -59,6 +59,13 @@ run can keep exploring until each useful lane has a measured decision.
 intake/preflight, unattended and headless supervisors should record uncertainty
 as assumptions, risks, pending queries, or proposal notes instead of stopping
 for late clarification questions.
+`executionPolicy.toolTimeoutSec` bounds every subprocess the wrapper spawns on
+a tool call — upstream `autoclanker` CLI invocations, `goalloop` invocations,
+and the checked-in `autoclanker.eval.sh` surface. It defaults to `900`
+seconds; an explicit `null` disables the bound for legitimately long billed
+canonicalization or benchmark evals. A timed-out invocation surfaces a clear
+error naming the timed-out command instead of hanging an unattended loop
+forever.
 Once a session is initialized, that checked-in eval surface should be treated as
 fixed for the life of the session: the wrapper should snapshot it, surface the
 snapshot in status, and refuse eval ingest if the local `autoclanker.eval.sh`

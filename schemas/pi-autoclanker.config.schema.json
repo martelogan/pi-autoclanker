@@ -88,6 +88,14 @@
         },
         "self_debug_minor_issues": {
           "type": "boolean"
+        },
+        "toolTimeoutSec": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0
+        },
+        "tool_timeout_sec": {
+          "type": ["number", "null"],
+          "exclusiveMinimum": 0
         }
       }
     },

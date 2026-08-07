@@ -65,6 +65,7 @@ export const TOOL_NAMES = [
   "goalloop_goal",
   "goalloop_handoff",
   "goalloop_audit",
+  "goalloop_lock",
 ] as const;
 export const COMMAND_NAMES = [
   "run",
@@ -92,6 +93,19 @@ const CONFIG_OVERRIDE_KEYS = [
   "runIntensity",
   "executionPolicy",
 ] as const;
+// Keys that repoint the wrapper itself (which binary it spawns, where session
+// state lives). On the model-facing tool surface these are stripped from the
+// payload and honored only through the trusted operator channel
+// (autoclanker.config.json, or dispatchTool options.operatorOverrides fed by
+// CLI argv flags typed outside the governed conversation) — otherwise the
+// governed agent could point goalloop_goal or eval ingest at an arbitrary
+// executable per tool call and spoof its own exit oracle. Slash commands stay
+// operator-typed, so dispatchCommand keeps honoring payload-level overrides.
+const OPERATOR_CONFIG_ONLY_KEYS = [
+  "autoclankerBinary",
+  "autoclankerRepo",
+  "sessionRoot",
+] as const;
 const BILLED_LIVE_ENV_KEY = "PI_AUTOCLANKER_ALLOW_BILLED_LIVE";
 const UPSTREAM_LLM_LIVE_ENV_KEY = "AUTOCLANKER_ENABLE_LLM_LIVE";
 const DEFAULT_BILLED_CANONICALIZATION_MODEL = "anthropic";
@@ -118,6 +132,7 @@ const DEFAULT_STATUS_ERA_ID = "era_status_workspace_v1";
 const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 const CHILD_ENV_BLOCKLIST = ["NODE_V8_COVERAGE"] as const;
 const HOOK_TIMEOUT_MS = 30_000;
+const DEFAULT_TOOL_TIMEOUT_SEC = 900;
 const HOOK_OUTPUT_MAX_BYTES = 8 * 1024;
 const HOOK_TRUNCATION_MARKER = "\n...[truncated: hook output exceeded 8KB]";
 const PLAN_CANONICALIZATION_MAX_CHARS = 3200;
@@ -161,6 +176,8 @@ type ExecutionPolicyInputRecord = JsonObject & {
   self_debug_minor_issues?: unknown;
   targetWallTimeHours?: unknown;
   target_wall_time_hours?: unknown;
+  toolTimeoutSec?: unknown;
+  tool_timeout_sec?: unknown;
 };
 type ExecutionPreflightCheck = JsonObject & {
   id: string;
@@ -190,13 +207,18 @@ export type ExecutionPolicy = {
   mode: ExecutionMode;
   selfDebugMinorIssues: boolean;
   targetWallTimeHours: number | null;
+  toolTimeoutSec: number | null;
 };
 export type InvocationResult = {
   returncode: number;
   stdout: string;
   stderr: string;
 };
-export type Runner = (argv: string[], cwd: string) => InvocationResult;
+export type Runner = (
+  argv: string[],
+  cwd: string,
+  timeoutMs?: number | null,
+) => InvocationResult;
 
 export type RuntimeConfig = {
   autoclankerBinary: string;
@@ -1071,10 +1093,13 @@ type RuntimePayload = {
   auditor?: string;
   autoclankerBinary?: string;
   autoclankerRepo?: string | null;
+  clearPins?: boolean;
+  expectedDigest?: string;
   findingsPath?: string;
   gates?: string[];
   maxAuditRounds?: number;
   name?: string;
+  pinFiles?: string[];
   root?: string;
   selectors?: string[];
   canonicalizationModel?: string;
@@ -1130,7 +1155,24 @@ type RoughIdeaSource = {
   sourceKind: "inline" | "file";
 };
 
-function defaultRunner(argv: string[], cwd: string): InvocationResult {
+function spawnTimedOut(completed: SpawnSyncReturns<string>): boolean {
+  const code = (completed.error as NodeJS.ErrnoException | undefined)?.code;
+  return code === "ETIMEDOUT" || completed.signal === "SIGTERM";
+}
+
+function timedOutInvocationError(
+  label: string,
+  argv: string[],
+  timeoutMs: number,
+): Error {
+  return new Error(`${label} timed out after ${timeoutMs / 1000}s: ${argv.join(" ")}`);
+}
+
+function defaultRunner(
+  argv: string[],
+  cwd: string,
+  timeoutMs?: number | null,
+): InvocationResult {
   const [command, ...args] = argv;
   if (!command) {
     return { returncode: 1, stdout: "", stderr: "Missing command." };
@@ -1140,7 +1182,11 @@ function defaultRunner(argv: string[], cwd: string): InvocationResult {
     encoding: "utf-8",
     env: childProcessEnv(),
     stdio: ["ignore", "pipe", "pipe"],
+    ...(timeoutMs === undefined || timeoutMs === null ? {} : { timeout: timeoutMs }),
   });
+  if (timeoutMs !== undefined && timeoutMs !== null && spawnTimedOut(completed)) {
+    throw timedOutInvocationError("autoclanker invocation", argv, timeoutMs);
+  }
   if (completed.error) {
     return {
       returncode: completed.status ?? 1,
@@ -1159,7 +1205,20 @@ const GOALLOOP_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
 
 function goalloopInvocationFromSpawn(
   completed: SpawnSyncReturns<string>,
+  context?: { argv: string[]; timeoutMs: number | null | undefined },
 ): InvocationResult {
+  const contextTimeoutMs = context?.timeoutMs;
+  if (
+    contextTimeoutMs !== undefined &&
+    contextTimeoutMs !== null &&
+    spawnTimedOut(completed)
+  ) {
+    throw timedOutInvocationError(
+      "goalloop invocation",
+      context?.argv ?? [],
+      contextTimeoutMs,
+    );
+  }
   if (completed.error) {
     const code = (completed.error as NodeJS.ErrnoException).code;
     if (code === "ENOBUFS") {
@@ -1181,7 +1240,11 @@ function goalloopInvocationFromSpawn(
   };
 }
 
-function goalloopDefaultRunner(argv: string[], cwd: string): InvocationResult {
+function goalloopDefaultRunner(
+  argv: string[],
+  cwd: string,
+  timeoutMs?: number | null,
+): InvocationResult {
   const [command, ...args] = argv;
   if (!command) {
     return { returncode: 1, stdout: "", stderr: "Missing command." };
@@ -1193,8 +1256,16 @@ function goalloopDefaultRunner(argv: string[], cwd: string): InvocationResult {
       env: childProcessEnv(),
       maxBuffer: GOALLOOP_MAX_BUFFER_BYTES,
       stdio: ["ignore", "pipe", "pipe"],
+      ...(timeoutMs === undefined || timeoutMs === null ? {} : { timeout: timeoutMs }),
     }),
+    { argv, timeoutMs },
   );
+}
+
+function toolTimeoutMs(config: RuntimeConfig): number | null {
+  return config.executionPolicy.toolTimeoutSec === null
+    ? null
+    : config.executionPolicy.toolTimeoutSec * 1000;
 }
 
 function childProcessEnv(extraEnv?: Record<string, string>): NodeJS.ProcessEnv {
@@ -2195,7 +2266,7 @@ function invokeAutoclanker(options: {
   }
   let invocation: InvocationResult;
   try {
-    invocation = options.runner(argv, options.workspace);
+    invocation = options.runner(argv, options.workspace, toolTimeoutMs(options.config));
   } finally {
     if (options.extraEnv) {
       for (const [key, previous] of previousEnv) {
@@ -2243,7 +2314,10 @@ function invokeAutoclanker(options: {
 
 type GoalloopPayload = {
   argv?: unknown;
+  changed?: unknown;
   confirmed?: unknown;
+  contract?: unknown;
+  contract_digest?: unknown;
   converged?: unknown;
   error?: unknown;
   exitCode?: unknown;
@@ -2291,7 +2365,11 @@ function invokeGoalloop(options: {
     };
   }
   const argv = [...commandPrefix, "goalloop", ...options.args, "--root", options.root];
-  const invocation = options.runner(argv, options.workspace);
+  const invocation = options.runner(
+    argv,
+    options.workspace,
+    toolTimeoutMs(options.config),
+  );
   if (options.textOutput) {
     if (invocation.returncode !== 0) {
       throw new Error(goalloopFailureMessage(invocation));
@@ -2561,6 +2639,84 @@ function toolGoalloopAudit(
     return goalloopToolResult("goalloop_audit", root, result, { action });
   }
   throw new Error('action must be one of "prompt", "ingest", "status".');
+}
+
+function goalloopStatusContractDigest(status: GoalloopPayload): string | null {
+  const contract = status.contract;
+  if (contract === null || typeof contract !== "object" || Array.isArray(contract)) {
+    return null;
+  }
+  const digest = (contract as { digest?: unknown }).digest;
+  return typeof digest === "string" && digest.trim().length > 0 ? digest : null;
+}
+
+function toolGoalloopLock(
+  workspace: string,
+  payload: RuntimePayload,
+  runner: Runner,
+): JsonObject {
+  const { config, paths } = runtimeContext(workspace, payload);
+  const root = goalloopRootFor(workspace, payload);
+  const expectedDigest = requireNonEmptyString(
+    payload.expectedDigest,
+    "expectedDigest",
+  );
+  const pinFiles =
+    payload.pinFiles === undefined ? null : stringList(payload.pinFiles, "pinFiles");
+  const clearPins =
+    payload.clearPins === undefined
+      ? false
+      : coerceBool(payload.clearPins, "clearPins");
+  if (pinFiles !== null && clearPins) {
+    throw new Error("pinFiles and clearPins are mutually exclusive.");
+  }
+  if (pinFiles !== null && pinFiles.length === 0) {
+    throw new Error("pinFiles must not be empty; use clearPins to remove pins.");
+  }
+  const status = invokeGoalloop({
+    config,
+    workspace,
+    root,
+    args: ["status"],
+    runner,
+  });
+  if (status.mode === "deferred") {
+    return goalloopToolResult("goalloop_lock", root, status);
+  }
+  const currentDigest = goalloopStatusContractDigest(status);
+  if (currentDigest === null || currentDigest !== expectedDigest) {
+    // Mirrors the upstream preview-then-apply digest gate: a re-lock must
+    // echo the digest it intends to bless, so an agent cannot one-shot
+    // weaken-gates-then-relock without first reading the drifted contract
+    // through goalloop_status. This refusal is wrapper-side and never
+    // reaches the CLI, so the result carries no exitCode.
+    return goalloopToolResult("goalloop_lock", root, {
+      ok: false,
+      reason:
+        "digest mismatch — read goalloop_status and echo contract.digest " +
+        "to confirm an intentional re-lock",
+      expectedDigest,
+      currentDigest,
+    });
+  }
+  const args = ["lock"];
+  if (pinFiles !== null) {
+    args.push("--pin-files", ...pinFiles);
+  }
+  if (clearPins) {
+    args.push("--clear-pins");
+  }
+  const result = invokeGoalloop({ config, workspace, root, args, runner });
+  if (result.mode !== "deferred") {
+    appendHistory(paths.historyPath, {
+      event: "goalloop_lock",
+      changed: result.changed ?? null,
+      contractDigest: result.contract_digest ?? null,
+      ok: result.ok === true,
+      root,
+    });
+  }
+  return goalloopToolResult("goalloop_lock", root, result);
 }
 
 function canonicalizeIdeasPayload(options: {
@@ -2835,14 +2991,19 @@ function refreshUpstreamPreview(options: {
 function runEvalScript(
   path: string,
   workspace: string,
-  options?: { extraEnv?: Record<string, string> },
+  options?: { extraEnv?: Record<string, string>; timeoutMs?: number | null },
 ): JsonObject {
+  const timeoutMs = options?.timeoutMs;
   const completed = spawnSync(path, [], {
     cwd: workspace,
     encoding: "utf-8",
     env: childProcessEnv(options?.extraEnv),
     stdio: ["ignore", "pipe", "pipe"],
+    ...(timeoutMs === undefined || timeoutMs === null ? {} : { timeout: timeoutMs }),
   });
+  if (timeoutMs !== undefined && timeoutMs !== null && spawnTimedOut(completed)) {
+    throw timedOutInvocationError("autoclanker eval surface", [path], timeoutMs);
+  }
   if (completed.error || (completed.status ?? 0) !== 0) {
     throw new Error(
       (completed.stderr ?? "").trim() ||
@@ -6207,6 +6368,7 @@ function defaultExecutionPolicy(mode: ExecutionMode = "interactive"): ExecutionP
     targetWallTimeHours: null,
     minorRepairBudget: 3,
     selfDebugMinorIssues: mode !== "interactive",
+    toolTimeoutSec: DEFAULT_TOOL_TIMEOUT_SEC,
   };
 }
 
@@ -6227,6 +6389,10 @@ function executionPolicyValue(
   const rawMinorRepairBudget = mapping.minorRepairBudget ?? mapping.minor_repair_budget;
   const rawSelfDebugMinorIssues =
     mapping.selfDebugMinorIssues ?? mapping.self_debug_minor_issues;
+  // "in" rather than "??": an explicit toolTimeoutSec null must survive as
+  // null (unlimited) instead of collapsing to the bounded default.
+  const rawToolTimeoutSec =
+    "toolTimeoutSec" in mapping ? mapping.toolTimeoutSec : mapping.tool_timeout_sec;
   return {
     mode,
     clarificationPolicy:
@@ -6251,6 +6417,16 @@ function executionPolicyValue(
       rawSelfDebugMinorIssues === undefined || rawSelfDebugMinorIssues === null
         ? defaultPolicy.selfDebugMinorIssues
         : coerceBool(rawSelfDebugMinorIssues, `${fieldName}.selfDebugMinorIssues`),
+    // Unlike targetWallTimeHours, an explicit null is meaningful here: it
+    // opts a policy out of the invocation timeout entirely (legit long
+    // billed-live canonicalization or benchmark evals), while an absent
+    // field keeps the bounded default.
+    toolTimeoutSec:
+      rawToolTimeoutSec === undefined
+        ? defaultPolicy.toolTimeoutSec
+        : rawToolTimeoutSec === null
+          ? null
+          : positiveNumberValue(rawToolTimeoutSec, `${fieldName}.toolTimeoutSec`),
   };
 }
 
@@ -6260,7 +6436,8 @@ function executionPolicyEquals(left: ExecutionPolicy, right: ExecutionPolicy): b
     left.clarificationPolicy === right.clarificationPolicy &&
     left.targetWallTimeHours === right.targetWallTimeHours &&
     left.minorRepairBudget === right.minorRepairBudget &&
-    left.selfDebugMinorIssues === right.selfDebugMinorIssues
+    left.selfDebugMinorIssues === right.selfDebugMinorIssues &&
+    left.toolTimeoutSec === right.toolTimeoutSec
   );
 }
 
@@ -8633,6 +8810,7 @@ function toolIngestEval(
   const evalPayload = ensureEvalPayloadIncludesContract(
     normalizeEvalPayloadForSchema(
       runEvalScript(paths.evalPath, workspace, {
+        timeoutMs: toolTimeoutMs(config),
         extraEnv: {
           PI_AUTOCLANKER_UPSTREAM_SESSION_ID: upstreamContract.sessionId,
           PI_AUTOCLANKER_UPSTREAM_ERA_ID: upstreamContract.eraId,
@@ -9295,6 +9473,7 @@ function commandExport(
 
 export const __testHooks = {
   activeProposalMirrorEra,
+  defaultRunner,
   goalloopDefaultRunner,
   goalloopInvocationFromSpawn,
   appendDerivedViewTransitions,
@@ -9334,12 +9513,39 @@ export const __testHooks = {
   validateProposalsMirrorDocument,
 } as const;
 
+export type OperatorConfigOverrides = {
+  autoclankerBinary?: string;
+  autoclankerRepo?: string | null;
+  sessionRoot?: string;
+};
+
 export function dispatchTool(
   name: ToolName | string,
   payload?: Record<string, unknown> | null,
-  options?: { workspace?: string; runner?: Runner },
+  options?: {
+    workspace?: string;
+    runner?: Runner;
+    operatorOverrides?: OperatorConfigOverrides;
+  },
 ): JsonObject {
   const normalized = normalizedPayload(payload);
+  // Model-facing enforcement boundary: payload-level binary/repo/session-root
+  // overrides are ignored; only the operator channel may repoint the wrapper.
+  for (const key of OPERATOR_CONFIG_ONLY_KEYS) {
+    delete normalized[key];
+  }
+  const operatorOverrides = options?.operatorOverrides;
+  if (operatorOverrides) {
+    if (operatorOverrides.autoclankerBinary !== undefined) {
+      normalized.autoclankerBinary = operatorOverrides.autoclankerBinary;
+    }
+    if (operatorOverrides.autoclankerRepo !== undefined) {
+      normalized.autoclankerRepo = operatorOverrides.autoclankerRepo;
+    }
+    if (operatorOverrides.sessionRoot !== undefined) {
+      normalized.sessionRoot = operatorOverrides.sessionRoot;
+    }
+  }
   const workspace = resolveWorkspace(normalized, options?.workspace);
   const runner =
     options?.runner ??
@@ -9394,6 +9600,9 @@ export function dispatchTool(
   }
   if (name === "goalloop_audit") {
     return toolGoalloopAudit(workspace, normalized, runner);
+  }
+  if (name === "goalloop_lock") {
+    return toolGoalloopLock(workspace, normalized, runner);
   }
   throw new Error(`Unknown tool: ${name}`);
 }

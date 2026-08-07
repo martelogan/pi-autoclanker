@@ -188,6 +188,10 @@
     {
       "description": "Drive the adversarial audit phase: emit the auditor prompt, ingest triaged findings, or report convergence.",
       "name": "goalloop_audit"
+    },
+    {
+      "description": "Deliberately re-lock the goal-loop contract by echoing the current contract digest from goalloop_status, optionally pinning referent files into the locked contract.",
+      "name": "goalloop_lock"
     }
   ],
   "version": "0.1.0"
